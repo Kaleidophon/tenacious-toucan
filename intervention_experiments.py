@@ -2,22 +2,25 @@
 Run an LSTM language model with interventions.
 """
 
+# STD
 from argparse import ArgumentParser
 from collections import defaultdict
 
+# EXT
 import torch
 from torch.nn.functional import log_softmax
-
-from classifiers.diagnostic_classifier import DiagnosticClassifier
-from corpus import convert_to_labeled_corpus, read_gulordava_corpus
-from embeddings.eos import create_average_eos_representations
-from embeddings.initial import InitEmbs
-from interventions.weakly_supervised import (
+from lm_diagnoser.classifiers.dc_trainer import DCTrainer
+from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
+from lm_diagnoser.activations.initial import InitStates
+from lm_diagnoser.interventions.language_model import (
     LanguageModelInterventionMechanism, SubjectLanguageModelInterventionMechanism
 )
-from models.intervention_lstm import InterventionLSTM
-from models.import_model import import_model_from_json
-from typedefs.corpus import LabeledCorpus
+from lm_diagnoser.models.intervention_lstm import InterventionLSTM
+from lm_diagnoser.models.import_model import import_model_from_json
+from lm_diagnoser.typedefs.corpus import LabeledCorpus
+
+# PROJECT
+from corpus import read_gulordava_corpus
 
 
 def main():
@@ -31,18 +34,24 @@ def main():
     else:
         corpus = convert_to_labeled_corpus(config.corpus)
 
-    basic_model = import_model_from_json(config.model, model_class=InterventionLSTM)
-    subj_intervention_model = import_model_from_json(config.model, model_class=InterventionLSTM)
-    global_intervention_model = import_model_from_json(config.model, model_class=InterventionLSTM)
+    basic_model = import_model_from_json(
+        config.model, config.vocab, config.lm_module, model_class=InterventionLSTM
+    )
+    subj_intervention_model = import_model_from_json(
+        config.model, config.vocab, config.lm_module, model_class=InterventionLSTM
+    )
+    global_intervention_model = import_model_from_json(
+        config.model, config.vocab, config.lm_module, model_class=InterventionLSTM
+    )
 
     # Load classifiers and apply intervention mechanisms
     step_size = config.step_size
-    classifiers = {path: DiagnosticClassifier.load(path) for path in config.classifiers}
+    classifiers = {path: DCTrainer.load_classifier(path) for path in config.classifiers}
     subj_mechanism = SubjectLanguageModelInterventionMechanism(subj_intervention_model, classifiers, step_size)
     global_mechanism = LanguageModelInterventionMechanism(global_intervention_model, classifiers, step_size)
     subj_intervention_model = subj_mechanism.apply()
     global_intervention_model = global_mechanism.apply()
-    embeddings = InitEmbs(config.embeddings, basic_model)
+    init_states = InitStates(basic_model, config.init_states)
     #create_average_eos_representations(basic_model, corpus, "activations/data/extracted/gulordava/eos.pickle")
 
     # 1. Experiment: Replicate Gulordava findings
@@ -50,7 +59,7 @@ def main():
     #replicate_gulordava(basic_model, corpus, init_embs=activations)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
-    measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, embeddings)
+    measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
 
     # 3. Experiment: Check to what extend the accuracy of Diagnostic Classifiers increases after having interventions
     # on the subject position / on every position
@@ -63,7 +72,7 @@ def main():
 
 def replicate_gulordava(model: InterventionLSTM,
                         corpus: LabeledCorpus,
-                        init_embs: InitEmbs) -> None:
+                        init_states: InitStates) -> None:
     """
     Replicate the Language Model number prediction accuracy experiment from [1]. In this experiment, a language model
     is facing a sentence in which the main verb is presented in its singular and plural form, one of which is
@@ -94,7 +103,7 @@ def replicate_gulordava(model: InterventionLSTM,
         wrong_index = model.w2i[wrong_form]
 
         # Feed sentence into RNN
-        activations = init_embs.activations
+        activations = init_states.activations
 
         for pos, token in enumerate(sentence):
 
@@ -120,7 +129,7 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
                                     subj_intervention_model: InterventionLSTM,
                                     global_intervention_model: InterventionLSTM,
                                     corpus: LabeledCorpus,
-                                    init_embs: InitEmbs) -> None:
+                                    init_states: InitStates) -> None:
     """
     Check whether interventions - be it only on the subject position or all positions - influence the perplexity
     of the Language Model in a statistically significant way.
@@ -128,7 +137,7 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
     perplexities = defaultdict(list)
     w2i = basic_model.w2i  # Vocabulary is shared between models
     unk_index = basic_model.unk_idx
-    basic_activations, subj_activations, global_activations = init_embs.activations, init_embs.activations, init_embs.activations
+    basic_activations, subj_activations, global_activations = init_states.states, init_states.states, init_states.states
 
     print("Assessing influence of interventions on perplexities...")
     print("Gathering perplexity scores for corpus...")
