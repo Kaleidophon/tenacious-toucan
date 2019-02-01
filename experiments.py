@@ -19,6 +19,7 @@ from lm_diagnoser.models.import_model import import_model_from_json
 from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
 from lm_diagnoser.typedefs.corpus import LabeledCorpus
 from lm_diagnoser.config.setup import ConfigSetup
+from scipy.stats import shapiro, ttest_ind
 
 # PROJECT
 from corpus import read_gulordava_corpus
@@ -67,7 +68,7 @@ def main():
 
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
-    replicate_gulordava(basic_model, corpus, init_states=init_states)
+    #replicate_gulordava(basic_model, corpus, init_states=init_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
@@ -133,7 +134,7 @@ def replicate_gulordava(model: InterventionLSTM,
 
     print("")
     print(f"Original accuracy: {round(original_acc * 100, 1):.1f}")
-    print(f"Nonce accuracy: {round(nonce_acc * 100, 1):.1f}\n\n")
+    print(f"Nonce accuracy: {round(nonce_acc * 100, 1):.1f}")
 
 
 def measure_influence_on_perplexity(basic_model: InterventionLSTM,
@@ -150,7 +151,7 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
     unk_index = basic_model.unk_idx
     basic_activations, subj_activations, global_activations = init_states.states, init_states.states, init_states.states
 
-    print("Assessing influence of interventions on perplexities...")
+    print("\n\nAssessing influence of interventions on perplexities...")
     print("Gathering perplexity scores for corpus...")
 
     for sentence_id, sentence in corpus.items():
@@ -187,8 +188,16 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
         perplexities["subj"].append(subj_perplexity.detach().numpy()[0])
         perplexities["global"].append(global_perplexity.detach().numpy()[0])
 
-    # TODO: Test if distribution of perplexities in normally distributed
-    # TODO: Test if difference are statistically significant
+    print("Test whether perplexities are normally distributed...")
+    _, p_basic = shapiro(perplexities["basic"])
+    _, p_subj = shapiro(perplexities["subj"])
+    _, p_global = shapiro(perplexities["global"])
+    print(f"Basic: {p_basic:.2f} | Subj: {p_subj:.2f} | Global: {p_global:.2f}\n")
+
+    print("Test whether the difference in perplexity is stat. significant after interventions...")
+    _, p_basic_subj = ttest_ind(perplexities["basic"], perplexities["subj"], equal_var=False)
+    _, p_basic_global = ttest_ind(perplexities["basic"], perplexities["subj"], equal_var=False)
+    print(f"Basic - Subj: {p_basic_subj:.2f} | Basic - Global: {p_basic_global:.2f}\n\n")
 
 
 def init_argparser() -> ArgumentParser:
