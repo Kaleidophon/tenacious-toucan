@@ -2,8 +2,12 @@
 Read corpora that used in experiments.
 """
 
+# STD
+from typing import List
+
 # EXT
-from lm_diagnoser.typedefs.corpus import LabeledCorpus
+from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
+from lm_diagnoser.typedefs.corpus import LabeledCorpus, LabeledSentence
 
 
 def read_gulordava_corpus(corpus_dir: str) -> LabeledCorpus:

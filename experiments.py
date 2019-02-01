@@ -10,14 +10,15 @@ from collections import defaultdict
 import torch
 from torch.nn.functional import log_softmax
 from lm_diagnoser.classifiers.dc_trainer import DCTrainer
-from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
 from lm_diagnoser.activations.initial import InitStates
 from lm_diagnoser.interventions.language_model import (
     LanguageModelInterventionMechanism, SubjectLanguageModelInterventionMechanism
 )
 from lm_diagnoser.models.intervention_lstm import InterventionLSTM
 from lm_diagnoser.models.import_model import import_model_from_json
+from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
 from lm_diagnoser.typedefs.corpus import LabeledCorpus
+from lm_diagnoser.config.setup import ConfigSetup
 
 # PROJECT
 from corpus import read_gulordava_corpus
@@ -25,38 +26,48 @@ from corpus import read_gulordava_corpus
 
 def main():
     # Manage config
+    required_args = {'model', 'vocab', 'lm_module', 'corpus_path', 'classifiers'}
+    arg_groups = {
+        'model': {'model', 'vocab', 'lm_module', 'device'},
+        'corpus': {'corpus_path'},
+        'interventions': {'step_size', 'classifiers', 'init_states'},
+    }
     argparser = init_argparser()
-    config = argparser.parse_args()
+    config_object = ConfigSetup(argparser, required_args, arg_groups)
+    config_dict = config_object.config_dict
 
     # Load data: Corpus, models, diagnostic classifiers
-    if config.gulordava:
-        corpus = read_gulordava_corpus(config.corpus)
+    corpus_path = config_dict["corpus"]["corpus_path"]
+
+    if corpus_path.endswith(".pickle"):
+        corpus = convert_to_labeled_corpus(corpus_path)
     else:
-        corpus = convert_to_labeled_corpus(config.corpus)
+        corpus = read_gulordava_corpus(config_dict["corpus"]["corpus_path"])
 
     basic_model = import_model_from_json(
-        config.model, config.vocab, config.lm_module, model_class=InterventionLSTM
+        **config_dict["model"], model_class=InterventionLSTM
     )
     subj_intervention_model = import_model_from_json(
-        config.model, config.vocab, config.lm_module, model_class=InterventionLSTM
+        **config_dict["model"], model_class=InterventionLSTM
     )
     global_intervention_model = import_model_from_json(
-        config.model, config.vocab, config.lm_module, model_class=InterventionLSTM
+        **config_dict["model"], model_class=InterventionLSTM
     )
 
     # Load classifiers and apply intervention mechanisms
-    step_size = config.step_size
-    classifiers = {path: DCTrainer.load_classifier(path) for path in config.classifiers}
+    step_size = config_dict["interventions"]["step_size"]
+    classifier_paths = config_dict["interventions"]["classifiers"]
+    init_states_path = config_dict["interventions"]["init_states"]
+    classifiers = {path: DCTrainer.load_classifier(path) for path in classifier_paths}
     subj_mechanism = SubjectLanguageModelInterventionMechanism(subj_intervention_model, classifiers, step_size)
     global_mechanism = LanguageModelInterventionMechanism(global_intervention_model, classifiers, step_size)
     subj_intervention_model = subj_mechanism.apply()
     global_intervention_model = global_mechanism.apply()
-    init_states = InitStates(basic_model, config.init_states)
-    #create_average_eos_representations(basic_model, corpus, "activations/data/extracted/gulordava/eos.pickle")
+    init_states = InitStates(basic_model, init_states_path)
 
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
-    #replicate_gulordava(basic_model, corpus, init_embs=activations)
+    replicate_gulordava(basic_model, corpus, init_states=init_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
@@ -81,7 +92,7 @@ def replicate_gulordava(model: InterventionLSTM,
 
     [1] https://arxiv.org/pdf/1803.11138.pdf
     """
-    print("Replicating Gulordava Number Agreement experiment...")
+    print("\n\nReplicating Gulordava Number Agreement experiment...")
 
     # Calculate scores
     scores = {"original": [], "generated": []}
@@ -103,7 +114,7 @@ def replicate_gulordava(model: InterventionLSTM,
         wrong_index = model.w2i[wrong_form]
 
         # Feed sentence into RNN
-        activations = init_states.activations
+        activations = init_states.states
 
         for pos, token in enumerate(sentence):
 
@@ -122,7 +133,7 @@ def replicate_gulordava(model: InterventionLSTM,
 
     print("")
     print(f"Original accuracy: {round(original_acc * 100, 1):.1f}")
-    print(f"Nonce accuracy: {round(nonce_acc * 100, 1):.1f}")
+    print(f"Nonce accuracy: {round(nonce_acc * 100, 1):.1f}\n\n")
 
 
 def measure_influence_on_perplexity(basic_model: InterventionLSTM,
@@ -183,12 +194,18 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
 def init_argparser() -> ArgumentParser:
     parser = ArgumentParser()
 
-    parser.add_argument('--models', type=str, help='Location of json file with models setup')
-    parser.add_argument('--corpus', type=str, help='Location of corpus')
-    parser.add_argument('--gulordava', action="store_true", help="Flag to indicate whether the Gulordava corpus is used.")
-    parser.add_argument('--classifiers', nargs="+", help='Location of diagnostic classifiers')
-    parser.add_argument('--activations', type=str, help="Location of initial activations.")
-    parser.add_argument('--step_size', type=float, default=0.5, help="Step-size for weakly supervised interventions.")
+    from_config = parser.add_argument_group('From config file',
+                                            'Provide full experiment setup via config file')
+    from_config.add_argument('-c', '--config',
+                             help='Path to json file containing classification config.')
+
+    from_cmd = parser.add_argument_group('From commandline',
+                                         'Specify experiment setup via commandline arguments')
+    from_cmd.add_argument('--models', type=str, help='Location of json file with models setup')
+    from_cmd.add_argument('--corpus', type=str, help='Location of corpus')
+    from_cmd.add_argument('--classifiers', nargs="+", help='Location of diagnostic classifiers')
+    from_cmd.add_argument('--step_size', type=float, help="Step-size for weakly supervised interventions.")
+    from_cmd.add_argument('--init_states', type=float, help="Path to states to initialize the Language Model with.")
 
     return parser
 
