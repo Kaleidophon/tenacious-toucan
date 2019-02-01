@@ -1,5 +1,7 @@
 # Project-specific
-data/model/*.pt
+data/activations/*
+data/classifiers/*
+data/models/*
 
 
 # Byte-compiled / optimized / DLL files

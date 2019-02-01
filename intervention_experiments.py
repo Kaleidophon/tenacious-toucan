@@ -1,5 +1,5 @@
 """
-Run an LSTM language model with interventions.
+Run an LSTM language models with interventions.
 """
 
 # STD
@@ -28,7 +28,7 @@ def main():
     argparser = init_argparser()
     config = argparser.parse_args()
 
-    # Load data: Corpus, model, diagnostic classifiers
+    # Load data: Corpus, models, diagnostic classifiers
     if config.gulordava:
         corpus = read_gulordava_corpus(config.corpus)
     else:
@@ -74,7 +74,7 @@ def replicate_gulordava(model: InterventionLSTM,
                         corpus: LabeledCorpus,
                         init_states: InitStates) -> None:
     """
-    Replicate the Language Model number prediction accuracy experiment from [1]. In this experiment, a language model
+    Replicate the Language Model number prediction accuracy experiment from [1]. In this experiment, a language models
     is facing a sentence in which the main verb is presented in its singular and plural form, one of which is
     ungrammatical given the numerosity of the sentence's subject. The LM is then expected to assign a higher probability
     to the grammatical sentence. Finally, the percentage of cases in which this was the case is reported.
@@ -183,7 +183,7 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
 def init_argparser() -> ArgumentParser:
     parser = ArgumentParser()
 
-    parser.add_argument('--model', type=str, help='Location of json file with model setup')
+    parser.add_argument('--models', type=str, help='Location of json file with models setup')
     parser.add_argument('--corpus', type=str, help='Location of corpus')
     parser.add_argument('--gulordava', action="store_true", help="Flag to indicate whether the Gulordava corpus is used.")
     parser.add_argument('--classifiers', nargs="+", help='Location of diagnostic classifiers')
