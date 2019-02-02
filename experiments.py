@@ -68,10 +68,12 @@ def main():
 
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
-    #replicate_gulordava(basic_model, corpus, init_states=init_states)
+    print("\n\nReplicating Gulordava Number Agreement experiment...")
+    #measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
-    measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
+    print("\n\nAssessing influence of interventions on perplexities...")
+    #measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
 
     # 3. Experiment: Check to what extend the accuracy of Diagnostic Classifiers increases after having interventions
     # on the subject position / on every position
@@ -79,12 +81,16 @@ def main():
 
     # 4. Experiment: Repeat the 1. Experiment but measure the influence of interventions on the subject position /
     # on every position
-    # TODO
+    print("\n\nReplicating Gulordava Number Agreement experiment with interventions...")
+    print("With interventions at the subject position...")
+    measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states)
+    print("With interventions at every time step...")
+    measure_num_agreement_accuracy(global_intervention_model, corpus, init_states=init_states)
 
 
-def replicate_gulordava(model: InterventionLSTM,
-                        corpus: LabeledCorpus,
-                        init_states: InitStates) -> None:
+def measure_num_agreement_accuracy(model: InterventionLSTM,
+                                   corpus: LabeledCorpus,
+                                   init_states: InitStates) -> None:
     """
     Replicate the Language Model number prediction accuracy experiment from [1]. In this experiment, a language models
     is facing a sentence in which the main verb is presented in its singular and plural form, one of which is
@@ -93,8 +99,6 @@ def replicate_gulordava(model: InterventionLSTM,
 
     [1] https://arxiv.org/pdf/1803.11138.pdf
     """
-    print("\n\nReplicating Gulordava Number Agreement experiment...")
-
     # Calculate scores
     scores = {"original": [], "generated": []}
 
@@ -105,6 +109,8 @@ def replicate_gulordava(model: InterventionLSTM,
 
         # Get necessary information
         sentence = labelled_sentence.sen
+        labels = labelled_sentence.labels
+        subj_pos = labelled_sentence.misc_info["subj_pos"]
         target_pos = labelled_sentence.misc_info["verb_pos"]
         right_form = labelled_sentence.misc_info["right_form"]
         wrong_form = labelled_sentence.misc_info["wrong_form"]
@@ -117,9 +123,9 @@ def replicate_gulordava(model: InterventionLSTM,
         # Feed sentence into RNN
         activations = init_states.states
 
-        for pos, token in enumerate(sentence):
+        for pos, (token, label) in enumerate(zip(sentence, labels)):
 
-            out, activations = model.forward(token, activations)
+            out, activations = model.forward(token, activations, label=label, is_subj_pos=(pos == subj_pos))
 
             # After processing the sentence up to the verb in question, check which of the verb forms is assigned
             # a higher probability
@@ -151,7 +157,6 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
     unk_index = basic_model.unk_idx
     basic_activations, subj_activations, global_activations = init_states.states, init_states.states, init_states.states
 
-    print("\n\nAssessing influence of interventions on perplexities...")
     print("Gathering perplexity scores for corpus...")
 
     for sentence_id, sentence in corpus.items():
