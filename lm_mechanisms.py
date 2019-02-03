@@ -30,6 +30,8 @@ class LanguageModelMechanism(WeaklySupervisedMechanism):
     def select_diagnostic_classifier(self,
                                      inp: str,
                                      prev_activations: FullActivationDict,
+                                     layer: str,
+                                     activation_type: str,
                                      **additional: Dict):
         """
         Select the diagnostic classifier trained on the activations of the topmost layer.
@@ -40,6 +42,10 @@ class LanguageModelMechanism(WeaklySupervisedMechanism):
             Current input token.
         prev_activations: FullActivationDict
             Activations of the previous time step.
+        layer: str
+            Identifier for current layer the intervention is being conducted on.
+        activation_type: str
+            Identifier for type of intervention the intervention is being conducted on.
         additional: dict
             Dictionary of additional information delivered via keyword arguments.
 
@@ -49,7 +55,7 @@ class LanguageModelMechanism(WeaklySupervisedMechanism):
             Selected diagnostic classifier.
         """
         # Choose the classifier trained on topmost layer activations
-        return self.diagnostic_classifiers[self.topmost_layer]
+        return self.diagnostic_classifiers[layer][activation_type]
 
     @overrides
     def dc_trigger_func(self,

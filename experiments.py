@@ -11,9 +11,6 @@ import torch
 from torch.nn.functional import log_softmax
 from lm_diagnoser.classifiers.dc_trainer import DCTrainer
 from lm_diagnoser.activations.initial import InitStates
-from lm_diagnoser.interventions.language_model import (
-    LanguageModelInterventionMechanism, SubjectLanguageModelInterventionMechanism
-)
 from lm_diagnoser.models.intervention_lstm import InterventionLSTM
 from lm_diagnoser.models.import_model import import_model_from_json
 from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
@@ -23,6 +20,7 @@ from scipy.stats import shapiro, ttest_ind
 
 # PROJECT
 from corpus import read_gulordava_corpus
+from lm_mechanisms import LanguageModelMechanism, SubjectLanguageModelMechanism
 
 
 def main():
@@ -31,7 +29,7 @@ def main():
     arg_groups = {
         'model': {'model', 'vocab', 'lm_module', 'device'},
         'corpus': {'corpus_path'},
-        'interventions': {'step_size', 'classifiers', 'init_states'},
+        'interventions': {'step_size', 'classifiers', 'init_states', 'intervention_points'},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -59,9 +57,10 @@ def main():
     step_size = config_dict["interventions"]["step_size"]
     classifier_paths = config_dict["interventions"]["classifiers"]
     init_states_path = config_dict["interventions"]["init_states"]
+    intervention_points = config_dict["interventions"]["intervention_points"]
     classifiers = {path: DCTrainer.load_classifier(path) for path in classifier_paths}
-    subj_mechanism = SubjectLanguageModelInterventionMechanism(subj_intervention_model, classifiers, step_size)
-    global_mechanism = LanguageModelInterventionMechanism(global_intervention_model, classifiers, step_size)
+    subj_mechanism = SubjectLanguageModelMechanism(subj_intervention_model, classifiers, intervention_points, step_size)
+    global_mechanism = LanguageModelMechanism(global_intervention_model, classifiers, intervention_points, step_size)
     subj_intervention_model = subj_mechanism.apply()
     global_intervention_model = global_mechanism.apply()
     init_states = InitStates(basic_model, init_states_path)

@@ -3,8 +3,12 @@
   "vocab": "data/models/gulordava/vocab.txt",
   "lm_module": "data/models/gulordava/",
   "corpus_path": "data/corpora/generated/",
-  "classifiers": ["data/classifiers/gulordava/models/hx_l0.pickle", "data/classifiers/gulordava/models/hx_l1.pickle"],
-  "activation_names": ["hx0", "hx1"],
+  "classifiers": ["data/classifiers/gulordava/models/hx_l0.pickle",
+                  "data/classifiers/gulordava/models/hx_l1.pickle",
+                  "data/classifiers/gulordava/models/cx_l0.pickle",
+                  "data/classifiers/gulordava/models/cx_l1.pickle"],
+  "activation_names": ["hx0", "hx1", "cx0", "cx1"],
+  "intervention_points": ["hx_l0", "hx_l1", "cx_l0", "cx_l1"],
   "step_size": 0.5,
   "init_states": "data/activations/gulordava/avg_eos.pickle"
 }
