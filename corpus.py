@@ -65,10 +65,10 @@ def read_gulordava_corpus(corpus_dir: str) -> LabeledCorpus:
             "type": type_
         }
 
-        labelled_sentence = LabeledSentence(
-            sentence, labels=[0 if correct_number == "sing" else 1] * len(sentence), misc_info=misc_info
-        )
-        labelled_sentence.validate()
+        labelled_sentence = {
+            "sen": sentence, "labels": [0 if correct_number == "sing" else 1] * len(sentence),
+            "misc_info": misc_info
+        }
         labelled_corpus[i] = labelled_sentence
 
     return labelled_corpus

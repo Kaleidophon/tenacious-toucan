@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 from lm_diagnoser.config.setup import ConfigSetup
 from lm_diagnoser.extractors.base_extractor import Extractor
 from lm_diagnoser.models.language_model import LanguageModel
-from lm_diagnoser.typedefs.corpus import LabeledCorpus
+from lm_diagnoser.typedefs.corpus import LabeledCorpus, LabeledSentence
 from lm_diagnoser.models.import_model import import_model_from_json
 from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
 
@@ -58,6 +58,15 @@ def init_argparser() -> ArgumentParser:
     return parser
 
 
+def verb_selection_func(pos: int,
+                        token: str,
+                        sentence: LabeledSentence):
+    """
+    Select activations only when they occur on the verb's position.
+    """
+    return pos == sentence.misc_info["verb_pos"]
+
+
 if __name__ == "__main__":
     required_args = {'model', 'vocab', 'lm_module', 'corpus_path', 'activation_names', 'output_dir'}
     arg_groups = {
@@ -74,5 +83,6 @@ if __name__ == "__main__":
     model: LanguageModel = import_model_from_json(**config_dict['model'])
     corpus: LabeledCorpus = convert_to_labeled_corpus(**config_dict['corpus'])
 
-    extractor = Extractor(model, corpus, **config_dict['init_extract'])
+    extractor = Extractor(model, corpus, **config_dict['init_extract'], selection_func=verb_selection_func)
     extractor.extract(**config_dict['extract'])
+    extractor.extract_average_eos_activations()
