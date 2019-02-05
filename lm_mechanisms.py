@@ -10,8 +10,8 @@ from torch import Tensor
 from torch.nn import NLLLoss
 from torch.nn.modules.loss import _Loss
 
-from lm_diagnoser.interventions.weakly_supervised import WeaklySupervisedMechanism
-from lm_diagnoser.typedefs.models import FullActivationDict
+from rnnalyse.interventions.weakly_supervised import WeaklySupervisedMechanism
+from rnnalyse.typedefs.models import FullActivationDict
 
 
 class LanguageModelMechanism(WeaklySupervisedMechanism):

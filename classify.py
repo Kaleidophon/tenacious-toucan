@@ -7,8 +7,8 @@ https://github.com/dieuwkehupkes/diagnosing_lms/tree/interventions.
 from argparse import ArgumentParser
 
 # EXT
-from lm_diagnoser.classifiers.dc_trainer import DCTrainer
-from lm_diagnoser.config.setup import ConfigSetup
+from rnnalyse.classifiers.dc_trainer import DCTrainer
+from rnnalyse.config.setup import ConfigSetup
 
 
 def init_argparser() -> ArgumentParser:

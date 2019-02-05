@@ -9,13 +9,13 @@ from collections import defaultdict
 # EXT
 import torch
 from torch.nn.functional import log_softmax
-from lm_diagnoser.classifiers.dc_trainer import DCTrainer
-from lm_diagnoser.activations.initial import InitStates
-from lm_diagnoser.models.intervention_lstm import InterventionLSTM
-from lm_diagnoser.models.import_model import import_model_from_json
-from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
-from lm_diagnoser.typedefs.corpus import LabeledCorpus
-from lm_diagnoser.config.setup import ConfigSetup
+from rnnalyse.classifiers.dc_trainer import DCTrainer
+from rnnalyse.activations.initial import InitStates
+from rnnalyse.models.intervention_lstm import InterventionLSTM
+from rnnalyse.models.import_model import import_model_from_json
+from rnnalyse.corpora.import_corpus import convert_to_labeled_corpus
+from rnnalyse.typedefs.corpus import LabeledCorpus
+from rnnalyse.config.setup import ConfigSetup
 from scipy.stats import shapiro, ttest_ind
 
 # PROJECT

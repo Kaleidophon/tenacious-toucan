@@ -2,7 +2,7 @@
   "model": "data/models/gulordava/model.pt",
   "vocab": "data/models/gulordava/vocab.txt",
   "lm_module": "data/models/gulordava/",
-  "corpus_path": "data/corpora/generated/",
+  "corpus_path": "data/corpora/labeled/num_agreement.pickle",
   "classifiers": ["data/classifiers/gulordava/models/hx_l0.pickle",
                   "data/classifiers/gulordava/models/hx_l1.pickle",
                   "data/classifiers/gulordava/models/cx_l0.pickle",

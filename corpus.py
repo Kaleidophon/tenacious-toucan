@@ -66,8 +66,7 @@ def read_gulordava_corpus(corpus_dir: str) -> LabeledCorpus:
         }
 
         labelled_sentence = {
-            "sen": sentence, "labels": [0 if correct_number == "sing" else 1] * len(sentence),
-            "misc_info": misc_info
+            "sen": sentence, "labels": [0 if correct_number == "sing" else 1] * len(sentence), **misc_info
         }
         labelled_corpus[i] = labelled_sentence
 

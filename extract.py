@@ -7,12 +7,12 @@ https://github.com/dieuwkehupkes/diagnosing_lms/tree/interventions.
 from argparse import ArgumentParser
 
 # EXT
-from lm_diagnoser.config.setup import ConfigSetup
-from lm_diagnoser.extractors.base_extractor import Extractor
-from lm_diagnoser.models.language_model import LanguageModel
-from lm_diagnoser.typedefs.corpus import LabeledCorpus, LabeledSentence
-from lm_diagnoser.models.import_model import import_model_from_json
-from lm_diagnoser.corpora.import_corpus import convert_to_labeled_corpus
+from rnnalyse.config.setup import ConfigSetup
+from rnnalyse.extractors.base_extractor import Extractor
+from rnnalyse.models.language_model import LanguageModel
+from rnnalyse.typedefs.corpus import LabeledCorpus, LabeledSentence
+from rnnalyse.models.import_model import import_model_from_json
+from rnnalyse.corpora.import_corpus import convert_to_labeled_corpus
 
 
 def init_argparser() -> ArgumentParser:
@@ -58,13 +58,13 @@ def init_argparser() -> ArgumentParser:
     return parser
 
 
-def verb_selection_func(pos: int,
+def subj_selection_func(pos: int,
                         token: str,
                         sentence: LabeledSentence):
     """
-    Select activations only when they occur on the verb's position.
+    Select activations only when they occur on the subject's position.
     """
-    return pos == sentence.misc_info["verb_pos"]
+    return pos == sentence.misc_info["subj_pos"]
 
 
 if __name__ == "__main__":
@@ -83,6 +83,6 @@ if __name__ == "__main__":
     model: LanguageModel = import_model_from_json(**config_dict['model'])
     corpus: LabeledCorpus = convert_to_labeled_corpus(**config_dict['corpus'])
 
-    extractor = Extractor(model, corpus, **config_dict['init_extract'], selection_func=verb_selection_func)
-    extractor.extract(**config_dict['extract'])
+    extractor = Extractor(model, corpus, **config_dict['init_extract'])
+    extractor.extract(**config_dict['extract'], selection_func=subj_selection_func)
     extractor.extract_average_eos_activations()
