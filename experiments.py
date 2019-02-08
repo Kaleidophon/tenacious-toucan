@@ -19,7 +19,7 @@ from rnnalyse.config.setup import ConfigSetup
 from scipy.stats import shapiro, ttest_ind
 
 # PROJECT
-from corpus import read_gulordava_corpus
+from corpora import read_gulordava_corpus
 from lm_mechanisms import LanguageModelMechanism, SubjectLanguageModelMechanism
 
 
