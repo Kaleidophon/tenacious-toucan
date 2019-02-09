@@ -68,11 +68,11 @@ def main():
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
     print("\n\nReplicating Gulordava Number Agreement experiment...")
-    #measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states)
+    measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     print("\n\nAssessing influence of interventions on perplexities...")
-    #measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
+    measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
 
     # 3. Experiment: Check to what extend the accuracy of Diagnostic Classifiers increases after having interventions
     # on the subject position / on every position
