@@ -3,7 +3,7 @@ Defining intervention mechanisms especially for language models.
 """
 
 # STD
-from typing import Dict
+from typing import Dict, List, Callable
 
 # EXT
 import torch
@@ -13,6 +13,8 @@ from torch.nn import NLLLoss
 from torch.nn.modules.loss import _Loss
 from rnnalyse.interventions.weakly_supervised import WeaklySupervisedMechanism
 from rnnalyse.typedefs.models import FullActivationDict
+from rnnalyse.typedefs.interventions import DiagnosticClassifierDict
+from rnnalyse.models.forward_lstm import ForwardLSTM
 
 
 class LanguageModelMechanism(WeaklySupervisedMechanism):
@@ -27,6 +29,18 @@ class LanguageModelMechanism(WeaklySupervisedMechanism):
     [1] http://aclweb.org/anthology/W18-5426
     [2] https://www.jair.org/index.php/jair/article/view/11196/26408
     """
+    # TODO: Move this extra arg into WeaklySupervisedMechanism
+    def __init__(self,
+                 model: ForwardLSTM,
+                 diagnostic_classifiers: DiagnosticClassifierDict,
+                 intervention_points: List[str],
+                 step_size: float,
+                 trigger_func: Callable = None,
+                 masking: bool = True):
+
+        super().__init__(model, diagnostic_classifiers, intervention_points, step_size, trigger_func)
+        self.masking = masking
+
     @overrides
     def select_diagnostic_classifier(self,
                                      inp: str,
@@ -86,11 +100,14 @@ class LanguageModelMechanism(WeaklySupervisedMechanism):
         wrong_predictions: Tensor
             Binary mask indicating for which batch instances an intervention should be conducted.
         """
-        label = additional["label"]
-        wrong_predictions = torch.abs(prediction - label) >= 0.5
-        wrong_predictions = wrong_predictions.float()
+        if self.masking:
+            label = additional["label"]
+            mask = torch.abs(prediction - label) >= 0.5
+            mask = mask.float()
+        else:
+            mask = torch.ones(prediction.shape)
 
-        return wrong_predictions
+        return mask
 
     @overrides
     def diagnostic_classifier_loss(self,
@@ -153,10 +170,16 @@ class SubjectLanguageModelMechanism(LanguageModelMechanism):
         wrong_predictions: Tensor
             Binary mask indicating for which batch instances an intervention should be conducted.
         """
-        label = additional["label"]
         is_subject_pos = additional["is_subj_pos"]
-        mask = 0 if not is_subject_pos else 1
-        wrong_predictions = torch.abs(prediction - label) >= 0.5
-        wrong_predictions = wrong_predictions.float() * mask
 
-        return wrong_predictions
+        if self.masking:
+            label = additional["label"]
+            mask = torch.abs(prediction - label) >= 0.5
+            mask = mask.float()
+        else:
+            mask = torch.ones(prediction.shape)
+
+        subject_mask = 0 if not is_subject_pos else 1
+        mask = mask.float() * subject_mask
+
+        return mask

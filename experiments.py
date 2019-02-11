@@ -29,7 +29,7 @@ def main():
     arg_groups = {
         'model': {'model', 'vocab', 'lm_module', 'device'},
         'corpus': {'corpus_path'},
-        'interventions': {'step_size', 'classifiers', 'init_states', 'intervention_points'},
+        'interventions': {'step_size', 'classifiers', 'init_states', 'intervention_points', 'masking'},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -58,9 +58,14 @@ def main():
     classifier_paths = config_dict["interventions"]["classifiers"]
     init_states_path = config_dict["interventions"]["init_states"]
     intervention_points = config_dict["interventions"]["intervention_points"]
+    masking = config_dict["interventions"]["masking"]
     classifiers = {path: DCTrainer.load_classifier(path) for path in classifier_paths}
-    subj_mechanism = SubjectLanguageModelMechanism(subj_intervention_model, classifiers, intervention_points, step_size)
-    global_mechanism = LanguageModelMechanism(global_intervention_model, classifiers, intervention_points, step_size)
+    subj_mechanism = SubjectLanguageModelMechanism(
+        subj_intervention_model, classifiers, intervention_points, step_size, masking=masking
+    )
+    global_mechanism = LanguageModelMechanism(
+        global_intervention_model, classifiers, intervention_points, step_size, masking=masking
+    )
     subj_intervention_model = subj_mechanism.apply()
     global_intervention_model = global_mechanism.apply()
     init_states = InitStates(basic_model, init_states_path)
@@ -68,11 +73,11 @@ def main():
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
     print("\n\nReplicating Gulordava Number Agreement experiment...")
-    measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states)
+    #measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     print("\n\nAssessing influence of interventions on perplexities...")
-    measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
+    #measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
 
     # 3. Experiment: Check to what extend the accuracy of Diagnostic Classifiers increases after having interventions
     # on the subject position / on every position
@@ -219,6 +224,9 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument('--classifiers', nargs="+", help='Location of diagnostic classifiers')
     from_cmd.add_argument('--step_size', type=float, help="Step-size for weakly supervised interventions.")
     from_cmd.add_argument('--init_states', type=float, help="Path to states to initialize the Language Model with.")
+    from_cmd.add_argument('--masking', action="store_true",
+                          help="Force interventions ONLY where the prediction of the Diagnostic Classifier is wrong "
+                               "(default: Conduct intervention anywhere, even if prediction is right.")
 
     return parser
 

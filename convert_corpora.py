@@ -9,13 +9,13 @@ from corpora import read_gulordava_corpus, read_giulianelli_corpus
 # Convert Gulordava corpus
 
 print("Converting Gulordava corpus...")
-#GULORDAVA_CORPUS_DIR = "./data/corpora/generated"
-#GULORDAVA_SAVE_PATH = "./data/corpora/labeled/num_agreement.pickle"
+GULORDAVA_CORPUS_DIR = "./data/corpora/generated"
+GULORDAVA_SAVE_PATH = "./data/corpora/labeled/num_agreement.pickle"
 
-#gulordava_corpus = read_gulordava_corpus(GULORDAVA_CORPUS_DIR)
+gulordava_corpus = read_gulordava_corpus(GULORDAVA_CORPUS_DIR)
 
-#with open(GULORDAVA_SAVE_PATH, 'wb') as file:
-#    pickle.dump(gulordava_corpus, file)
+with open(GULORDAVA_SAVE_PATH, 'wb') as file:
+    pickle.dump(gulordava_corpus, file)
 
 # Convert Giulianelli corpus
 
