@@ -28,7 +28,7 @@ def main():
     required_args = {'model', 'vocab', 'lm_module', 'corpus_path', 'classifiers'}
     arg_groups = {
         'model': {'model', 'vocab', 'lm_module', 'device'},
-        'corpus': {'corpus_path'},
+        'corpus': {'corpus_path', 'reset_states'},
         'interventions': {'step_size', 'classifiers', 'init_states', 'intervention_points', 'masking'},
     }
     argparser = init_argparser()
@@ -59,6 +59,7 @@ def main():
     init_states_path = config_dict["interventions"]["init_states"]
     intervention_points = config_dict["interventions"]["intervention_points"]
     masking = config_dict["interventions"]["masking"]
+    reset_states = config_dict["corpus"]["reset_states"]
     classifiers = {path: DCTrainer.load_classifier(path) for path in classifier_paths}
     subj_mechanism = SubjectLanguageModelMechanism(
         subj_intervention_model, classifiers, intervention_points, step_size, masking=masking
@@ -73,7 +74,7 @@ def main():
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
     print("\n\nReplicating Gulordava Number Agreement experiment...")
-    #measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states)
+    measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states, reset_states=reset_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     print("\n\nAssessing influence of interventions on perplexities...")
@@ -87,14 +88,15 @@ def main():
     # on every position
     print("\n\nReplicating Gulordava Number Agreement experiment with interventions...")
     print("With interventions at the subject position...")
-    measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states)
+    #measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
     print("With interventions at every time step...")
-    measure_num_agreement_accuracy(global_intervention_model, corpus, init_states=init_states)
+    #measure_num_agreement_accuracy(global_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
 
 
 def measure_num_agreement_accuracy(model: InterventionLSTM,
                                    corpus: LabeledCorpus,
-                                   init_states: InitStates) -> None:
+                                   init_states: InitStates,
+                                   reset_states: bool = True) -> None:
     """
     Replicate the Language Model number prediction accuracy experiment from [1]. In this experiment, a language models
     is facing a sentence in which the main verb is presented in its singular and plural form, one of which is
@@ -106,7 +108,8 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
     # Calculate scores
     scores = {"original": [], "generated": []}
 
-    for i, (sentence_id, labelled_sentence) in enumerate(corpus.items()):
+    for i in range(len(corpus)):
+        labelled_sentence = corpus[i]
 
         if i % 5 == 0:
             print(f"\rProcessing sentence #{i+1}...", end="", flush=True)
@@ -125,7 +128,11 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
         wrong_index = model.w2i[wrong_form]
 
         # Feed sentence into RNN
-        activations = init_states.states
+        # If states are not reset after every sentence, just initialize them in the beginning and then carry on
+        # with the activations from the previous sentence. This has the side effect of making the accuracy on this task
+        # dependent on the order of sentences inside the corpus
+        if reset_states or i == 0:
+            activations = init_states.states
 
         for pos, (token, label) in enumerate(zip(sentence, labels)):
 
@@ -163,7 +170,8 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
 
     print("Gathering perplexity scores for corpus...")
 
-    for sentence_id, sentence in corpus.items():
+    for sentence_id in range(len(corpus)):
+        sentence = corpus[sentence_id]
 
         if sentence_id % 5 == 0:
             print(f"\rProcessing sentence #{sentence_id+1}...", end="", flush=True)
@@ -224,9 +232,12 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument('--classifiers', nargs="+", help='Location of diagnostic classifiers')
     from_cmd.add_argument('--step_size', type=float, help="Step-size for weakly supervised interventions.")
     from_cmd.add_argument('--init_states', type=float, help="Path to states to initialize the Language Model with.")
-    from_cmd.add_argument('--masking', action="store_true",
+    from_cmd.add_argument('--masking', action="store_true", default=None,
                           help="Force interventions ONLY where the prediction of the Diagnostic Classifier is wrong "
                                "(default: Conduct intervention anywhere, even if prediction is right.")
+    from_cmd.add_argument('--reset_states', action="store_true", default=None,
+                          help="Indicate whether hidden activations should be reset after every sentence. Not resetting"
+                               "them results in a performance that is dependent on the order of the corpus.")
 
     return parser
 

@@ -58,13 +58,14 @@ def init_argparser() -> ArgumentParser:
     return parser
 
 
-def subj_selection_func(pos: int,
-                        token: str,
-                        sentence: LabeledSentence):
-    """
-    Select activations only when they occur on the subject's position.
-    """
+def subj_selection_func(pos: int, token: str, sentence: LabeledSentence):
+    """ Select activations only when they occur on the subject's position. """
     return pos == sentence.misc_info["subj_pos"]
+
+
+def pos_4_selection_func(pos: int, token: str, sentence: LabeledSentence):
+    """ Select activations only on position 4. """
+    return pos == 4
 
 
 if __name__ == "__main__":
@@ -84,5 +85,5 @@ if __name__ == "__main__":
     corpus: LabeledCorpus = convert_to_labeled_corpus(**config_dict['corpus'])
 
     extractor = Extractor(model, corpus, **config_dict['init_extract'])
-    extractor.extract(**config_dict['extract'], selection_func=subj_selection_func)
+    extractor.extract(**config_dict['extract'])
     extractor.extract_average_eos_activations(print_every=config_dict['extract']['print_every'])
