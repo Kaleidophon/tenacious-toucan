@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 from collections import defaultdict
 
 # EXT
+import numpy as np
 import torch
 from torch.nn.functional import log_softmax
 from rnnalyse.classifiers.dc_trainer import DCTrainer
@@ -16,7 +17,7 @@ from rnnalyse.models.import_model import import_model_from_json
 from rnnalyse.corpora.import_corpus import convert_to_labeled_corpus
 from rnnalyse.typedefs.corpus import LabeledCorpus
 from rnnalyse.config.setup import ConfigSetup
-from scipy.stats import shapiro, ttest_ind
+from scipy.stats import shapiro, ttest_ind, mannwhitneyu
 
 # PROJECT
 from corpora import read_gulordava_corpus
@@ -79,7 +80,7 @@ def main():
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     print("\n\nAssessing influence of interventions on perplexities...")
-    #measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
+    measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
 
     # 3. Experiment: Check to what extend the accuracy of Diagnostic Classifiers increases after having interventions
     # on the subject position / on every position
@@ -89,7 +90,7 @@ def main():
     # on every position
     print("\n\nReplicating Gulordava Number Agreement experiment with interventions...")
     print("With interventions at the subject position...")
-    measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
+    #measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
     print("With interventions at every time step...")
     #measure_num_agreement_accuracy(global_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
 
@@ -217,9 +218,21 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
     _, p_global = shapiro(perplexities["global"])
     print(f"Basic: {p_basic:.2f} | Subj: {p_subj:.2f} | Global: {p_global:.2f}\n")
 
+    # If the perplexity values are normally distributed, we can use a two-tailed Student's t-test for significance
+    # testing. Otherwise use the Mann-Whitney-U test, which doesn't rely on this assumption.
+    test_func = ttest_ind if (np.array([p_basic, p_subj, p_global]) <= 0.05).all() else mannwhitneyu
+    print(f"Using {test_func.__name__} as significance test...")
+
+    # Quick and dirty wrapper to call the test function with additional kwargs
+    def _test_func_wrapper(test_func, *args):
+        if test_func == ttest_ind:
+            return test_func(*args, equal_var=False)
+        elif test_func == mannwhitneyu:
+            return test_func(*args, alternative="two-sided")
+
     print("Test whether the difference in perplexity is stat. significant after interventions...")
-    _, p_basic_subj = ttest_ind(perplexities["basic"], perplexities["subj"], equal_var=False)
-    _, p_basic_global = ttest_ind(perplexities["basic"], perplexities["subj"], equal_var=False)
+    _, p_basic_subj = _test_func_wrapper(test_func, perplexities["basic"], perplexities["subj"])
+    _, p_basic_global = _test_func_wrapper(test_func, perplexities["basic"], perplexities["subj"])
     print(f"Basic - Subj: {p_basic_subj:.2f} | Basic - Global: {p_basic_global:.2f}\n\n")
 
 
