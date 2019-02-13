@@ -29,7 +29,7 @@ def main():
     arg_groups = {
         'model': {'model', 'vocab', 'lm_module', 'device'},
         'corpus': {'corpus_path', 'reset_states'},
-        'interventions': {'step_size', 'classifiers', 'init_states', 'intervention_points', 'masking'},
+        'interventions': {'step_size', 'classifiers', 'init_states', 'intervention_points', 'masking', 'redecode'},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -59,13 +59,14 @@ def main():
     init_states_path = config_dict["interventions"]["init_states"]
     intervention_points = config_dict["interventions"]["intervention_points"]
     masking = config_dict["interventions"]["masking"]
+    redecode = config_dict["interventions"]["masking"]
     reset_states = config_dict["corpus"]["reset_states"]
     classifiers = {path: DCTrainer.load_classifier(path) for path in classifier_paths}
     subj_mechanism = SubjectLanguageModelMechanism(
-        subj_intervention_model, classifiers, intervention_points, step_size, masking=masking
+        subj_intervention_model, classifiers, intervention_points, step_size, masking=masking, redecode=redecode
     )
     global_mechanism = LanguageModelMechanism(
-        global_intervention_model, classifiers, intervention_points, step_size, masking=masking
+        global_intervention_model, classifiers, intervention_points, step_size, masking=masking, redecode=redecode
     )
     subj_intervention_model = subj_mechanism.apply()
     global_intervention_model = global_mechanism.apply()
@@ -74,7 +75,7 @@ def main():
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
     print("\n\nReplicating Gulordava Number Agreement experiment...")
-    measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states, reset_states=reset_states)
+    #measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states, reset_states=reset_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     print("\n\nAssessing influence of interventions on perplexities...")
@@ -88,7 +89,7 @@ def main():
     # on every position
     print("\n\nReplicating Gulordava Number Agreement experiment with interventions...")
     print("With interventions at the subject position...")
-    #measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
+    measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
     print("With interventions at every time step...")
     #measure_num_agreement_accuracy(global_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
 
@@ -109,7 +110,7 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
     scores = {"original": [], "generated": []}
 
     for i in range(len(corpus)):
-        labelled_sentence = corpus[i]
+        labelled_sentence = corpus[i]  # Preserve original corpus order
 
         if i % 5 == 0:
             print(f"\rProcessing sentence #{i+1}...", end="", flush=True)
@@ -134,6 +135,9 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
         if reset_states or i == 0:
             activations = init_states.states
 
+        if i in (49, 50, 51, 52, 53):
+            a = 3
+
         for pos, (token, label) in enumerate(zip(sentence, labels)):
 
             out, activations = model.forward(token, activations, label=label, is_subj_pos=(pos == subj_pos))
@@ -143,8 +147,10 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
             if pos == target_pos - 1:
                 if out[right_index] > out[wrong_index]:
                     scores[sentence_type].append(1)
+                    # print(f"{i} | 1: {sentence}")
                 else:
                     scores[sentence_type].append(0)
+                    # print(f"{i} | 0: {sentence}")
 
     original_acc = sum(scores["original"]) / len(scores["original"])
     nonce_acc = sum(scores["generated"]) / len(scores["generated"])
@@ -238,6 +244,9 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument('--reset_states', action="store_true", default=None,
                           help="Indicate whether hidden activations should be reset after every sentence. Not resetting"
                                "them results in a performance that is dependent on the order of the corpus.")
+    from_cmd.add_argument('--redecode', action="store_true", default=None,
+                          help="Indicate whether the probability distribution over the vocabulary should be recomputed "
+                               "after performing an intervention.")
 
     return parser
 

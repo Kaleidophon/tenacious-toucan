@@ -29,18 +29,6 @@ class LanguageModelMechanism(WeaklySupervisedMechanism):
     [1] http://aclweb.org/anthology/W18-5426
     [2] https://www.jair.org/index.php/jair/article/view/11196/26408
     """
-    # TODO: Move this extra arg into WeaklySupervisedMechanism
-    def __init__(self,
-                 model: ForwardLSTM,
-                 diagnostic_classifiers: DiagnosticClassifierDict,
-                 intervention_points: List[str],
-                 step_size: float,
-                 trigger_func: Callable = None,
-                 masking: bool = True):
-
-        super().__init__(model, diagnostic_classifiers, intervention_points, step_size, trigger_func)
-        self.masking = masking
-
     @overrides
     def select_diagnostic_classifier(self,
                                      inp: str,
@@ -69,7 +57,7 @@ class LanguageModelMechanism(WeaklySupervisedMechanism):
         diagnostic classifier: LogisticRegressionCV
             Selected diagnostic classifier.
         """
-        # Choose the classifier trained on topmost layer activations
+        # Choose the adequate classifier corresponding to the current layer and activation type
         return self.diagnostic_classifiers[layer][activation_type]
 
     @overrides
@@ -179,7 +167,7 @@ class SubjectLanguageModelMechanism(LanguageModelMechanism):
         else:
             mask = torch.ones(prediction.shape)
 
-        subject_mask = 0 if not is_subject_pos else 1
+        subject_mask = 1 if is_subject_pos else 0  # Only allow interventions on subject pos
         mask = mask.float() * subject_mask
 
         return mask

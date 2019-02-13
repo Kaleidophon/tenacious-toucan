@@ -8,9 +8,10 @@
                   "data/classifiers/giulianelli/models/cx_l0.pickle",
                   "data/classifiers/giulianelli/models/cx_l1.pickle"],
   "activation_names": ["hx0", "hx1", "cx0", "cx1"],
-  "intervention_points": ["hx_l0", "cx_l0", "hx_l1", "cx_l1"],
+  "intervention_points": ["hx_l0", "hx_l1", "cx_l0", "cx_l1"],
   "step_size": 0.5,
   "init_states": "",
   "masking": false,
-  "reset_states": false
+  "reset_states": false,
+  "redecode": false
 }
