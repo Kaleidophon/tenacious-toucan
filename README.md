@@ -32,6 +32,15 @@ Any settings for these steps can be changed by either changing the corresponding
 or running the corresponding scripts individually and supplying arguments via the command line (command line arguments override
 config options).
 
+This script might take while to execute, to better run it in the background and get yourself a cup of coffee in the 
+meantime :coffee:
+
+Lastly, it should be noted that the training of the Diagnostic Classifiers introduces some randomness into the 
+replication, because the training splits are generated randomly everytime, and differently trained Diagnostic Classifiers
+therefore also impact the effects of interventions in a different way. To repeat the experiments with different classifiers
+again, delete the results in `data/classifiers/giulianelli/models` and `data/classifiers/giulianelli/preds` and execute 
+`classify.py` and `replication.py` again.
+
 
 ### References
 

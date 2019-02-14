@@ -9,6 +9,7 @@ from collections import defaultdict
 # EXT
 import numpy as np
 from rnnalyse.classifiers.dc_trainer import DCTrainer
+from rnnalyse.corpora.import_corpus import convert_to_labeled_corpus
 from rnnalyse.activations.initial import InitStates
 from rnnalyse.models.intervention_lstm import InterventionLSTM
 from rnnalyse.models.import_model import import_model_from_json
@@ -19,7 +20,6 @@ import torch
 from torch.nn.functional import log_softmax
 
 # PROJECT
-from corpora import read_gulordava_corpus
 from lm_mechanisms import LanguageModelMechanism, SubjectLanguageModelMechanism
 
 
@@ -36,7 +36,7 @@ def main():
     config_dict = config_object.config_dict
 
     # Load data: Corpus, models, diagnostic classifiers
-    corpus = read_gulordava_corpus(config_dict["corpus"]["corpus_path"])
+    corpus = convert_to_labeled_corpus(config_dict["corpus"]["corpus_path"])
 
     basic_model = import_model_from_json(
         **config_dict["model"], model_class=InterventionLSTM

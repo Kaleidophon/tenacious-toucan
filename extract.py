@@ -85,5 +85,5 @@ if __name__ == "__main__":
     corpus: LabeledCorpus = convert_to_labeled_corpus(**config_dict['corpus'])
 
     extractor = Extractor(model, corpus, **config_dict['init_extract'])
-    extractor.extract(**config_dict['extract'], selection_func=subj_selection_func)
-    extractor.extract_average_eos_activations(print_every=config_dict['extract']['print_every'])
+    extractor.extract(**config_dict['extract'], selection_func=pos_4_selection_func)
+    #extractor.extract_average_eos_activations(print_every=config_dict['extract']['print_every'])
