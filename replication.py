@@ -1,5 +1,5 @@
 """
-Run an LSTM language models with interventions.
+Run an LSTM language model with interventions.
 """
 
 # STD
@@ -8,16 +8,15 @@ from collections import defaultdict
 
 # EXT
 import numpy as np
-import torch
-from torch.nn.functional import log_softmax
 from rnnalyse.classifiers.dc_trainer import DCTrainer
 from rnnalyse.activations.initial import InitStates
 from rnnalyse.models.intervention_lstm import InterventionLSTM
 from rnnalyse.models.import_model import import_model_from_json
-from rnnalyse.corpora.import_corpus import convert_to_labeled_corpus
 from rnnalyse.typedefs.corpus import LabeledCorpus
 from rnnalyse.config.setup import ConfigSetup
 from scipy.stats import shapiro, ttest_ind, mannwhitneyu
+import torch
+from torch.nn.functional import log_softmax
 
 # PROJECT
 from corpora import read_gulordava_corpus
@@ -37,12 +36,7 @@ def main():
     config_dict = config_object.config_dict
 
     # Load data: Corpus, models, diagnostic classifiers
-    corpus_path = config_dict["corpus"]["corpus_path"]
-
-    if corpus_path.endswith(".pickle"):
-        corpus = convert_to_labeled_corpus(corpus_path)
-    else:
-        corpus = read_gulordava_corpus(config_dict["corpus"]["corpus_path"])
+    corpus = read_gulordava_corpus(config_dict["corpus"]["corpus_path"])
 
     basic_model = import_model_from_json(
         **config_dict["model"], model_class=InterventionLSTM
@@ -54,7 +48,7 @@ def main():
         **config_dict["model"], model_class=InterventionLSTM
     )
 
-    # Load classifiers and apply intervention mechanisms
+    # Retrieve relevant config options
     step_size = config_dict["interventions"]["step_size"]
     classifier_paths = config_dict["interventions"]["classifiers"]
     init_states_path = config_dict["interventions"]["init_states"]
@@ -62,6 +56,8 @@ def main():
     masking = config_dict["interventions"]["masking"]
     redecode = config_dict["interventions"]["masking"]
     reset_states = config_dict["corpus"]["reset_states"]
+
+    # Load classifiers and apply intervention mechanisms
     classifiers = {path: DCTrainer.load_classifier(path) for path in classifier_paths}
     subj_mechanism = SubjectLanguageModelMechanism(
         subj_intervention_model, classifiers, intervention_points, step_size, masking=masking, redecode=redecode
@@ -76,23 +72,19 @@ def main():
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
     print("\n\nReplicating Gulordava Number Agreement experiment...")
-    #measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states, reset_states=reset_states)
+    measure_num_agreement_accuracy(basic_model, corpus, init_states=init_states, reset_states=reset_states)
 
     # 2. Experiment: Assess the influence of interventions on LM perplexity
     print("\n\nAssessing influence of interventions on perplexities...")
     measure_influence_on_perplexity(basic_model, subj_intervention_model, global_intervention_model, corpus, init_states)
 
-    # 3. Experiment: Check to what extend the accuracy of Diagnostic Classifiers increases after having interventions
-    # on the subject position / on every position
-    # TODO
-
-    # 4. Experiment: Repeat the 1. Experiment but measure the influence of interventions on the subject position /
+    # 3. Experiment: Repeat the 1. Experiment but measure the influence of interventions on the subject position /
     # on every position
     print("\n\nReplicating Gulordava Number Agreement experiment with interventions...")
     print("With interventions at the subject position...")
-    #measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
+    measure_num_agreement_accuracy(subj_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
     print("With interventions at every time step...")
-    #measure_num_agreement_accuracy(global_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
+    measure_num_agreement_accuracy(global_intervention_model, corpus, init_states=init_states, reset_states=reset_states)
 
 
 def measure_num_agreement_accuracy(model: InterventionLSTM,
@@ -136,9 +128,6 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
         if reset_states or i == 0:
             activations = init_states.states
 
-        if i in (49, 50, 51, 52, 53):
-            a = 3
-
         for pos, (token, label) in enumerate(zip(sentence, labels)):
 
             out, activations = model.forward(token, activations, label=label, is_subj_pos=(pos == subj_pos))
@@ -148,10 +137,8 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
             if pos == target_pos - 1:
                 if out[right_index] > out[wrong_index]:
                     scores[sentence_type].append(1)
-                    # print(f"{i} | 1: {sentence}")
                 else:
                     scores[sentence_type].append(0)
-                    # print(f"{i} | 0: {sentence}")
 
     original_acc = sum(scores["original"]) / len(scores["original"])
     nonce_acc = sum(scores["generated"]) / len(scores["generated"])

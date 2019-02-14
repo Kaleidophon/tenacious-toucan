@@ -1,7 +1,8 @@
 # Project-specific
-data/activations/*
-data/classifiers/*
-data/models/*
+data/activations/giulianelli/*
+data/activations/gulordava/*
+data/classifiers/giulianelli/*
+data/models/gulordava/model.pt
 
 
 # Byte-compiled / optimized / DLL files
