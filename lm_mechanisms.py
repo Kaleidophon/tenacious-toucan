@@ -3,7 +3,7 @@ Defining intervention mechanisms especially for language models.
 """
 
 # STD
-from typing import Dict, List, Callable
+from typing import Dict
 
 # EXT
 import torch
@@ -13,8 +13,6 @@ from torch.nn import NLLLoss
 from torch.nn.modules.loss import _Loss
 from rnnalyse.interventions.weakly_supervised import WeaklySupervisedMechanism
 from rnnalyse.typedefs.models import FullActivationDict
-from rnnalyse.typedefs.interventions import DiagnosticClassifierDict
-from rnnalyse.models.forward_lstm import ForwardLSTM
 
 
 class LanguageModelMechanism(WeaklySupervisedMechanism):
