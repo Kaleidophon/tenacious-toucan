@@ -3,7 +3,13 @@ Read corpora that used in experiments.
 """
 
 # STD
-from typing import List
+from collections import defaultdict
+from typing import List, Optional, Tuple
+
+# EXT
+import torch
+from torch import Tensor
+from torch.utils.data import Dataset
 
 
 def read_gulordava_corpus(corpus_dir: str) -> dict:
@@ -75,6 +81,11 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
     number of words preceeding the subject, the number of words following the main verb, the context size and the number
     of helpful nouns or attractor between subject and main verb.
 
+    Parameters
+    ----------
+    corpus_dir: str
+        Directory to corpus files.
+
     [1] http://aclweb.org/anthology/W18-5426
     [2] https://transacl.org/ojs/index.php/tacl/article/download/972/215
     """
@@ -105,3 +116,78 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
             labelled_corpus[i] = labelled_sentence
 
     return labelled_corpus
+
+
+class WikiCorpus(Dataset):
+    """ Corpus Class used to train a PyTorch Language Model. """
+    def __init__(self, sentences: List[List[str]], indexed_sentences: List[Tensor]):
+        self.sentences = sentences
+        self.indexed_sentences = indexed_sentences
+
+    def __len__(self):
+        return len(self.sentences)
+
+    def __getitem__(self, item):
+        return self.indexed_sentences[item]
+
+
+def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optional[int] = 50,
+                     vocab: Optional[dict] = None) -> Tuple[Dataset, dict]:
+    """
+    Read in the Wikipedia data set used by [1] to train a language model.
+
+    [1] https://transacl.org/ojs/index.php/tacl/article/download/972/215
+
+    Parameters
+    ----------
+    corpus_dir: str
+        Directory to corpus files.
+    corpus_split: str
+        Training split which should be read in {"train", "valid", "test"}.
+    max_sentence_len: int
+        Maximum sentence length in corpus. Sentences will be padded up to this length and longer sentences will be
+        discarded.
+    vocab: dict or None
+        Dictionary from type to id. If not given, the "vocab.txt" file will be read from corpus_dir to generate this
+        data structure.
+
+    Returns
+    -------
+    dataset, vocabulary: Tuple[Dataset, dict]
+        Returns the specified dataset and the vocabulary as a dictionary.
+    """
+    def _read_vocabulary(vocab_path: str) -> defaultdict:
+        with open(vocab_path, "r") as vocab_file:
+            idx, words = zip(*enumerate(line.strip() for line in vocab_file.readlines()))
+            w2i = dict(zip(words, idx))
+            w2i["<pad>"] = len(w2i)
+            w2i = defaultdict(lambda: w2i["<unk>"], **w2i)  # Return <unk> index if word is not in vocab
+
+            return w2i
+
+    assert corpus_split in ("train", "valid", "test"), "Invalid split selected!"
+
+    if vocab is None:
+        vocab = _read_vocabulary(f"{corpus_dir}/vocab.txt")
+
+    # Read in corpus
+    print(f"Reading corpus under {corpus_dir}/{corpus_split}.txt...")
+    sentences, indexed_sentences = [], []
+
+    with open(f"{corpus_dir}/{corpus_split}.txt", "r") as corpus_file:
+        for line in corpus_file.readlines():
+            line = line.strip()
+            tokens = line.split()
+
+            if len(tokens) > max_sentence_len:
+                continue
+
+            num_pads = max_sentence_len - len(tokens)
+            tokens = tokens + ["<pad>"] * num_pads
+            indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))
+            sentences.append(tokens)
+            indexed_sentences.append(indexed_sentence)
+
+    corpus = WikiCorpus(sentences, indexed_sentences)
+
+    return corpus, vocab

@@ -8,13 +8,14 @@ from torch import nn
 from rnnalyse.models.intervention_lstm import InterventionLSTM
 
 
-class LanguageModel(nn.Module, InterventionLSTM):
+class SimpleLanguageModel(nn.Module):
     # TODO: Add docstring
     def __init__(self, rnn_type, vocab_size, input_size, hidden_size, num_layers):
         super().__init__()
         self.embeddings = nn.Embedding(vocab_size, input_size)
 
         assert rnn_type in ("lstm", "gru")
+        self.num_layers = num_layers
         self.rnn = getattr(nn, rnn_type)(input_size, hidden_size, num_layers)
         self.out_layer = nn.Linear(hidden_size, vocab_size)
 
@@ -25,7 +26,16 @@ class LanguageModel(nn.Module, InterventionLSTM):
 
         output_dist = self.predict_distribution(output, self.out_layer)
 
-        return output_dist, hidden
+        # TODO: Make GRU / LSTM agnostic
+
+        activation_dict = dict()
+        activation_dict[0]["embd"] = embed
+        activation_dict[self.num_layers - 1] = {
+            "hx": hidden[0],
+            "cx": hidden[1]
+        }
+
+        return output_dist, activation_dict
 
     @staticmethod
     def predict_distribution(output, out_layer):

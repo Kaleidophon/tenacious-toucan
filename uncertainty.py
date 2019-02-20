@@ -15,7 +15,7 @@ from torch import nn
 import torch.nn.functional as F
 
 # PROJECT
-from language_model import LanguageModel
+from language_model import SimpleLanguageModel
 
 
 class Predictor(nn.Module):
@@ -58,7 +58,7 @@ class UncertaintyMechanism(InterventionMechanism):
     # TODO: Set sensible default params here
     def __init__(self,
                  forward_lstm: InterventionLSTM,
-                 predictor_layers: Tuple[int],
+                 predictor_layers: List[int],
                  hidden_size: int,
                  window_size: int,
                  num_samples: int,
@@ -129,11 +129,10 @@ class UncertaintyMechanism(InterventionMechanism):
         # Redecode
         # TODO
 
-    def _predict_with_dropout(self, output: Tensor, model: LanguageModel, target_idx: int = None):
+    def _predict_with_dropout(self, output: Tensor, model: SimpleLanguageModel, target_idx: int = None):
         # Temporarily add dropout layer
-        output_layer = model.out.clone_()
         output_layer = nn.Sequential(
-            output_layer,
+            model.out,
             nn.Dropout(p=self.dropout_prob)
         )
 
