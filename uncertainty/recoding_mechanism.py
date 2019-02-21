@@ -6,7 +6,8 @@ be employed during training, not only testing time.
 
 # STD
 from abc import abstractmethod, ABC
-from typing import Tuple, Dict, Type
+from functools import wraps
+from typing import Tuple, Dict, Type, Callable
 
 # EXT
 from torch import Tensor
@@ -14,7 +15,7 @@ from torch.autograd import Variable
 from torch.optim import SGD, Optimizer
 
 # PROJECT
-from uncertainty.language_model import AbstractRNN
+from uncertainty.abstract_rnn import AbstractRNN
 
 
 class RecodingMechanism(ABC):
@@ -26,13 +27,51 @@ class RecodingMechanism(ABC):
         self.model = model
         self.optimizer_class = optimizer_class
 
+    def __call__(self,
+                 forward_func: Callable) -> Callable:
+        """
+        Wrap the intervention function about the models forward function and return the decorated function.
+
+        Parameters
+        ----------
+        forward_func: Callable
+            Forward function of the model the mechanism is applied to.
+
+        Returns
+        -------
+        wrapped: Callable:
+            Decorated forward function.
+        """
+        @wraps(forward_func)
+        def wrapped(input_var: Tensor, hidden: Tensor, **additional: Dict) -> Tuple[Tensor, Tensor]:
+
+            out, hidden = forward_func(input_var, hidden, **additional)
+
+            return self.recoding_func(hidden, out, **additional)
+
+        return wrapped
+
+    def apply(self) -> AbstractRNN:
+        """
+        Return an instance of the model where the recoding function decorates the model's forward function.
+
+        Returns
+        -------
+        model : AbstractRNN
+            Model with recoding mechanism applied to it.
+        """
+        self.model.forward = self(self.model.forward)  # Decorate forward function
+        return self.model
+
     @abstractmethod
-    def recoding_func(self, hidden: Tensor, out: Tensor, **additional: Dict) -> Tuple[Tensor, Tensor]:
+    def recoding_func(self, input_var: Tensor, hidden: Tensor, out: Tensor, **additional: Dict) -> Tuple[Tensor, Tensor]:
         """
         Recode activations of current step based on some logic defined in a subclass.
 
         Parameters
         ----------
+        input_var: Tensor
+            Current input variable.
         hidden: Tensor
             Current hidden state.
         out: Tensor

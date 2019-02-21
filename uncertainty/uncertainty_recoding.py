@@ -8,14 +8,14 @@ from typing import Dict, Tuple, List, Optional
 # EXT
 from overrides import overrides
 from rnnalyse.interventions.mechanism import InterventionMechanism, InterventionLSTM
-from rnnalyse.typedefs.models import FullActivationDict
+from rnnalyse.typedefs.activations import FullActivationDict
 import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import ReLU, Sigmoid
 
 # PROJECT
-from uncertainty.language_model import SimpleLanguageModel
+from .abstract_rnn import AbstractRNN
 
 
 class Predictor(nn.Module):
@@ -129,7 +129,7 @@ class UncertaintyMechanism(InterventionMechanism):
         # Redecode
         # TODO
 
-    def _predict_with_dropout(self, output: Tensor, model: SimpleLanguageModel, target_idx: int = None):
+    def _predict_with_dropout(self, output: Tensor, model: AbstractRNN, target_idx: int = None):
         # Temporarily add dropout layer
         output_layer = nn.Sequential(
             model.out,
