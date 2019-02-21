@@ -39,19 +39,18 @@ def main():
     corpus = convert_to_labeled_corpus(config_dict["corpus"]["corpus_path"])
 
     basic_model = import_model_from_json(
-        **config_dict["model"], model_class=InterventionLSTM
+        **config_dict["model"], model_constructor=InterventionLSTM
     )
     subj_intervention_model = import_model_from_json(
-        **config_dict["model"], model_class=InterventionLSTM
+        **config_dict["model"], model_constructor=InterventionLSTM
     )
     global_intervention_model = import_model_from_json(
-        **config_dict["model"], model_class=InterventionLSTM
+        **config_dict["model"], model_constructor=InterventionLSTM
     )
 
     # Retrieve relevant config options
     step_size = config_dict["interventions"]["step_size"]
     classifier_paths = config_dict["interventions"]["classifiers"]
-    init_states_path = config_dict["interventions"]["init_states"]
     intervention_points = config_dict["interventions"]["intervention_points"]
     masking = config_dict["interventions"]["masking"]
     redecode = config_dict["interventions"]["masking"]
@@ -67,7 +66,7 @@ def main():
     )
     subj_intervention_model = subj_mechanism.apply()
     global_intervention_model = global_mechanism.apply()
-    init_states = InitStates(basic_model, init_states_path)
+    init_states = InitStates(basic_model)
 
     # 1. Experiment: Replicate Gulordava findings
     # In what percentage of cases does the LM assign a higher probability to the grammatically correct sentence?
@@ -126,7 +125,7 @@ def measure_num_agreement_accuracy(model: InterventionLSTM,
         # with the activations from the previous sentence. This has the side effect of making the accuracy on this task
         # dependent on the order of sentences inside the corpus
         if reset_states or i == 0:
-            activations = init_states.states
+            activations = init_states.create()
 
         for pos, (token, label) in enumerate(zip(sentence, labels)):
 
@@ -159,8 +158,7 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
     """
     perplexities = defaultdict(list)
     w2i = basic_model.w2i  # Vocabulary is shared between models
-    unk_index = basic_model.unk_idx
-    basic_activations, subj_activations, global_activations = init_states.states, init_states.states, init_states.states
+    basic_activations, subj_activations, global_activations = [init_states.create()] * 3
 
     print("Gathering perplexity scores for corpus...")
 
@@ -185,7 +183,7 @@ def measure_influence_on_perplexity(basic_model: InterventionLSTM,
             global_out, global_activations = global_intervention_model(token, global_activations, label=labels[pos])
 
             # "Batchify" to speed up expensive log-softmax
-            token_index = unk_index if token not in w2i else w2i[token]
+            token_index = w2i[token]
             outs = torch.stack((basic_out, subj_out, global_out))
             vocab_probs = log_softmax(outs, dim=0)
             token_probs = vocab_probs[:, token_index]

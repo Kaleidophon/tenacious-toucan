@@ -1,5 +1,5 @@
 """
-Convert corpus to pickle file.
+Quick and dirty script to convert the necessary corpora into the expected data structures.
 """
 import pickle
 

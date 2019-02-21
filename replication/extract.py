@@ -36,7 +36,6 @@ def init_argparser() -> ArgumentParser:
                           help='Path to folder containing model module')
     from_cmd.add_argument('--corpus_path',
                           help='Path to labeled corpus')
-    # TODO: Provide explanation of activation names
     from_cmd.add_argument('--activation_names',
                           help='Activations to be extracted', nargs='*')
     from_cmd.add_argument('--output_dir',
@@ -86,4 +85,6 @@ if __name__ == "__main__":
 
     extractor = Extractor(model, corpus, **config_dict['init_extract'])
     extractor.extract(**config_dict['extract'], selection_func=pos_4_selection_func)
-    #extractor.extract_average_eos_activations(print_every=config_dict['extract']['print_every'])
+
+    # In case you want to extract average eos activations as well, uncomment this line
+    # extractor.extract_average_eos_activations(print_every=config_dict['extract']['print_every'])

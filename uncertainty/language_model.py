@@ -2,16 +2,27 @@
 Implementation of a simple RNN language model.
 """
 
+# STD
+from abc import ABC
+
 # EXT
 from overrides import overrides
 from torch import nn
-from rnnalyse.models.intervention_lstm import InterventionLSTM
 
 
-class SimpleLanguageModel(nn.Module):
+class AbstractRNN(ABC, nn.Module):
+    """
+    Abstract RNN class defining some common attributes and functions.
+    """
+    def __init__(self, rnn_type):
+        super().__init__()
+        self.rnn_type = rnn_type
+
+
+class SimpleLanguageModel(AbstractRNN):
     # TODO: Add docstring
     def __init__(self, rnn_type, vocab_size, input_size, hidden_size, num_layers):
-        super().__init__()
+        super().__init__(rnn_type)
         self.embeddings = nn.Embedding(vocab_size, input_size)
 
         assert rnn_type in ("lstm", "gru")
