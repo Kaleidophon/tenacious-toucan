@@ -3,13 +3,14 @@ Read corpora that used in experiments.
 """
 
 # STD
-from collections import defaultdict
 from typing import List, Optional, Tuple
+import os
 
 # EXT
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+from rnnalyse.models.w2i import W2I
 
 
 def read_gulordava_corpus(corpus_dir: str) -> dict:
@@ -120,7 +121,7 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
 
 class WikiCorpus(Dataset):
     """ Corpus Class used to train a PyTorch Language Model. """
-    def __init__(self, sentences: List[List[str]], indexed_sentences: List[Tensor], vocab: defaultdict):
+    def __init__(self, sentences: List[List[str]], indexed_sentences: List[Tensor], vocab: W2I):
         self.sentences = sentences
         self.indexed_sentences = indexed_sentences
         self.vocab = vocab
@@ -133,7 +134,7 @@ class WikiCorpus(Dataset):
 
 
 def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optional[int] = 50,
-                     vocab: Optional[dict] = None) -> WikiCorpus:
+                     vocab: Optional[dict] = None, load_torch: bool = True) -> WikiCorpus:
     """
     Read in the Wikipedia data set used by [1] to train a language model.
 
@@ -151,24 +152,35 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
     vocab: dict or None
         Dictionary from type to id. If not given, the "vocab.txt" file will be read from corpus_dir to generate this
         data structure.
+    load_torch: bool
+        Whether to load the dataset directly as a PyTorch Dataset in case it has been saved that way in the corpus_dir
+        directory.
 
     Returns
     -------
     dataset, vocabulary: Tuple[Dataset, dict]
         Returns the specified dataset and the vocabulary as a dictionary.
     """
-    def _read_vocabulary(vocab_path: str) -> defaultdict:
+    def _read_vocabulary(vocab_path: str) -> W2I:
         with open(vocab_path, "r") as vocab_file:
             idx, words = zip(*enumerate(line.strip() for line in vocab_file.readlines()))
             w2i = dict(zip(words, idx))
             w2i["<pad>"] = len(w2i)
-            w2i = defaultdict(lambda: w2i["<unk>"], **w2i)  # Return <unk> index if word is not in vocab
+            w2i = W2I(w2i)  # Return <unk> index if word is not in vocab
 
             return w2i
 
     assert corpus_split in ("train", "valid", "test"), "Invalid split selected!"
 
+    # If corpus was already saved as torch dataset, load it
+    if os.path.exists(f"{corpus_dir}/{corpus_split}.pt") and load_torch:
+        print(f"Loading torch dataset under {corpus_dir}/{corpus_split}.pt...")
+        return torch.load(f"{corpus_dir}/{corpus_split}.pt")
+
+    # Otherwise construct the dataset from scratch
+
     if vocab is None:
+        print(f"Reading vocabulary under {corpus_dir}/vocab.txt...")
         vocab = _read_vocabulary(f"{corpus_dir}/vocab.txt")
 
     # Read in corpus
@@ -183,9 +195,10 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             if len(tokens) > max_sentence_len:
                 continue
 
+            # Pad sentences up to max_sentence_len
             num_pads = max_sentence_len - len(tokens)
             tokens = tokens + ["<pad>"] * num_pads
-            indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))
+            indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))  # Index lookup
             sentences.append(tokens)
             indexed_sentences.append(indexed_sentence)
 

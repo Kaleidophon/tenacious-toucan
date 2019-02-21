@@ -4,9 +4,11 @@ Train the model with the uncertainty-based intervention mechanism.
 
 # STD
 from argparse import ArgumentParser
+import time
 
 # EXT
 from rnnalyse.config.setup import ConfigSetup
+import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.nn import NLLLoss
@@ -35,16 +37,17 @@ def main():
     corpus_dir = config_dict["corpus"]["corpus_dir"]
 
     # Load data
+    start = time.time()
     train_set = read_wiki_corpus(corpus_dir, "train")
-    #valid_set = read_wiki_corpus(CORPUS_DIR, "valid", vocab=train_set.vocab)
-    #test_set = read_wiki_corpus(CORPUS_DIR, "test", vocab=train_set.vocab)
-    #torch.save(train_set, f"{CORPUS_DIR}/train.pt")
-    #torch.save(valid_set, f"{CORPUS_DIR}/valid.pt")
-    #torch.save(test_set, f"{CORPUS_DIR}/test.pt")
-
-    #train_set = torch.load(f"{CORPUS_DIR}/train.pt")
-    #valid_set = torch.load(f"{CORPUS_DIR}/valid.pt")
-    #test_set = torch.load(f"{CORPUS_DIR}/test.pt")
+    valid_set = read_wiki_corpus(corpus_dir, "valid", vocab=train_set.vocab)
+    test_set = read_wiki_corpus(corpus_dir, "test", vocab=train_set.vocab)
+    end = time.time()
+    duration = end - start
+    minutes, seconds = divmod(duration, 60)
+    print(f"Data loading took {int(minutes)} minute(s), {seconds:.2f} second(s).")
+    #torch.save(train_set, f"{corpus_dir}/train.pt")
+    #torch.save(valid_set, f"{corpus_dir}/valid.pt")
+    #torch.save(test_set, f"{corpus_dir}/test.pt")
 
     # Initialize model
     vocab_size = len(train_set.vocab)
