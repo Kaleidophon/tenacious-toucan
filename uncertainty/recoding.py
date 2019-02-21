@@ -12,10 +12,10 @@ from rnnalyse.typedefs.models import FullActivationDict
 import torch
 from torch import Tensor
 from torch import nn
-import torch.nn.functional as F
+from torch.nn import ReLU, Sigmoid
 
 # PROJECT
-from language_model import SimpleLanguageModel
+from uncertainty.language_model import SimpleLanguageModel
 
 
 class Predictor(nn.Module):
@@ -32,17 +32,17 @@ class Predictor(nn.Module):
 
         for current_layer_size in predictor_layers[1:]:
             self.hidden_layers.append(nn.Linear(last_layer_size, current_layer_size))
-            self.hidden_layers.append(F.relu)
+            self.hidden_layers.append(ReLU())
             last_layer_size = current_layer_size
 
         self.output_layer = nn.Linear(last_layer_size, 1)  # Output scalar alpha_t
 
         self.model = nn.Sequential(
             self.input_layer,
-            F.relu,
+            ReLU(),
             *self.hidden_layers,
             self.output_layer,
-            F.sigmoid
+            Sigmoid()
         )
 
     def forward(self, hidden_states: List[Tensor]):

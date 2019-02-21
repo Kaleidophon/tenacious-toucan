@@ -120,9 +120,10 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
 
 class WikiCorpus(Dataset):
     """ Corpus Class used to train a PyTorch Language Model. """
-    def __init__(self, sentences: List[List[str]], indexed_sentences: List[Tensor]):
+    def __init__(self, sentences: List[List[str]], indexed_sentences: List[Tensor], vocab: defaultdict):
         self.sentences = sentences
         self.indexed_sentences = indexed_sentences
+        self.vocab = vocab
 
     def __len__(self):
         return len(self.sentences)
@@ -132,7 +133,7 @@ class WikiCorpus(Dataset):
 
 
 def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optional[int] = 50,
-                     vocab: Optional[dict] = None) -> Tuple[Dataset, dict]:
+                     vocab: Optional[dict] = None) -> WikiCorpus:
     """
     Read in the Wikipedia data set used by [1] to train a language model.
 
@@ -188,6 +189,6 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             sentences.append(tokens)
             indexed_sentences.append(indexed_sentence)
 
-    corpus = WikiCorpus(sentences, indexed_sentences)
+    corpus = WikiCorpus(sentences, indexed_sentences, vocab)
 
-    return corpus, vocab
+    return corpus

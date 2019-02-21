@@ -3,7 +3,7 @@ Convert corpus to pickle file.
 """
 import pickle
 
-from corpora import read_gulordava_corpus, read_giulianelli_corpus
+from corpus.corpora import read_gulordava_corpus, read_giulianelli_corpus
 
 
 # Convert Gulordava corpus

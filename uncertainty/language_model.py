@@ -16,7 +16,7 @@ class SimpleLanguageModel(nn.Module):
 
         assert rnn_type in ("lstm", "gru")
         self.num_layers = num_layers
-        self.rnn = getattr(nn, rnn_type)(input_size, hidden_size, num_layers)
+        self.rnn = getattr(nn, rnn_type.upper())(input_size, hidden_size, num_layers)
         self.out_layer = nn.Linear(hidden_size, vocab_size)
 
     @overrides

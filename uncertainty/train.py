@@ -8,15 +8,15 @@ from torch.utils.data import DataLoader
 from torch.nn import NLLLoss
 
 # PROJECT
-from corpora import read_wiki_corpus
-from language_model import SimpleLanguageModel
+from corpus.corpora import read_wiki_corpus
+from uncertainty.language_model import SimpleLanguageModel
 from uncertainty import UncertaintyMechanism
 
 
 def main():
     # TODO: Make these arguments command line args and add config
     RNN_TYPE = "lstm"
-    INPUT_SIZE = None
+    INPUT_SIZE = 650
     HIDDEN_SIZE = 650
     NUM_LAYERS = 2
     PREDICTOR_LAYERS = [50, 50]
@@ -31,12 +31,19 @@ def main():
     CORPUS_DIR = "data/corpora/enwiki"
 
     # Load data
-    train_set, vocab = read_wiki_corpus(CORPUS_DIR, "train")
-    #valid_set, _ = read_wiki_corpus(CORPUS_DIR, "valid", vocab)
-    #test_set, _ = read_wiki_corpus(CORPUS_DIR, "test", vocab)
+    train_set = read_wiki_corpus(CORPUS_DIR, "train")
+    #valid_set = read_wiki_corpus(CORPUS_DIR, "valid", vocab=train_set.vocab)
+    #test_set = read_wiki_corpus(CORPUS_DIR, "test", vocab=train_set.vocab)
+    #torch.save(train_set, f"{CORPUS_DIR}/train.pt")
+    #torch.save(valid_set, f"{CORPUS_DIR}/valid.pt")
+    #torch.save(test_set, f"{CORPUS_DIR}/test.pt")
+
+    #train_set = torch.load(f"{CORPUS_DIR}/train.pt")
+    #valid_set = torch.load(f"{CORPUS_DIR}/valid.pt")
+    #test_set = torch.load(f"{CORPUS_DIR}/test.pt")
 
     # Initialize model
-    vocab_size = len(vocab)
+    vocab_size = len(train_set.vocab)
     N = len(train_set)
     model = SimpleLanguageModel(RNN_TYPE, vocab_size, INPUT_SIZE, HIDDEN_SIZE, NUM_LAYERS)
     mechanism = UncertaintyMechanism(

@@ -5,7 +5,7 @@ mkdir -p ./data/activations/giulianelli/
 mkdir -p ./data/activations/gulordava/
 mkdir -p ./data/classifiers/giulianelli/preds/
 mkdir -p ./data/classifiers/giulianelli/models/
-python3 extract.py -c config/extract_gulordava.json
-python3 extract.py -c config/extract_giulianelli.json
-python3 classify.py -c config/classify.json
-python3 replication.py -c config/replication.json
+python3 replication/extract.py -c configs/extract_gulordava.json
+python3 replication/extract.py -c configs/extract_giulianelli.json
+python3 replication/classify.py -c configs/classify.json
+python3 replication/replicate.py -c configs/replicate.json
