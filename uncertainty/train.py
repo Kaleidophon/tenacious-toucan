@@ -38,9 +38,10 @@ def main():
 
     # Load data
     start = time.time()
-    train_set = read_wiki_corpus(corpus_dir, "train")
-    valid_set = read_wiki_corpus(corpus_dir, "valid", vocab=train_set.vocab)
-    test_set = read_wiki_corpus(corpus_dir, "test", vocab=train_set.vocab)
+    # TODO: Change this back, it's just for debugging
+    train_set = read_wiki_corpus(corpus_dir, "valid")
+    #valid_set = read_wiki_corpus(corpus_dir, "valid", vocab=train_set.vocab)
+    #test_set = read_wiki_corpus(corpus_dir, "test", vocab=train_set.vocab)
     end = time.time()
     duration = end - start
     minutes, seconds = divmod(duration, 60)
@@ -62,10 +63,15 @@ def train_model(model, dataset, learning_rate, num_epochs, batch_size, weight_de
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size)
     loss = NLLLoss()
+    hidden = None
 
-    for batch_i, batch in enumerate(dataloader):
-        out, activations = model(batch)
-        a = 3
+    for epoch in range(num_epochs):
+        for batch_i, batch in enumerate(dataloader):
+            seq_len = batch.shape[1]
+
+            for t in range(seq_len):
+                input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
+                out, hidden = model(input_vars, hidden)
 
 
 def init_argparser() -> ArgumentParser:
