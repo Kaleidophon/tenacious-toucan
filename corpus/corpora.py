@@ -134,7 +134,8 @@ class WikiCorpus(Dataset):
 
 
 def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optional[int] = 50,
-                     vocab: Optional[dict] = None, load_torch: bool = True) -> WikiCorpus:
+                     vocab: Optional[dict] = None, load_torch: bool = True,
+                     stop_after: Optional[int] = None) -> WikiCorpus:
     """
     Read in the Wikipedia data set used by [1] to train a language model.
 
@@ -188,7 +189,7 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
     sentences, indexed_sentences = [], []
 
     with open(f"{corpus_dir}/{corpus_split}.txt", "r") as corpus_file:
-        for line in corpus_file.readlines():
+        for i, line in enumerate(corpus_file.readlines()):
             line = line.strip()
             tokens = line.split()
 
@@ -201,6 +202,10 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))  # Index lookup
             sentences.append(tokens)
             indexed_sentences.append(indexed_sentence)
+
+            if stop_after is not None:
+                if i > stop_after:
+                    break
 
     corpus = WikiCorpus(sentences, indexed_sentences, vocab)
 
