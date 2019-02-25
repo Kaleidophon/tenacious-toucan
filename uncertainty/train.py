@@ -5,7 +5,7 @@ Train the model with the uncertainty-based intervention mechanism.
 # STD
 from argparse import ArgumentParser
 import time
-from typing import Optional
+from typing import Optional, Dict
 
 # EXT
 import numpy as np
@@ -15,17 +15,20 @@ from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss
-from torch.nn.utils.clip_grad import clip_grad_norm
+from torch.nn.utils import clip_grad_norm_
 
 # PROJECT
 from corpus.corpora import read_wiki_corpus, WikiCorpus
 from uncertainty.abstract_rnn import AbstractRNN
-from uncertainty.language_model import LSTMLanguageModel
-from uncertainty.uncertainty_recoding import UncertaintyMechanism
+from uncertainty.uncertainty_recoding import UncertaintyLSTMLanguageModel
 
-# TODO:
-# Debug new model
-# Test new model training
+# TODO list:
+# Avoid recoding backprop in batch
+# Profile code and improve
+# Implement two model classes with constant step size / MLP step size
+# Add corresponding options
+# Purge todos
+# Make cuda compatible
 
 
 def main():
@@ -50,22 +53,20 @@ def main():
     start = time.time()
     # TODO: Change this back, this is just for debugging
     train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=35, stop_after=100, load_torch=False)
-    valid_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=35, stop_after=10, load_torch=False)
+    valid_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=35, stop_after=78, load_torch=False)
     #test_set = read_wiki_corpus(corpus_dir, "test", vocab=train_set.vocab)
     end = time.time()
     duration = end - start
     minutes, seconds = divmod(duration, 60)
     print(f"Data loading took {int(minutes)} minute(s), {seconds:.2f} second(s).")
-    #torch.save(train_set, f"{corpus_dir}/train.pt")
-    #torch.save(valid_set, f"{corpus_dir}/valid.pt")
-    #torch.save(test_set, f"{corpus_dir}/test.pt")
 
     # Initialize model
     vocab_size = len(train_set.vocab)
     N = len(train_set)
-    model = LSTMLanguageModel(vocab_size, **config_dict["model"])
-    mechanism = UncertaintyMechanism(model, **config_dict["recoding"], data_length=N)
-    #model = mechanism.apply()
+    #model = LSTMLanguageModel(vocab_size, **config_dict["model"])
+    mechanism_kwargs = config_dict["recoding"]
+    mechanism_kwargs["data_length"] = N
+    model = UncertaintyLSTMLanguageModel(vocab_size, **config_dict["model"], mechanism_kwargs=mechanism_kwargs)
     train_model(model, train_set, **config_dict["train"], valid_set=valid_set)
 
 
@@ -76,10 +77,10 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     Training loop for model.
     """
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay,  amsgrad=True)
-    dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size)
+    dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size, drop_last=True)
     num_batches = len(dataloader)
     loss = CrossEntropyLoss(reduction="sum")  # Don't average
-    hidden = None
+    hidden = model.init_hidden(batch_size)
     total_batch_i = 0
     best_validation_loss = np.inf
 
@@ -94,9 +95,10 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
             for t in range(seq_len - 1):
                 input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
-                out, hidden = model(input_vars, hidden)
-                out = out.squeeze(1)
-                batch_loss += loss(out, batch[:, t+1])
+                out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
+                output_dist = model.predict_distribution(out)
+                output_dist = output_dist.squeeze(1)
+                batch_loss += loss(output_dist, batch[:, t+1])
 
             if (total_batch_i + 1) % print_every == 0:
                 print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Training Loss: {batch_loss:.4f}")
@@ -105,7 +107,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
             batch_loss /= batch_size
             epoch_loss += batch_loss
             batch_loss.backward(retain_graph=True)
-            clip_grad_norm(batch_loss, clip)
+            clip_grad_norm_(batch_loss, clip)
             optimizer.step()
 
             # TODO: Make this model-agnostic and use detach()
@@ -132,25 +134,33 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int) ->
 
     model.eval()
     for batch in dataloader:
-        seq_len = batch.shape[1]
+        batch_size, seq_len = batch.shape
+
+        if hidden is None:
+            hidden = model.init_hidden(batch_size)
 
         for t in range(seq_len - 1):
             input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
             out, hidden = model(input_vars, hidden)
-            out = out.squeeze(1)
-            test_loss += loss(out, batch[:, t + 1])
+            output_dist = model.predict_distribution(out)
+            output_dist = output_dist.squeeze(1)
+            test_loss += loss(output_dist, batch[:, t + 1])
 
     model.train()
 
     return test_loss.detach().numpy()
 
 
-def add_model_info(model: AbstractRNN, epoch, train_loss, validation_loss):
+def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation_loss: float, **misc: Dict):
+    """
+    Add information about the training conditions to a model.
+    """
     model.info = {
         "epoch": epoch,
         "train_loss": train_loss,
         "validation_loss": validation_loss
     }
+    model.info.update(**misc)
 
     return model
 

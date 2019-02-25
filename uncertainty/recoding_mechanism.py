@@ -7,7 +7,7 @@ be employed during training, not only testing time.
 # STD
 from abc import abstractmethod, ABC
 from functools import wraps
-from typing import Tuple, Dict, Type, Callable
+from typing import Tuple, Dict, Type, Callable, Union, Any, Iterable
 
 # EXT
 from torch import Tensor
@@ -15,7 +15,7 @@ from torch.autograd import Variable
 from torch.optim import SGD, Optimizer
 
 # PROJECT
-from uncertainty.abstract_rnn import AbstractRNN
+from .abstract_rnn import AbstractRNN
 
 
 class RecodingMechanism(ABC):
@@ -45,9 +45,10 @@ class RecodingMechanism(ABC):
         @wraps(forward_func)
         def wrapped(input_var: Tensor, hidden: Tensor, **additional: Dict) -> Tuple[Tensor, Tensor]:
 
+            # Start recording grads for hidden here
             out, hidden = forward_func(input_var, hidden, **additional)
 
-            return self.recoding_func(hidden, out, **additional)
+            return self.recoding_func(input_var, hidden, out, **additional)
 
         return wrapped
 
@@ -88,8 +89,7 @@ class RecodingMechanism(ABC):
         """
         ...
 
-    @abstractmethod
-    def recode(self, hidden: Tensor, delta: Tensor, step_size: float) -> Tensor:
+    def recode(self, hidden: Tensor, delta: Tensor, optimizer) -> Tensor:
         """
         Perform a single recoding step on the current time step's hidden activations.
 
@@ -102,11 +102,9 @@ class RecodingMechanism(ABC):
         step_size: float
             Degree of influence of gradient on hidden state.
         """
-        hidden = self._wrap_in_var(hidden, requires_grad=True)
-        optimizer = self.optimizer_class(params=[hidden], lr=step_size)
-        optimizer.zero_grad()
-
         # Compute gradients and correct any corruptions
+        # TODO: Questionable design decision?!
+        delta = delta.mean(dim=0)
         delta.backward()
         hidden.grad = self.replace_nans(hidden.grad)
 

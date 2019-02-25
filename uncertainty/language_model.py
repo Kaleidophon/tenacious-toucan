@@ -18,10 +18,8 @@ class LSTMLanguageModel(AbstractRNN):
     Implementation of a LSTM language model that can process inputs token-wise or in sequences.
     """
     def __init__(self, vocab_size, embedding_size, hidden_size, num_layers):
-        super().__init__("lstm")
+        super().__init__("LSTM", hidden_size, embedding_size, num_layers)
         self.embeddings = nn.Embedding(vocab_size, embedding_size)
-        self.num_layers = num_layers
-        self.rnn = nn.LSTM(embedding_size, hidden_size, num_layers)
         self.out_layer = nn.Linear(hidden_size, vocab_size)
         self.vocab_size = vocab_size
 
@@ -49,11 +47,9 @@ class LSTMLanguageModel(AbstractRNN):
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
         output, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
 
-        output_dist = self.predict_distribution(output, self.out_layer)
+        return output, hidden
 
-        return output_dist, hidden
-
-    def predict_distribution(self, output: Tensor, out_layer: nn.Module):
+    def predict_distribution(self, output: Tensor, out_layer: Optional[nn.Module] = None):
         """
         Generate the output distribution using an affine transformation.
 
@@ -69,6 +65,9 @@ class LSTMLanguageModel(AbstractRNN):
         output_dist: Tensor
             Unnormalized output distribution for current time step.
         """
+        # Default to models own output layer
+        out_layer = out_layer if out_layer is not None else self.out_layer
+
         batch_size, seq_len, hidden_size = output.size()
         output_dist = out_layer(output.view(batch_size * seq_len, hidden_size))
         output_dist = output_dist.view(batch_size, seq_len, self.vocab_size)
