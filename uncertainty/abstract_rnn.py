@@ -11,7 +11,7 @@ import torch
 from torch import nn, Tensor
 
 # PROJECT
-from .compatability import AmbiguousHidden
+from utils.compatability import AmbiguousHidden
 
 
 class AbstractRNN(ABC, nn.Module):

@@ -21,7 +21,7 @@ class RNNCompatabilityMixin:
         the hidden variable if necessary.
         """
         # LSTM case
-        if type(hidden) == tuple:
+        if type(hidden) in (tuple, list):
             return func(hidden[0], *func_args, **func_kwargs), func(hidden[1], *func_args, **func_kwargs)
         # GRU / Vanilla RNN case
         else:

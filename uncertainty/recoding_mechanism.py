@@ -106,6 +106,9 @@ class RecodingMechanism(ABC):
         # TODO: Questionable design decision?!
         delta = delta.mean(dim=0)
         delta.backward()
+        #for d in delta:
+        #    d.backward(retain_graph=True)
+
         hidden.grad = self.replace_nans(hidden.grad)
 
         # Perform recoding

@@ -16,7 +16,7 @@ import torch.nn.functional as F
 # PROJECT
 from .abstract_rnn import AbstractRNN
 from .recoding_mechanism import RecodingMechanism
-from .compatability import RNNCompatabilityMixin, AmbiguousHidden
+from utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
 
 from .language_model import LSTMLanguageModel
 
@@ -175,22 +175,21 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
     def _predict_with_dropout(self, hidden: Tensor, model: AbstractRNN, target_idx: Tensor = None):
         # Recompute out, otherwise gradients get lost ;-(
+        # TODO: True?
         W_ho, b_ho = self._get_output_weights(model)
         output = torch.tanh(hidden @ W_ho + b_ho)
 
         # Temporarily add dropout layer
-        dropout_output_layer = nn.Sequential(
+        # Use DataParallel in order to perform k passes in parallel (with different masks!
+        dropout_output_layer = nn.DataParallel(nn.Sequential(
             model.out_layer,
             nn.Dropout(p=self.dropout_prob)
-        )
+        ))
 
         # Collect sample predictions
-        batch_size = output.shape[1]
-        predictions = torch.empty(0, batch_size, self.model.vocab_size)
-
-        for k in range(self.num_samples):
-            out_dist = self.model.predict_distribution(output, dropout_output_layer)
-            predictions = torch.cat((predictions, out_dist), dim=0)
+        output = output.repeat(self.num_samples, 1, 1)  # Create identical copies for pseudo-batch
+        # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
+        predictions = dropout_output_layer(output)
 
         # Normalize "in batch"
         # TODO: Does this make sense?

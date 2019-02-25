@@ -11,7 +11,6 @@ from typing import Optional, Dict
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
 import torch
-from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss
@@ -21,6 +20,8 @@ from torch.nn.utils import clip_grad_norm_
 from corpus.corpora import read_wiki_corpus, WikiCorpus
 from uncertainty.abstract_rnn import AbstractRNN
 from uncertainty.uncertainty_recoding import UncertaintyLSTMLanguageModel
+from uncertainty.language_model import LSTMLanguageModel
+from utils.compatability import RNNCompatabilityMixin
 
 # TODO list:
 # Avoid recoding backprop in batch
@@ -29,6 +30,7 @@ from uncertainty.uncertainty_recoding import UncertaintyLSTMLanguageModel
 # Add corresponding options
 # Purge todos
 # Make cuda compatible
+# Add tensorboard
 
 
 def main():
@@ -110,8 +112,8 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
             clip_grad_norm_(batch_loss, clip)
             optimizer.step()
 
-            # TODO: Make this model-agnostic and use detach()
-            hidden = Variable(hidden[0]), Variable(hidden[1])  # Detach from history
+            # Detach from history so the computational graph from the previous sentence doesn't get carried over
+            hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: h.detach())
             total_batch_i += 1
 
         # Calculate validation loss
