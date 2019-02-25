@@ -19,30 +19,28 @@ from torch.nn.utils import clip_grad_norm_
 # PROJECT
 from corpus.corpora import read_wiki_corpus, WikiCorpus
 from uncertainty.abstract_rnn import AbstractRNN
-from uncertainty.uncertainty_recoding import UncertaintyLSTMLanguageModel
+from uncertainty.uncertainty_recoding import UncertaintyLSTMLanguageModel, AdaptingUncertaintyMechanism
 from uncertainty.language_model import LSTMLanguageModel
 from utils.compatability import RNNCompatabilityMixin
 
 # TODO list:
-# Implement two model classes with constant step size / MLP step size
-# Add corresponding options
-# Debug Model with MLP
-# Purge todos
 # Make cuda compatible
 # Add tensorboard
 # Add missing documentation
+# Purge todos
 
 
 def main():
     # Manage config
-    required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir"}
+    required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir", "model_type"}
     arg_groups = {
+        "general": {"model_type"},
         "model": {"embedding_size", "hidden_size", "num_layers"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
                   "model_save_path"},
         "corpus": {"corpus_dir"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale",
-                     "hidden_size", "weight_decay", "average_recoding"},
+                     "hidden_size", "weight_decay", "average_recoding", "step_size"},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -65,11 +63,21 @@ def main():
 
     # Initialize model
     vocab_size = len(train_set.vocab)
-    N = len(train_set)
-    #model = LSTMLanguageModel(vocab_size, **config_dict["model"])
+    model_type = config_dict["general"]["model_type"]
     mechanism_kwargs = config_dict["recoding"]
-    mechanism_kwargs["data_length"] = N
-    model = UncertaintyLSTMLanguageModel(vocab_size, **config_dict["model"], mechanism_kwargs=mechanism_kwargs)
+    mechanism_kwargs["data_length"] = len(train_set)
+
+    if model_type == "vanilla":
+        model = LSTMLanguageModel(vocab_size, **config_dict["model"])
+    elif model_type == "fixed_step":
+        model = UncertaintyLSTMLanguageModel(
+            vocab_size, **config_dict["model"],
+            mechanism_class=UncertaintyLSTMLanguageModel, mechanism_kwargs=mechanism_kwargs)
+    elif model_type == "mlp_step":
+        model = UncertaintyLSTMLanguageModel(
+            vocab_size, **config_dict["model"],
+            mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs
+        )
 
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set)
 
@@ -195,6 +203,11 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--average_recoding", action="store_true", default=None,
                           help="Indicate whether recoding gradients should be averaged over batch in order to save "
                                "computational resources.")
+    from_cmd.add_argument("--model_type", type=str, choices=["vanilla", "fixed_step", "mlp_step"],
+                          help="Model type used for training. Choices include a vanilla Language Model, a "
+                               "uncertainty-based model with fixed step size and an uncertainty based-model with a "
+                               "step-sized parameterized by a MLP.")
+    from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
 
     return parser
 

@@ -3,7 +3,7 @@ Define a model with an intervention mechanism that bases its interventions on th
 """
 
 # STD
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional, Iterable
 
 # EXT
 from overrides import overrides
@@ -25,9 +25,9 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
     the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, mechanism_kwargs):
+    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, mechanism_class, mechanism_kwargs):
         super().__init__(vocab_size, embedding_size, hidden_size, num_layers)
-        self.mechanism = UncertaintyMechanism(model=self, **mechanism_kwargs)
+        self.mechanism = mechanism_class(model=self, **mechanism_kwargs)
 
     @overrides
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
@@ -55,16 +55,17 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         return self.mechanism.recoding_func(input_var, hidden, out, **additional)
 
 
-class Predictor(nn.Module):
+class StepPredictor(nn.Module):
 
-    def __init__(self, predictor_layers, hidden_size):
+    def __init__(self, predictor_layers, hidden_size, window_size):
         super().__init__()
         self.predictor_layers = predictor_layers
         self.hidden_size = hidden_size
+        self.window_size = window_size
 
         # Init layers
         last_layer_size = predictor_layers[0]
-        self.input_layer = nn.Linear(hidden_size, last_layer_size)
+        self.input_layer = nn.Linear(hidden_size * window_size, last_layer_size)
         self.hidden_layers = []
 
         for current_layer_size in predictor_layers[1:]:
@@ -82,47 +83,40 @@ class Predictor(nn.Module):
             Sigmoid()
         )
 
-    def forward(self, hidden_states: List[Tensor]):
-        hidden_window = torch.cat(hidden_states, dim=0)
-
+    def forward(self, hidden_window: Tensor):
         return self.model(hidden_window)
 
 
 class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
     """
     Intervention mechanism that bases its intervention on the predictive uncertainty of a model.
+    In this case the step size is constant during the recoding step.
     """
     def __init__(self,
                  model: AbstractRNN,
-                 predictor_layers: List[int],
                  hidden_size: int,
-                 window_size: int,
                  num_samples: int,
                  dropout_prob: float,
                  weight_decay: float,
                  prior_scale: float,
                  average_recoding: bool,
-                 data_length: Optional[int] = None):
+                 step_size: float,
+                 data_length: Optional[int] = None,
+                 **unused: Dict):
 
         super().__init__(model, average_recoding=average_recoding)
 
         self.model = model
-        self.predictor_layers = predictor_layers
         self.hidden_size = hidden_size
-        self.window_size = window_size
         self.num_samples = num_samples
         self.dropout_prob = dropout_prob
         self.weight_decay = weight_decay
         self.prior_scale = prior_scale
         self.data_length = data_length
+        self.step_size = step_size
 
-        # Initialize predictor
-        self.predictor = Predictor(predictor_layers, hidden_size)
-
-    def _determine_step_size(self, hidden_states: List[Tensor]):
-        alpha = self.predictor(hidden_states)
-
-        return alpha
+    def _determine_step_size(self, hidden: Tensor) -> float:
+        return self.step_size
 
     @overrides
     def recoding_func(self, input_var: Tensor, hidden: Tensor, out: Tensor,
@@ -149,12 +143,13 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             Hidden state of current time step after recoding.
         """
         # Predict step size
-        # TODO
-        step_size = 0.5
+        step_size = self._determine_step_size(hidden)
 
         # Make predictions using different dropout mask
         hidden = self.hidden_compatible(hidden, self._wrap_in_var, requires_grad=True)
-        optimizers = [self.optimizer_class(hidden, lr=step_size) for hidden in self.hidden_scatter(hidden)]
+        # Use a step-size (or "learning-rate") of 1 here because optimizers don't support a different step size for
+        # for every batch instance
+        optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.hidden_scatter(hidden)]
         [optimizer.zero_grad() for optimizer in optimizers]
         target_idx = additional.get("target_idx", None)
         predictions = self.hidden_compatible(hidden, self._predict_with_dropout, self.model, target_idx)
@@ -163,7 +158,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         uncertainties = [self._calculate_predictive_uncertainty(prediction) for prediction in predictions]
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        new_hidden = [self.recode(h, delta, optimizer) for h, delta, optimizer in zip(hidden, uncertainties, optimizers)]
+        new_hidden = [self.recode(h, delta, optimizer, step_size) for h, delta, optimizer in zip(hidden, uncertainties, optimizers)]
 
         # Re-decode
         W_ho, b_ho = self._get_output_weights(self.model)
@@ -182,7 +177,6 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # Temporarily add dropout layer
         # Use DataParallel in order to perform k passes in parallel (with different masks!
-        # 272   17.033    0.063   17.033    0.063 {built-in method dropout} 88 sec
         dropout_layer = nn.DataParallel(nn.Dropout(p=self.dropout_prob))
 
         # Collect sample predictions
@@ -227,3 +221,65 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         return W_ho, b_ho
 
+
+class AdaptingUncertaintyMechanism(UncertaintyMechanism):
+    """
+    Same as UncertaintyMechanism, except that the step size is parameterized by a MLP, which predicts it based
+    on a window of previous hidden states.
+    """
+    def __init__(self,
+                 model: AbstractRNN,
+                 hidden_size: int,
+                 num_samples: int,
+                 dropout_prob: float,
+                 weight_decay: float,
+                 prior_scale: float,
+                 average_recoding: bool,
+                 window_size: int,
+                 predictor_layers: Iterable[int],
+                 data_length: Optional[int] = None,
+                 **unused: Dict):
+
+        super().__init__(
+            model=model, hidden_size=hidden_size, num_samples=num_samples, dropout_prob=dropout_prob,
+            weight_decay=weight_decay, prior_scale=prior_scale, average_recoding=average_recoding,
+            data_length=data_length, **unused
+        )
+
+        # Initialize additional parts of model to make it more adaptive
+        self.window_size = window_size
+        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size)
+        self.hidden_buffer = []  # Save hidden states
+
+    def train(self):
+        """ When model mode changes, erase buffer. """
+        super().train()
+        self.hidden_buffer = []
+
+    def test(self):
+        """ When model mode changes, erase buffer. """
+        super().test()
+        self.hidden_buffer = []
+
+    def _determine_step_size(self, hidden: Tensor) -> float:
+
+        hidden = self.hidden_select(hidden)
+        num_layers, batch_size, _ = hidden.size()
+        hidden = hidden.view(batch_size, num_layers, self.hidden_size)
+
+        # If buffer is empty, initialize it with zero hidden states
+        if len(self.hidden_buffer) == 0:
+            self.hidden_buffer = [torch.zeros(hidden.shape)] * self.window_size
+
+        # Add hidden state to buffer
+        self.hidden_buffer.append(hidden)
+
+        if len(self.hidden_buffer) > self.window_size:
+            self.hidden_buffer.pop()  # If buffer is full, remove oldest element
+
+        # Predict step size
+        hidden_window = torch.cat(self.hidden_buffer, dim=2)
+        step_size = self.predictor(hidden_window)
+        step_size = step_size.view(1, batch_size, 1)
+
+        return step_size

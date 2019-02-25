@@ -91,7 +91,7 @@ class RecodingMechanism(ABC):
         """
         ...
 
-    def recode(self, hidden: Tensor, delta: Tensor, optimizer) -> Tensor:
+    def recode(self, hidden: Tensor, delta: Tensor, optimizer: Optimizer, step_size: Tensor) -> Tensor:
         """
         Perform a single recoding step on the current time step's hidden activations.
 
@@ -101,6 +101,9 @@ class RecodingMechanism(ABC):
             Current hidden state.
         delta: Tensor
             Current error signal that is used to calculate the gradient w.r.t. the current hidden state.
+        step_size: Tensor
+            Either 1 x 1 tensor for constant batch size or Batch_size x 1 tensor with individual_batch_size for all
+            batch instances.
         """
         # Compute recoding gradients
         # Average recoding gradients for a batch -> Higher speed, less accuracy
@@ -114,6 +117,9 @@ class RecodingMechanism(ABC):
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
+
+        # Apply step sizes
+        hidden.grad *= step_size
 
         # Perform recoding
         optimizer.step()
