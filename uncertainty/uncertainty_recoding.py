@@ -11,7 +11,6 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import ReLU, Sigmoid
-import torch.nn.functional as F
 
 # PROJECT
 from .abstract_rnn import AbstractRNN
@@ -102,9 +101,10 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
                  dropout_prob: float,
                  weight_decay: float,
                  prior_scale: float,
+                 average_recoding: bool,
                  data_length: Optional[int] = None):
 
-        super().__init__(model)
+        super().__init__(model, average_recoding=average_recoding)
 
         self.model = model
         self.predictor_layers = predictor_layers
@@ -173,34 +173,38 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         return new_out, new_hidden
 
-    def _predict_with_dropout(self, hidden: Tensor, model: AbstractRNN, target_idx: Tensor = None):
-        # Recompute out, otherwise gradients get lost ;-(
-        # TODO: True?
-        W_ho, b_ho = self._get_output_weights(model)
-        output = torch.tanh(hidden @ W_ho + b_ho)
+    def _predict_with_dropout(self, output: Tensor, model: AbstractRNN, target_idx: Tensor = None):
+        """
+        Make several predictions about the probability of a token using different dropout masks.
+        """
+        batch_size, seq_len, output_dim = output.size()
+        output.view(seq_len, batch_size, output_dim)
 
         # Temporarily add dropout layer
         # Use DataParallel in order to perform k passes in parallel (with different masks!
-        dropout_output_layer = nn.DataParallel(nn.Sequential(
-            model.out_layer,
-            nn.Dropout(p=self.dropout_prob)
-        ))
+        # 272   17.033    0.063   17.033    0.063 {built-in method dropout} 88 sec
+        dropout_layer = nn.DataParallel(nn.Dropout(p=self.dropout_prob))
 
         # Collect sample predictions
+        output = model.predict_distribution(output)
         output = output.repeat(self.num_samples, 1, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
-        predictions = dropout_output_layer(output)
+        predictions = dropout_layer(output)
 
         # Normalize "in batch"
         # TODO: Does this make sense?
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
-        predictions = F.softmax(predictions, dim=2)
 
         # Select predicted probabilities of target index
+        predictions = predictions.exp()  # Exponentiate for later softmax
         target_idx = target_idx.view(1, target_idx.shape[0], 1)
         target_idx = target_idx.repeat(self.num_samples, 1, 1)
         target_predictions = torch.gather(predictions, 2, target_idx)
         target_predictions = target_predictions.squeeze(2)
+
+        # Apply softmax (only apply it to actually relevant probabilities, save some computation)
+        Z = predictions.sum(dim=2)  # Gather normalizing constants for softmax
+        target_predictions = target_predictions / Z
 
         return target_predictions
 

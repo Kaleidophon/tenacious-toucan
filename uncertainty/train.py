@@ -24,13 +24,13 @@ from uncertainty.language_model import LSTMLanguageModel
 from utils.compatability import RNNCompatabilityMixin
 
 # TODO list:
-# Avoid recoding backprop in batch
-# Profile code and improve
 # Implement two model classes with constant step size / MLP step size
 # Add corresponding options
+# Debug Model with MLP
 # Purge todos
 # Make cuda compatible
 # Add tensorboard
+# Add missing documentation
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
                   "model_save_path"},
         "corpus": {"corpus_dir"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale",
-                     "hidden_size", "weight_decay"},
+                     "hidden_size", "weight_decay", "average_recoding"},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -60,6 +60,7 @@ def main():
     end = time.time()
     duration = end - start
     minutes, seconds = divmod(duration, 60)
+
     print(f"Data loading took {int(minutes)} minute(s), {seconds:.2f} second(s).")
 
     # Initialize model
@@ -69,7 +70,8 @@ def main():
     mechanism_kwargs = config_dict["recoding"]
     mechanism_kwargs["data_length"] = N
     model = UncertaintyLSTMLanguageModel(vocab_size, **config_dict["model"], mechanism_kwargs=mechanism_kwargs)
-    train_model(model, train_set, **config_dict["train"], valid_set=valid_set)
+
+    train_model(model, train_set, **config_dict['train'], valid_set=valid_set)
 
 
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
@@ -190,6 +192,9 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--eval_every", type=int,
                           help="Epoch interval at which the model should be evaluated on validation set.")
     from_cmd.add_argument("--model_save_dir", type=str, help="Directory to which current best model should be saved to.")
+    from_cmd.add_argument("--average_recoding", action="store_true", default=None,
+                          help="Indicate whether recoding gradients should be averaged over batch in order to save "
+                               "computational resources.")
 
     return parser
 

@@ -7,11 +7,12 @@ be employed during training, not only testing time.
 # STD
 from abc import abstractmethod, ABC
 from functools import wraps
-from typing import Tuple, Dict, Type, Callable, Union, Any, Iterable
+from typing import Tuple, Dict, Type, Callable
 
 # EXT
+import torch
 from torch import Tensor
-from torch.autograd import Variable
+from torch.autograd import Variable, backward
 from torch.optim import SGD, Optimizer
 
 # PROJECT
@@ -23,9 +24,10 @@ class RecodingMechanism(ABC):
     Abstract superclass for a recoding mechanism.
     """
     @abstractmethod
-    def __init__(self, model: AbstractRNN, optimizer_class: Type[Optimizer] = SGD):
+    def __init__(self, model: AbstractRNN, optimizer_class: Type[Optimizer] = SGD, average_recoding: bool = True):
         self.model = model
         self.optimizer_class = optimizer_class
+        self.average_recoding = average_recoding
 
     def __call__(self,
                  forward_func: Callable) -> Callable:
@@ -99,16 +101,18 @@ class RecodingMechanism(ABC):
             Current hidden state.
         delta: Tensor
             Current error signal that is used to calculate the gradient w.r.t. the current hidden state.
-        step_size: float
-            Degree of influence of gradient on hidden state.
         """
-        # Compute gradients and correct any corruptions
-        # TODO: Questionable design decision?!
-        delta = delta.mean(dim=0)
-        delta.backward()
-        #for d in delta:
-        #    d.backward(retain_graph=True)
+        # Compute recoding gradients
+        # Average recoding gradients for a batch -> Higher speed, less accuracy
+        # The speedup of course depends on the batch size
+        if self.average_recoding:
+            delta = delta.mean(dim=0)
+            delta.backward()
+        # Calculate recoding gradients per instance -> More computationally expensive but higher accuracy
+        else:
+            backward(delta, grad_tensors=torch.ones(hidden.shape))  # Idk why this works but it does
 
+        # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
 
         # Perform recoding
