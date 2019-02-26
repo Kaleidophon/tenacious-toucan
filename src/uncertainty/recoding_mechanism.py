@@ -113,7 +113,7 @@ class RecodingMechanism(ABC):
             delta.backward()
         # Calculate recoding gradients per instance -> More computationally expensive but higher accuracy
         else:
-            backward(delta, grad_tensors=torch.ones(hidden.shape))  # Idk why this works but it does
+            backward(delta, grad_tensors=torch.ones(delta.shape))  # Idk why this works but it does
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
