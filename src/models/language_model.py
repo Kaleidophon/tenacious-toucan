@@ -10,7 +10,7 @@ from overrides import overrides
 from torch import nn, Tensor
 
 # PROJECT
-from models.abstract_rnn import AbstractRNN
+from src.models.abstract_rnn import AbstractRNN
 
 
 class LSTMLanguageModel(AbstractRNN):

@@ -13,11 +13,10 @@ from torch import nn
 from torch.nn import ReLU, Sigmoid
 
 # PROJECT
-from models.abstract_rnn import AbstractRNN
-from .recoding_mechanism import RecodingMechanism
-from utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
-
-from models.language_model import LSTMLanguageModel
+from src.models.abstract_rnn import AbstractRNN
+from src.uncertainty.recoding_mechanism import RecodingMechanism
+from src.utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
+from src.models.language_model import LSTMLanguageModel
 
 
 class StepPredictor(nn.Module):

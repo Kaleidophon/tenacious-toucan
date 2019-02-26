@@ -17,11 +17,11 @@ from torch.nn import CrossEntropyLoss
 from torch.nn.utils import clip_grad_norm_
 
 # PROJECT
-from corpus.corpora import read_wiki_corpus, WikiCorpus
-from models.abstract_rnn import AbstractRNN
-from uncertainty.uncertainty_recoding import AdaptingUncertaintyMechanism
-from models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
-from utils.compatability import RNNCompatabilityMixin
+from src.corpus.corpora import read_wiki_corpus, WikiCorpus
+from src.models.abstract_rnn import AbstractRNN
+from src.uncertainty.uncertainty_recoding import AdaptingUncertaintyMechanism
+from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
+from src.utils.compatability import RNNCompatabilityMixin
 
 # TODO list:
 # Make cuda compatible

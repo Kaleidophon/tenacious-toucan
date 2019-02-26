@@ -16,7 +16,7 @@ from torch.autograd import Variable, backward
 from torch.optim import SGD, Optimizer
 
 # PROJECT
-from models.abstract_rnn import AbstractRNN
+from ..models.abstract_rnn import AbstractRNN
 
 
 class RecodingMechanism(ABC):

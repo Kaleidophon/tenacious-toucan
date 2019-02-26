@@ -20,7 +20,7 @@ import torch
 from torch.nn.functional import log_softmax
 
 # PROJECT
-from replication.lm_mechanisms import LanguageModelMechanism, SubjectLanguageModelMechanism
+from src.replication.lm_mechanisms import LanguageModelMechanism, SubjectLanguageModelMechanism
 
 
 def main():

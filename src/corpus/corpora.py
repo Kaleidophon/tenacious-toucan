@@ -84,7 +84,7 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
 
     Parameters
     ----------
-    corpus_dir: str
+    corpus_path: str
         Directory to corpus files.
 
     [1] http://aclweb.org/anthology/W18-5426
