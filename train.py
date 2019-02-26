@@ -98,7 +98,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
-    dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size)
+    dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size, drop_last=True)
     num_batches = len(dataloader)
     loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
     total_batch_i = 0
@@ -140,7 +140,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
         # Calculate validation loss
         if (epoch + 1) % eval_every == 0 and valid_set is not None:
-            validation_loss = evaluate_model(model, valid_set, batch_size)
+            validation_loss = evaluate_model(model, valid_set, batch_size, device)
             print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Validation Loss: {validation_loss:.4f}")
 
             if validation_loss < best_validation_loss and model_save_path is not None:
@@ -151,7 +151,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
     """ Evaluate a model on a given test set. """
-    dataloader = DataLoader(test_set, batch_size=batch_size)
+    dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
     loss = CrossEntropyLoss().to(device)
     test_loss = 0
     hidden = None
