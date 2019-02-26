@@ -7,7 +7,7 @@ be employed during training, not only testing time.
 # STD
 from abc import abstractmethod, ABC
 from functools import wraps
-from typing import Tuple, Dict, Type, Callable
+from typing import Tuple, Dict, Type, Callable, Union
 
 # EXT
 import torch
@@ -16,7 +16,7 @@ from torch.autograd import Variable, backward
 from torch.optim import SGD, Optimizer
 
 # PROJECT
-from .abstract_rnn import AbstractRNN
+from models.abstract_rnn import AbstractRNN
 
 
 class RecodingMechanism(ABC):
@@ -91,7 +91,7 @@ class RecodingMechanism(ABC):
         """
         ...
 
-    def recode(self, hidden: Tensor, delta: Tensor, optimizer: Optimizer, step_size: Tensor) -> Tensor:
+    def recode(self, hidden: Tensor, delta: Tensor, optimizer: Optimizer, step_size: Union[float, Tensor]) -> Tensor:
         """
         Perform a single recoding step on the current time step's hidden activations.
 
@@ -147,4 +147,3 @@ class RecodingMechanism(ABC):
         tensor[tensor != tensor] = 0  # Exploit the fact that nan != nan
 
         return tensor
-

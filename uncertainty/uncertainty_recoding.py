@@ -3,7 +3,7 @@ Define a model with an intervention mechanism that bases its interventions on th
 """
 
 # STD
-from typing import Dict, Tuple, List, Optional, Iterable
+from typing import Dict, Tuple, Optional, Iterable
 
 # EXT
 from overrides import overrides
@@ -13,46 +13,11 @@ from torch import nn
 from torch.nn import ReLU, Sigmoid
 
 # PROJECT
-from .abstract_rnn import AbstractRNN
+from models.abstract_rnn import AbstractRNN
 from .recoding_mechanism import RecodingMechanism
 from utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
 
-from .language_model import LSTMLanguageModel
-
-
-class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
-    """
-    A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
-    the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
-    """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, mechanism_class, mechanism_kwargs):
-        super().__init__(vocab_size, embedding_size, hidden_size, num_layers)
-        self.mechanism = mechanism_class(model=self, **mechanism_kwargs)
-
-    @overrides
-    def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
-        """
-        Process a sequence of input variables.
-
-        Parameters
-        ----------
-        input_var: Tensor
-            Current input variable.
-        hidden: Tensor
-            Current hidden state.
-        additional: dict
-            Dictionary of additional information delivered via keyword arguments.
-
-        Returns
-        -------
-        out: Tensor
-            Decoded output Tensor of current time step.
-        hidden: Tensor
-            Hidden state of current time step after recoding.
-        """
-        out, hidden = super().forward(input_var, hidden, **additional)
-
-        return self.mechanism.recoding_func(input_var, hidden, out, **additional)
+from models.language_model import LSTMLanguageModel
 
 
 class StepPredictor(nn.Module):
@@ -148,7 +113,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         # Make predictions using different dropout mask
         hidden = self.hidden_compatible(hidden, self._wrap_in_var, requires_grad=True)
         # Use a step-size (or "learning-rate") of 1 here because optimizers don't support a different step size for
-        # for every batch instance
+        # for every batch instance, actual step size is applied in recode()
         optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.hidden_scatter(hidden)]
         [optimizer.zero_grad() for optimizer in optimizers]
         target_idx = additional.get("target_idx", None)
@@ -158,7 +123,10 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         uncertainties = [self._calculate_predictive_uncertainty(prediction) for prediction in predictions]
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        new_hidden = [self.recode(h, delta, optimizer, step_size) for h, delta, optimizer in zip(hidden, uncertainties, optimizers)]
+        new_hidden = [
+            self.recode(h, delta, optimizer, step_size)
+            for h, delta, optimizer in zip(hidden, uncertainties, optimizers)
+        ]
 
         # Re-decode
         W_ho, b_ho = self._get_output_weights(self.model)
@@ -197,18 +165,17 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         target_predictions = target_predictions.squeeze(2)
 
         # Apply softmax (only apply it to actually relevant probabilities, save some computation)
-        Z = predictions.sum(dim=2)  # Gather normalizing constants for softmax
-        target_predictions = target_predictions / Z
+        norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
+        target_predictions = target_predictions / norm_factor
 
         return target_predictions
 
     def _calculate_predictive_uncertainty(self, predictions: Tensor):
-        # TODO: What to do when data length is not given?
         prior_info = 2 * self.dropout_prob * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
         return predictions.var(dim=0).unsqueeze(1) * prior_info
 
     @staticmethod
-    def _get_output_weights(model: AbstractRNN):
+    def _get_output_weights(model: AbstractRNN) -> Tuple[Tensor, Tensor]:
         NHID = model.hidden_size
 
         # TODO: Support multiple layers
@@ -216,8 +183,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             W_ho = model.rnn.weight_hh_l0[3*NHID:4*NHID]
             b_ho = model.rnn.bias_hh_l0[3*NHID:4*NHID]
         else:
-            ...
-            # TODO
+            W_ho, b_ho = None, None
+            # TODO: Support models other than LSTM
 
         return W_ho, b_ho
 

@@ -3,19 +3,26 @@ Define some functions to ensure compatability between vanilla RNNs, LSTMs and GR
 """
 
 # STD
-from typing import Union, Tuple, Dict, Callable, Iterable, Any
+from typing import Union, Callable, Iterable, Any
 
 # EXT
 from torch import Tensor
 
 # TYPES
-AmbiguousHidden = Union[Tensor, Tuple[Tensor, Tensor]]
+AmbiguousHidden = Union[Tensor, Iterable[Tensor]]
 
 
 class RNNCompatabilityMixin:
+    """
+    Define the following operations on hidden variables with a single hidden state or hidden / cell state tuple:
+
+    hidden_compatible: Apply a function to every every state.
+    hidden_select: Only select the actual hidden state, discard the rest.
+    hidden_scatter: Wrap every state inside another iterable.
+    """
     @staticmethod
-    def hidden_compatible(hidden: AmbiguousHidden, func: Callable, *func_args: Tuple,
-                          **func_kwargs: Dict) -> Any:
+    def hidden_compatible(hidden: AmbiguousHidden, func: Callable, *func_args: Any,
+                          **func_kwargs: Any) -> Any:
         """
         Ensure compatibility between GRU and LSTM RNNs by applying a function to both the hidden and cell state inside
         the hidden variable if necessary.

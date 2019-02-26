@@ -18,9 +18,9 @@ from torch.nn.utils import clip_grad_norm_
 
 # PROJECT
 from corpus.corpora import read_wiki_corpus, WikiCorpus
-from uncertainty.abstract_rnn import AbstractRNN
-from uncertainty.uncertainty_recoding import UncertaintyLSTMLanguageModel, AdaptingUncertaintyMechanism
-from uncertainty.language_model import LSTMLanguageModel
+from models.abstract_rnn import AbstractRNN
+from uncertainty.uncertainty_recoding import AdaptingUncertaintyMechanism
+from models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from utils.compatability import RNNCompatabilityMixin
 
 # TODO list:
@@ -37,7 +37,7 @@ def main():
         "general": {"model_type"},
         "model": {"embedding_size", "hidden_size", "num_layers"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
-                  "model_save_path"},
+                  "model_save_path", "device"},
         "corpus": {"corpus_dir"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale",
                      "hidden_size", "weight_decay", "average_recoding", "step_size"},
@@ -45,6 +45,10 @@ def main():
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
     config_dict = config_object.config_dict
+
+    # Set device for training
+    if not (config_dict["train"]["device"] == "cuda" and torch.cuda.is_available()):
+        config_dict["train"]["device"] = "cpu"
 
     # Retrieve config options
     corpus_dir = config_dict["corpus"]["corpus_dir"]
@@ -78,22 +82,27 @@ def main():
             vocab_size, **config_dict["model"],
             mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs
         )
+    else:
+        raise Exception("Invalid model type chosen!")
 
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set)
 
 
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
-                weight_decay: float, clip: float, print_every: int, eval_every: int,
+                weight_decay: float, clip: float, print_every: int, eval_every: int, device: torch.device,
                 valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None) -> None:
     """
     Training loop for model.
     """
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay,  amsgrad=True)
-    dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size, drop_last=True)
+    # Move models
+    model.to(device)
+
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
+    dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size)
     num_batches = len(dataloader)
-    loss = CrossEntropyLoss(reduction="sum")  # Don't average
-    hidden = model.init_hidden(batch_size)
+    loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
     total_batch_i = 0
+    hidden = None
     best_validation_loss = np.inf
 
     for epoch in range(num_epochs):
@@ -101,9 +110,12 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
         for batch_i, batch in enumerate(dataloader):
 
-            seq_len = batch.shape[1]
+            batch_size, seq_len = batch.shape
             optimizer.zero_grad()
             batch_loss = 0
+
+            if hidden is None:
+                hidden = model.init_hidden(batch_size)
 
             for t in range(seq_len - 1):
                 input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
@@ -132,15 +144,15 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
             print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Validation Loss: {validation_loss:.4f}")
 
             if validation_loss < best_validation_loss and model_save_path is not None:
-                model = add_model_info(model, epoch, epoch_loss.detach().numpy(), validation_loss)
+                model = add_model_info(model, epoch, epoch_loss.cpu().detach().numpy(), validation_loss)
                 torch.save(model, model_save_path)
                 best_validation_loss = validation_loss
 
 
-def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int) -> float:
+def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
     """ Evaluate a model on a given test set. """
     dataloader = DataLoader(test_set, batch_size=batch_size)
-    loss = CrossEntropyLoss()
+    loss = CrossEntropyLoss().to(device)
     test_loss = 0
     hidden = None
 
@@ -160,7 +172,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int) ->
 
     model.train()
 
-    return test_loss.detach().numpy()
+    return test_loss.cpu().detach().numpy()
 
 
 def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation_loss: float, **misc: Dict):
@@ -208,6 +220,7 @@ def init_argparser() -> ArgumentParser:
                                "uncertainty-based model with fixed step size and an uncertainty based-model with a "
                                "step-sized parameterized by a MLP.")
     from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
+    from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
 
     return parser
 
