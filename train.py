@@ -50,6 +50,8 @@ def main():
     if not (config_dict["train"]["device"] == "cuda" and torch.cuda.is_available()):
         config_dict["train"]["device"] = "cpu"
 
+    print(f"Using {config_dict['train']['device']} for training...")
+
     # Retrieve config options
     corpus_dir = config_dict["corpus"]["corpus_dir"]
 
