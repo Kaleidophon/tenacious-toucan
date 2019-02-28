@@ -18,13 +18,14 @@ class AbstractRNN(ABC, nn.Module):
     """
     Abstract RNN class defining some common attributes and functions.
     """
-    def __init__(self, rnn_type, hidden_size, embedding_size, num_layers):
+    def __init__(self, rnn_type, hidden_size, embedding_size, num_layers, device: torch.device = "cpu"):
         super().__init__()
         self.rnn_type = rnn_type
         self.rnn = getattr(nn, rnn_type)(embedding_size, hidden_size, num_layers, batch_first=True)
         self.hidden_size = hidden_size
         self.embedding_size = embedding_size
         self.num_layers = num_layers
+        self.device = device
 
     @abstractmethod
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:

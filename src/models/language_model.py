@@ -6,8 +6,9 @@ Implementation of a simple RNN language model.
 from typing import Optional, Dict, Tuple
 
 # EXT
-from overrides import overrides
+import torch
 from torch import nn, Tensor
+from overrides import overrides
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -17,8 +18,8 @@ class LSTMLanguageModel(AbstractRNN):
     """
     Implementation of a LSTM language model that can process inputs token-wise or in sequences.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers):
-        super().__init__("LSTM", hidden_size, embedding_size, num_layers)
+    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, device: torch.device = "cpu"):
+        super().__init__("LSTM", hidden_size, embedding_size, num_layers, device)
         self.embeddings = nn.Embedding(vocab_size, embedding_size)
         self.out_layer = nn.Linear(hidden_size, vocab_size)
         self.vocab_size = vocab_size
@@ -80,8 +81,9 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
     the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, mechanism_class, mechanism_kwargs):
-        super().__init__(vocab_size, embedding_size, hidden_size, num_layers)
+    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, mechanism_class, mechanism_kwargs,
+                 device: torch.device = "cpu"):
+        super().__init__(vocab_size, embedding_size, hidden_size, num_layers, device)
         self.mechanism = mechanism_class(model=self, **mechanism_kwargs)
 
     @overrides

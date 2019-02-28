@@ -29,15 +29,15 @@ class StepPredictor(nn.Module):
 
         # Init layers
         last_layer_size = predictor_layers[0]
-        self.input_layer = nn.Linear(hidden_size * window_size, last_layer_size)
+        self.input_layer = nn.Linear(hidden_size * window_size, last_layer_size, bias=False)
         self.hidden_layers = []
 
         for current_layer_size in predictor_layers[1:]:
-            self.hidden_layers.append(nn.Linear(last_layer_size, current_layer_size))
+            self.hidden_layers.append(nn.Linear(last_layer_size, current_layer_size, bias=False))
             self.hidden_layers.append(ReLU())
             last_layer_size = current_layer_size
 
-        self.output_layer = nn.Linear(last_layer_size, 1)  # Output scalar alpha_t
+        self.output_layer = nn.Linear(last_layer_size, 1, bias=False)  # Output scalar alpha_t
 
         self.model = nn.Sequential(
             self.input_layer,
@@ -139,6 +139,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         """
         Make several predictions about the probability of a token using different dropout masks.
         """
+        device = self.model.device
         batch_size, seq_len, output_dim = output.size()
         output.view(seq_len, batch_size, output_dim)
 
@@ -155,6 +156,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         # Normalize "in batch"
         # TODO: Does this make sense?
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
+        target_idx.to(device)
 
         # Select predicted probabilities of target index
         predictions = predictions.exp()  # Exponentiate for later softmax
@@ -213,8 +215,9 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         )
 
         # Initialize additional parts of model to make it more adaptive
+        device = self.model.device
         self.window_size = window_size
-        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size)
+        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size).to(device)
         self.hidden_buffer = []  # Save hidden states
 
     def train(self):
