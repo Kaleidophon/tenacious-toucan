@@ -5,7 +5,7 @@ Train the model with the uncertainty-based intervention mechanism.
 # STD
 from argparse import ArgumentParser
 import time
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 # EXT
 import numpy as np
@@ -15,17 +15,22 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils import clip_grad_norm_
+from tensorboardX import SummaryWriter
 
 # PROJECT
 from src.corpus.corpora import read_wiki_corpus, WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
-from src.uncertainty.uncertainty_recoding import AdaptingUncertaintyMechanism
+from src.uncertainty.uncertainty_recoding import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin
+from src.utils.logging import log_tb_data, log_to_file
+
+# GLOBALS
+WRITER = None
+MODEL_NAME = None
 
 # TODO list:
 # Make cuda compatible
-# Add tensorboard
 # Add missing documentation
 # Purge todos
 
@@ -37,7 +42,8 @@ def main():
         "general": {"model_type"},
         "model": {"embedding_size", "hidden_size", "num_layers"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
-                  "model_save_path", "device"},
+                  "model_save_path", "device", "model_name"},
+        "logging": {"log_dir", "layout"},
         "corpus": {"corpus_dir"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale",
                      "hidden_size", "weight_decay", "average_recoding", "step_size"},
@@ -54,6 +60,22 @@ def main():
 
     # Retrieve config options
     corpus_dir = config_dict["corpus"]["corpus_dir"]
+    log_dir = config_dict["logging"]["log_dir"]
+    layout = config_dict["logging"]["layout"]
+
+    # Initialize writer
+    if log_dir is not None:
+        global WRITER, MODEL_NAME
+        WRITER = SummaryWriter(log_dir)
+        MODEL_NAME = config_dict["train"]["model_name"]
+
+        if layout is not None:
+            custom_layout = {
+                "Losses": {
+                    "train_loss": ["Multiline", layout], "val_loss": ["Multiline", layout]
+                }
+            }
+            WRITER.add_custom_scalars(custom_layout)
 
     # Load data
     start = time.time()
@@ -78,7 +100,7 @@ def main():
     elif model_type == "fixed_step":
         model = UncertaintyLSTMLanguageModel(
             vocab_size, **config_dict["model"],
-            mechanism_class=UncertaintyLSTMLanguageModel, mechanism_kwargs=mechanism_kwargs)
+            mechanism_class=UncertaintyMechanism, mechanism_kwargs=mechanism_kwargs)
     elif model_type == "mlp_step":
         model = UncertaintyLSTMLanguageModel(
             vocab_size, **config_dict["model"],
@@ -87,12 +109,13 @@ def main():
     else:
         raise Exception("Invalid model type chosen!")
 
-    train_model(model, train_set, **config_dict['train'], valid_set=valid_set)
+    train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
 
 
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
                 weight_decay: float, clip: float, print_every: int, eval_every: int, device: torch.device,
-                valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None) -> None:
+                valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None,
+                log_dir: Optional[str] = None, **unused: Any) -> None:
     """
     Training loop for model.
     """
@@ -140,15 +163,27 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
             hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: h.detach())
             total_batch_i += 1
 
+            # Log
+            batch_loss = float(batch_loss.cpu().detach())
+            log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
+            log_tb_data(WRITER, f"data/batch_loss/{MODEL_NAME}", batch_loss, total_batch_i)
+
         # Calculate validation loss
         if (epoch + 1) % eval_every == 0 and valid_set is not None:
             validation_loss = evaluate_model(model, valid_set, batch_size, device)
-            print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Validation Loss: {validation_loss:.4f}")
+            print(f"Epoch {epoch+1:>3} | Validation Loss: {validation_loss:.4f}")
 
             if validation_loss < best_validation_loss and model_save_path is not None:
-                model = add_model_info(model, epoch, epoch_loss.cpu().detach().numpy(), validation_loss)
+                model_info = add_model_info(model, epoch, epoch_loss.cpu().detach().numpy(), validation_loss)
                 torch.save(model, model_save_path)
                 best_validation_loss = validation_loss
+
+                log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
+
+            log_to_file(
+                {"batch_num": total_batch_i, "val_loss": float(validation_loss)}, f"{log_dir}/{MODEL_NAME}_val.log"
+            )
+            log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", float(validation_loss), total_batch_i)
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
@@ -177,7 +212,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     return test_loss.cpu().detach().numpy()
 
 
-def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation_loss: float, **misc: Dict):
+def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation_loss: float, **misc: Dict) -> dict:
     """
     Add information about the training conditions to a model.
     """
@@ -188,7 +223,7 @@ def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation
     }
     model.info.update(**misc)
 
-    return model
+    return model.info
 
 
 def init_argparser() -> ArgumentParser:
@@ -223,6 +258,11 @@ def init_argparser() -> ArgumentParser:
                                "step-sized parameterized by a MLP.")
     from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
+    from_cmd.add_argument("--log_dir", type=str, help="Directory to write (tensorboard) logs to.")
+    from_cmd.add_argument("--layout", type=list, default=None,
+                            help="Define which models should be grouped together on tensorboard. Layout here is a list "
+                                 "of tags corresponding to the models.")
+    from_cmd.add_argument("--model_name", type=str, help="Model identifier.")
 
     return parser
 
