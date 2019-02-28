@@ -81,9 +81,9 @@ def main():
 
     # Load data
     start = time.time()
-    train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False)
+    train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len, load_torch=False)
     valid_set = read_wiki_corpus(
-        corpus_dir, "test", max_sentence_len=max_sentence_len, load_torch=False, vocab=train_set.vocab
+        corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False, vocab=train_set.vocab
     )
     end = time.time()
     duration = end - start
