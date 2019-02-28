@@ -156,7 +156,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         # Normalize "in batch"
         # TODO: Does this make sense?
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
-        target_idx.to(device)
+        target_idx = target_idx.to(device)
 
         # Select predicted probabilities of target index
         predictions = predictions.exp()  # Exponentiate for later softmax
