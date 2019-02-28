@@ -207,7 +207,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             out, hidden = model(input_vars, hidden)
             output_dist = model.predict_distribution(out)
             output_dist = output_dist.squeeze(1)
-            test_loss += loss(output_dist, batch[:, t + 1])
+            test_loss += loss(output_dist, batch[:, t + 1].to(device))
 
     model.train()
 
