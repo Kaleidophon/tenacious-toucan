@@ -143,7 +143,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 hidden = model.init_hidden(batch_size)
 
             for t in range(seq_len - 1):
-                input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
+                input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
                 out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
                 output_dist = model.predict_distribution(out)
                 output_dist = output_dist.squeeze(1)
@@ -201,7 +201,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             hidden = model.init_hidden(batch_size)
 
         for t in range(seq_len - 1):
-            input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
+            input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
             out, hidden = model(input_vars, hidden)
             output_dist = model.predict_distribution(out)
             output_dist = output_dist.squeeze(1)

@@ -20,6 +20,6 @@
   "model_type": "fixed_step",
   "step_size": 0.5,
   "log_dir": "logs",
-  "model_name": "test2",
+  "model_name": "test",
   "layout": null
 }
