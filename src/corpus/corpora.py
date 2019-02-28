@@ -122,6 +122,16 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
 class WikiCorpus(Dataset):
     """ Corpus Class used to train a PyTorch Language Model. """
     def __init__(self, sentences: List[List[str]], indexed_sentences: List[Tensor], vocab: W2I):
+        """
+        Attributes
+        ----------
+        sentences: List[List[str]]
+            List of raw sentences.
+        indexed_sentences: List[Tensor]
+            List of indexed senteces as PyTorch sentences.
+        vocab: W2I
+            Vocabulary as W2I object.
+        """
         self.sentences = sentences
         self.indexed_sentences = indexed_sentences
         self.vocab = vocab
@@ -156,11 +166,13 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
     load_torch: bool
         Whether to load the dataset directly as a PyTorch Dataset in case it has been saved that way in the corpus_dir
         directory.
+    stop_after: Optional[int]
+        Stop reading after some number of lines.
 
     Returns
     -------
-    dataset, vocabulary: Tuple[Dataset, dict]
-        Returns the specified dataset and the vocabulary as a dictionary.
+    dataset: WikiCorpus
+        Returns the specified dataset
     """
     def _read_vocabulary(vocab_path: str) -> W2I:
         with open(vocab_path, "r") as vocab_file:

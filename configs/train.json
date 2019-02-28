@@ -21,5 +21,6 @@
   "step_size": 0.5,
   "log_dir": "logs",
   "model_name": "test",
-  "layout": null
+  "layout": null,
+  "max_sentence_len": 35
 }

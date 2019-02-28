@@ -26,6 +26,22 @@ class RNNCompatabilityMixin:
         """
         Ensure compatibility between GRU and LSTM RNNs by applying a function to both the hidden and cell state inside
         the hidden variable if necessary.
+
+        Parameters
+        ----------
+        hidden: AmbiguousHidden
+            Either one hidden state or tuple of hidden and cell state.
+        func: Callable
+            Function being applied to hidden activations.
+        func_args: Any
+            Unnamed additional arguments for function.
+        func_kwargs: Any
+            Named additional arguments for function.
+
+        Returns
+        -------
+        result: Any
+            Function return value.
         """
         # LSTM case
         if type(hidden) in (tuple, list):
@@ -39,6 +55,16 @@ class RNNCompatabilityMixin:
         """
         Ensure compatibility between GRU and LSTM RNNs by always selecting the hidden and not cell state inside
         the hidden variable if necessary.
+
+        Parameters
+        ----------
+        hidden: AmbiguousHidden
+            Either one hidden state or tuple of hidden and cell state.
+
+        Returns
+        -------
+        hidden: Tensor:
+            Only the hidden state.
         """
         # LSTM case
         if type(hidden) == tuple:
@@ -51,6 +77,16 @@ class RNNCompatabilityMixin:
     def hidden_scatter(hidden: AmbiguousHidden) -> Iterable[Iterable]:
         """
         Ensure compatibility between GRU and LSTM RNNs by always selecting returning hidden as an iterable.
+
+        Parameters
+        ----------
+        hidden: AmbiguousHidden
+            Either one hidden state or tuple of hidden and cell state.
+
+        Returns
+        -------
+        hidden_list: Iterable[Iterable]
+            Nested list of hidden state(s).
         """
         # LSTM case
         if type(hidden) == tuple:

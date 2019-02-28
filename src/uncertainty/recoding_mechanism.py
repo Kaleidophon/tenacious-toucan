@@ -101,9 +101,17 @@ class RecodingMechanism(ABC):
             Current hidden state.
         delta: Tensor
             Current error signal that is used to calculate the gradient w.r.t. the current hidden state.
+        optimizer: Optimizer
+            Optimizer used to make recoding step.
         step_size: Tensor
-            Either 1 x 1 tensor for constant batch size or Batch_size x 1 tensor with individual_batch_size for all
-            batch instances.
+            Either 1 x 1 tensor / float for constant batch size or Batch_size x 1 tensor with individual_batch_size for
+            all batch instances.
+
+        Returns
+        -------
+        hidden: Tensor
+            Recoded activations.predictor_layers: Iterable[int]
+            Layer sizes for MLP as some sort of iterable.
         """
         device = self.model.device
 
@@ -140,12 +148,29 @@ class RecodingMechanism(ABC):
             Tensor to be converted to a PyTorch Variable.
         requires_grad: bool
             Whether the variable requires the calculation of its gradients.
+
+        Returns
+        -------
+        variable: Variable
+            Tensor wrapped in variable.
         """
         return Variable(tensor, requires_grad=requires_grad)
 
     @staticmethod
     def replace_nans(tensor: Tensor) -> Tensor:
-        """ Replace nans in a PyTorch tensor with zeros. """
+        """
+        Replace nans in a PyTorch tensor with zeros.
+
+        Parameters
+        ----------
+        tensor: Tensor
+            Input tensor.
+
+        Returns
+        -------
+        tensor: Tensor
+            Tensor with nan values replaced.
+        """
         tensor[tensor != tensor] = 0  # Exploit the fact that nan != nan
 
         return tensor

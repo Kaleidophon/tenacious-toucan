@@ -18,7 +18,21 @@ class LSTMLanguageModel(AbstractRNN):
     """
     Implementation of a LSTM language model that can process inputs token-wise or in sequences.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, device: torch.device = "cpu"):
+    def __init__(self, vocab_size, hidden_size, embedding_size, num_layers, device: torch.device = "cpu"):
+        """
+        Parameters
+        ----------
+        vocab_size: int
+            Size of input vocabulary.
+        hidden_size: int
+            Dimensionality of hidden activations.
+        embedding_size: int
+            Dimensionality of word embeddings.
+        num_layers: int
+            Number of RNN layers.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
+        """
         super().__init__("LSTM", hidden_size, embedding_size, num_layers, device)
         self.embeddings = nn.Embedding(vocab_size, embedding_size)
         self.out_layer = nn.Linear(hidden_size, vocab_size)

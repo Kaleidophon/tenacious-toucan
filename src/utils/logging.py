@@ -3,8 +3,7 @@ Define helpful logging functions.
 """
 
 # STD
-from functools import wraps
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 import os
 
 # EXT
@@ -13,28 +12,20 @@ import torch
 from tensorboardX import SummaryWriter
 
 
-def log_result(writer: Union[SummaryWriter, None], tags: str, step: Optional[int] = None):
-    """
-    Decorator that uses a tensorboardX SummaryWriter to log the result of a function without having to modify the code
-    in any way.
-    """
-    def decorator(func: Callable):
-        @wraps(func)
-        def wrapped(*args: Any, **kwargs: Any) -> Any:
-            result = func(*args, **kwargs)
-
-            log_tb_data(writer, tags, result, step)
-
-            return result
-
-        return wrapped
-
-    return decorator
-
-
 def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: Optional[int] = None) -> None:
     """
     Log some sort of data to Tensorboard if a SummaryWriter has been initialized.
+
+    Parameters
+    ----------
+    writer: Union[SummaryWriter, None]
+        tensorboardX summary writer if given.
+    tags: str
+        Tag used for writing information.
+    data: Any
+        Data to be logged.
+    step: Optional[int]
+        Global step that is used to write the data.
     """
     if writer is not None:
         if type(data) in (int, float):
@@ -56,6 +47,13 @@ def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: 
 def log_to_file(data: dict, log_path: Optional[str] = None) -> None:
     """
     Log some data to a normal text file.
+
+    Parameters
+    ----------
+    data: Any
+        Data to be logged.
+    log_path: str
+        File the data is going to be logged to (if given).
     """
     if log_path is None:
         return

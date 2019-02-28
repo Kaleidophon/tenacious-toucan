@@ -30,7 +30,6 @@ WRITER = None
 MODEL_NAME = None
 
 # TODO list:
-# Make cuda compatible
 # Add missing documentation
 # Purge todos
 
@@ -44,7 +43,7 @@ def main():
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
                   "model_save_path", "device", "model_name"},
         "logging": {"log_dir", "layout"},
-        "corpus": {"corpus_dir"},
+        "corpus": {"corpus_dir", "max_sentence_len"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale",
                      "hidden_size", "weight_decay", "average_recoding", "step_size"},
     }
@@ -61,6 +60,7 @@ def main():
 
     # Retrieve config options
     corpus_dir = config_dict["corpus"]["corpus_dir"]
+    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
     log_dir = config_dict["logging"]["log_dir"]
     layout = config_dict["logging"]["layout"]
 
@@ -80,10 +80,10 @@ def main():
 
     # Load data
     start = time.time()
-    # TODO: Change this back, this is just for debugging
-    train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=35, stop_after=100, load_torch=False)
-    valid_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=35, stop_after=78, load_torch=False)
-    #test_set = read_wiki_corpus(corpus_dir, "test", vocab=train_set.vocab)
+    train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False)
+    valid_set = read_wiki_corpus(
+        corpus_dir, "test", max_sentence_len=max_sentence_len, load_torch=False, vocab=train_set.vocab
+    )
     end = time.time()
     duration = end - start
     minutes, seconds = divmod(duration, 60)
@@ -111,6 +111,7 @@ def main():
     else:
         raise Exception("Invalid model type chosen!")
 
+    # Train
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
 
 
@@ -120,6 +121,35 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 log_dir: Optional[str] = None, **unused: Any) -> None:
     """
     Training loop for model.
+
+    Parameters
+    ----------
+    model: AbstractRNN
+        Model to be trained.
+    train_set: WikiCorpus
+        Training set.
+    learning_rate: float
+        Learning rate used for optimizer.
+    num_epochs: int
+        Number of training epochs.
+    batch_size: int
+        Batch size used for training.
+    weight_decay: float
+        L2-regularization parameter.
+    clip: float
+        Threshold used for gradient clipping.
+    print_every: int
+        Interval at which training loss is being printed.
+    eval_every: int
+        Interval at which model is evaluated on the validation set.
+    device: torch.device
+        Torch device the model is being trained on (e.g. "cpu" or "cuda").
+    valid_set: Optional[WikiCorpus]
+        Validation set the model is being evaluated on.
+    model_save_path: Optional[str]
+        Path the best model is being saved to if given.
+    log_dir: Optional[str]
+        Path log data is being written to if given.
     """
     # Move models
     model.to(device)
@@ -189,7 +219,25 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
-    """ Evaluate a model on a given test set. """
+    """
+    Evaluate a model on a given test set.
+
+    Parameters
+    ----------
+    model: AbstractRNN
+        Model to be trained.
+    test_set: Optional[WikiCorpus]
+        Validation set the model is being evaluated on.
+    batch_size: int
+        Batch size used for training.
+    device: torch.device
+        Torch device the model is being trained on (e.g. "cpu" or "cuda").
+
+    Returns
+    -------
+    test_loss: float
+        Loss on test set.
+    """
     dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
     loss = CrossEntropyLoss().to(device)
     test_loss = 0
@@ -229,15 +277,30 @@ def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation
 
 
 def init_argparser() -> ArgumentParser:
+    """
+    Init the parser that parses additional command line arguments. These overwrite the default options
+    that were defined in a config if -c / --config is given.
+    """
     parser = ArgumentParser()
     from_config = parser.add_argument_group('From config file', 'Provide full experiment setup via config file')
     from_config.add_argument('-c', '--config', help='Path to json file containing classification config.')
     from_cmd = parser.add_argument_group('From commandline', 'Specify experiment setup via commandline arguments')
 
+    # Model options
+    from_cmd.add_argument("--model_type", type=str, choices=["vanilla", "fixed_step", "mlp_step"],
+                          help="Model type used for training. Choices include a vanilla Language Model, a "
+                               "uncertainty-based model with fixed step size and an uncertainty based-model with a "
+                               "step-sized parameterized by a MLP.")
     from_cmd.add_argument("--embedding_size", type=int, help="Dimensionality of word embeddings.")
     from_cmd.add_argument("--hidden_size", type=int, help="Dimensionality of hidden states.")
     from_cmd.add_argument("--num_layers", type=int, help="Number of network layers.")
     from_cmd.add_argument("--dropout_prob", type=float, help="Dropout probability when estimating uncertainty.")
+    from_cmd.add_argument("--average_recoding", action="store_true", default=None,
+                          help="Indicate whether recoding gradients should be averaged over batch in order to save "
+                               "computational resources.")
+    from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
+
+    # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")
     from_cmd.add_argument("--prior_scale", type=float,
                           help="Prior length scale. A lower scale signifies a prior belief that the input data is "
@@ -245,26 +308,25 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--learning_rate", type=float, help="Learning rate during training.")
     from_cmd.add_argument("--batch_size", type=int, help="Batch size during training.")
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
-    from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
     from_cmd.add_argument("--clip", type=float, help="Threshold for gradient clipping.")
+
+    # Corpus options
+    from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
+    from_cmd.add_argument("--max_sentence_len", type=int, help="Maximum sentence length when reading in the corpora.")
+
+    # Screen output optins
     from_cmd.add_argument("--print_every", type=int, help="Batch interval at which training info should be printed.")
     from_cmd.add_argument("--eval_every", type=int,
                           help="Epoch interval at which the model should be evaluated on validation set.")
+
+    # Model saving and logging options
+    from_cmd.add_argument("--model_name", type=str, help="Model identifier.")
     from_cmd.add_argument("--model_save_dir", type=str, help="Directory to which current best model should be saved to.")
-    from_cmd.add_argument("--average_recoding", action="store_true", default=None,
-                          help="Indicate whether recoding gradients should be averaged over batch in order to save "
-                               "computational resources.")
-    from_cmd.add_argument("--model_type", type=str, choices=["vanilla", "fixed_step", "mlp_step"],
-                          help="Model type used for training. Choices include a vanilla Language Model, a "
-                               "uncertainty-based model with fixed step size and an uncertainty based-model with a "
-                               "step-sized parameterized by a MLP.")
-    from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--log_dir", type=str, help="Directory to write (tensorboard) logs to.")
     from_cmd.add_argument("--layout", type=list, default=None,
                             help="Define which models should be grouped together on tensorboard. Layout here is a list "
                                  "of tags corresponding to the models.")
-    from_cmd.add_argument("--model_name", type=str, help="Model identifier.")
 
     return parser
 

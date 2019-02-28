@@ -3,7 +3,7 @@ Define a model with an intervention mechanism that bases its interventions on th
 """
 
 # STD
-from typing import Dict, Tuple, Optional, Iterable
+from typing import Dict, Tuple, Optional, Iterable, Any
 
 # EXT
 from overrides import overrides
@@ -20,8 +20,22 @@ from src.models.language_model import LSTMLanguageModel
 
 
 class StepPredictor(nn.Module):
+    """
+    Function that determines the recoding step size based on a window of previous hidden states.
+    """
+    def __init__(self, predictor_layers: Iterable[int], hidden_size: int, window_size: int):
+        """
+        Initialize model.
 
-    def __init__(self, predictor_layers, hidden_size, window_size):
+        Parameters
+        ----------
+        predictor_layers: Iterable[int]
+            Layer sizes for MLP as some sort of iterable.
+        hidden_size: int
+            Dimensionality of hidden activations.
+        window_size: int
+            Number of previous hidden states to be considered for prediction.
+        """
         super().__init__()
         self.predictor_layers = predictor_layers
         self.hidden_size = hidden_size
@@ -47,7 +61,20 @@ class StepPredictor(nn.Module):
             Sigmoid()
         )
 
-    def forward(self, hidden_window: Tensor):
+    def forward(self, hidden_window: Tensor) -> Tensor:
+        """
+        Prediction step.
+
+        Parameters
+        ----------
+        hidden_window: Tensor
+            Window of previous hidden states of shape Batch size x Window size x Hidden dim
+
+        Returns
+        -------
+        step_size: Tensor
+            Batch size x 1 tensor of predicted step sizes per batch instance.
+        """
         return self.model(hidden_window)
 
 
@@ -56,18 +83,33 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
     Intervention mechanism that bases its intervention on the predictive uncertainty of a model.
     In this case the step size is constant during the recoding step.
     """
-    def __init__(self,
-                 model: AbstractRNN,
-                 hidden_size: int,
-                 num_samples: int,
-                 dropout_prob: float,
-                 weight_decay: float,
-                 prior_scale: float,
-                 average_recoding: bool,
-                 step_size: float,
-                 data_length: Optional[int] = None,
-                 **unused: Dict):
+    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
+                 prior_scale: float, average_recoding: bool, step_size: float, data_length: Optional[int] = None,
+                 **unused: Any):
+        """
+        Initialize the mechanism.
 
+        Parameters
+        ----------
+        model: AbstractRNN
+            Model the mechanism is being applied to.
+        hidden_size: int
+            Dimensionality of hidden activations.
+        num_samples: int
+            Number of samples used to estimate uncertainty.
+        dropout_prob: float
+            Dropout probability used to estimate uncertainty.
+        weight_decay: float
+            L2-regularization parameter.
+        prior_scale: float
+            Parameter that express belief about frequencies in the input data.
+        average_recoding: bool
+            Flag to indicate whether recoding gradients should be average over batch.
+        step_size: float
+            Fixed step size for decoding.
+        data_length: Optional[int]
+            Number of data points used.
+        """
         super().__init__(model, average_recoding=average_recoding)
 
         self.model = model
@@ -80,6 +122,19 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.step_size = step_size
 
     def _determine_step_size(self, hidden: Tensor) -> float:
+        """
+        Determine recoding step size. In this case, only a fixed step size is returned.
+
+        Parameters
+        ----------
+        hidden: Tensor
+            Current hidden state used to determine step size (in this case unused).
+
+        Returns
+        -------
+        step_size: float
+            Fixed step size.
+        """
         return self.step_size
 
     @overrides
@@ -135,9 +190,23 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         return new_out, new_hidden
 
-    def _predict_with_dropout(self, output: Tensor, model: AbstractRNN, target_idx: Tensor = None):
+    def _predict_with_dropout(self, output: Tensor, model: AbstractRNN, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
+
+        Parameters
+        ----------
+        output: Tensor
+            Current output activations.
+        model: AbstractRNN
+            Model which predictive uncertainty is being estimated.
+        target_idx: Optional[Tensor]
+            Indices of actual next tokens (if given). Otherwise the most likely tokens are used.
+
+        Returns
+        -------
+        target_predictions: Tensor
+            Predicted probabilities for target token.
         """
         device = self.model.device
         batch_size, seq_len, output_dim = output.size()
@@ -172,11 +241,40 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         return target_predictions
 
     def _calculate_predictive_uncertainty(self, predictions: Tensor):
+        """
+        Calculate the predictive uncertainty based on the predictions made with different dropout masks.
+        This corresponds to the equation of the predicted variance given in §4 of [1].
+
+        [1] http://proceedings.mlr.press/v48/gal16.pdf
+
+        Parameters
+        ----------
+        predictions: Tensor
+            Tensor of num_sample predictions per batch instance.
+
+        Returns
+        -------
+        uncertainty: Tensor
+            Estimated predictive uncertainty per batch instance.
+        """
         prior_info = 2 * self.dropout_prob * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
         return predictions.var(dim=0).unsqueeze(1) * prior_info
 
     @staticmethod
     def _get_output_weights(model: AbstractRNN) -> Tuple[Tensor, Tensor]:
+        """
+        Retrieve output weights of model for later re-decoding.
+
+        Parameters
+        ----------
+        model: AbstractRNN
+            Model for which the weights are going to be retrieved for.
+
+        Returns
+        -------
+        weights: Tuple[Tensor, Tensor]
+            Tuple of weights W_ho and bias b_ho.
+        """
         NHID = model.hidden_size
 
         # TODO: Support multiple layers
@@ -195,19 +293,31 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
     Same as UncertaintyMechanism, except that the step size is parameterized by a MLP, which predicts it based
     on a window of previous hidden states.
     """
-    def __init__(self,
-                 model: AbstractRNN,
-                 hidden_size: int,
-                 num_samples: int,
-                 dropout_prob: float,
-                 weight_decay: float,
-                 prior_scale: float,
-                 average_recoding: bool,
-                 window_size: int,
-                 predictor_layers: Iterable[int],
-                 data_length: Optional[int] = None,
-                 **unused: Dict):
-
+    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
+                 prior_scale: float, average_recoding: bool, window_size: int, predictor_layers: Iterable[int],
+                 data_length: Optional[int] = None, **unused: Any):
+        """
+        Parameters
+        ----------
+        model: AbstractRNN
+            Model the mechanism is being applied to.
+        hidden_size: int
+            Dimensionality of hidden activations.
+        num_samples: int
+            Number of samples used to estimate uncertainty.
+        dropout_prob: float
+            Dropout probability used to estimate uncertainty.
+        weight_decay: float
+            L2-regularization parameter.
+        prior_scale: float
+            Parameter that express belief about frequencies in the input data.
+        average_recoding: bool
+            Flag to indicate whether recoding gradients should be average over batch.
+        predictor_layers: Iterable[int]
+            Layer sizes for MLP as some sort of iterable.
+        data_length: Optional[int]
+            Number of data points used.
+        """
         super().__init__(
             model=model, hidden_size=hidden_size, num_samples=num_samples, dropout_prob=dropout_prob,
             weight_decay=weight_decay, prior_scale=prior_scale, average_recoding=average_recoding,
@@ -231,6 +341,20 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         self.hidden_buffer = []
 
     def _determine_step_size(self, hidden: Tensor) -> float:
+        """
+        Determine recoding step size. In this case, the current hidden activations are added to a window of previous
+        hidden states and used with a MLP to predict the appropriate step size.
+
+        Parameters
+        ----------
+        hidden: Tensor
+            Current hidden state used to determine step size.
+
+        Returns
+        -------
+        step_size: float
+            Predicted step size.
+        """
         hidden = self.hidden_select(hidden)
         num_layers, batch_size, _ = hidden.size()
         hidden = hidden.view(batch_size, num_layers, self.hidden_size)
