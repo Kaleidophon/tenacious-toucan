@@ -2,7 +2,7 @@
   "embedding_size": 650,
   "hidden_size": 650,
   "num_layers": 1,
-  "predictor_layers": [1000, 300],
+  "predictor_layers": [300, 100],
   "window_size": 4,
   "num_samples": 10,
   "dropout_prob": 0.2,
