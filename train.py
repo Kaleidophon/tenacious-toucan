@@ -149,7 +149,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
                 output_dist = model.predict_distribution(out)
                 output_dist = output_dist.squeeze(1)
-                batch_loss += loss(output_dist, batch[:, t+1])
+                batch_loss += loss(output_dist, batch[:, t+1].to(device))
 
             if (total_batch_i + 1) % print_every == 0:
                 print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Training Loss: {batch_loss:.4f}")
