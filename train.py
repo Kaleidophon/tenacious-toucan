@@ -53,10 +53,11 @@ def main():
     config_dict = config_object.config_dict
 
     # Set device for training
-    if not (config_dict["train"]["device"] == "cuda" and torch.cuda.is_available()):
+    device = config_dict['train']['device']
+    if not (device == "cuda" and torch.cuda.is_available()):
         config_dict["train"]["device"] = "cpu"
 
-    print(f"Using {config_dict['train']['device']} for training...")
+    print(f"Using {device} for training...")
 
     # Retrieve config options
     corpus_dir = config_dict["corpus"]["corpus_dir"]
@@ -96,15 +97,16 @@ def main():
     mechanism_kwargs["data_length"] = len(train_set)
 
     if model_type == "vanilla":
-        model = LSTMLanguageModel(vocab_size, **config_dict["model"])
+        model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
     elif model_type == "fixed_step":
         model = UncertaintyLSTMLanguageModel(
             vocab_size, **config_dict["model"],
-            mechanism_class=UncertaintyMechanism, mechanism_kwargs=mechanism_kwargs)
+            mechanism_class=UncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
+        )
     elif model_type == "mlp_step":
         model = UncertaintyLSTMLanguageModel(
             vocab_size, **config_dict["model"],
-            mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs
+            mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
         )
     else:
         raise Exception("Invalid model type chosen!")
