@@ -105,6 +105,8 @@ class RecodingMechanism(ABC):
             Either 1 x 1 tensor for constant batch size or Batch_size x 1 tensor with individual_batch_size for all
             batch instances.
         """
+        device = self.model.device
+
         # Compute recoding gradients
         # Average recoding gradients for a batch -> Higher speed, less accuracy
         # The speedup of course depends on the batch size
@@ -113,7 +115,7 @@ class RecodingMechanism(ABC):
             delta.backward()
         # Calculate recoding gradients per instance -> More computationally expensive but higher accuracy
         else:
-            backward(delta, grad_tensors=torch.ones(delta.shape))  # Idk why this works but it does
+            backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
