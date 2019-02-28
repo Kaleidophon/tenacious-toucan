@@ -187,7 +187,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
             # Backward pass
             batch_loss /= batch_size
-            epoch_loss += batch_loss
+            epoch_loss += batch_loss.item()
             batch_loss.backward(retain_graph=True)
             clip_grad_norm_(batch_loss, clip)
             optimizer.step()
@@ -207,16 +207,16 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
             print(f"Epoch {epoch+1:>3} | Validation Loss: {validation_loss:.4f}")
 
             if validation_loss < best_validation_loss and model_save_path is not None:
-                model_info = add_model_info(model, epoch, epoch_loss.cpu().detach().numpy(), validation_loss)
+                model_info = add_model_info(model, epoch, epoch_loss, validation_loss)
                 torch.save(model, model_save_path)
                 best_validation_loss = validation_loss
 
                 log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
 
             log_to_file(
-                {"batch_num": total_batch_i, "val_loss": float(validation_loss)}, f"{log_dir}/{MODEL_NAME}_val.log"
+                {"batch_num": total_batch_i, "val_loss": validation_loss}, f"{log_dir}/{MODEL_NAME}_val.log"
             )
-            log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", float(validation_loss), total_batch_i)
+            log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
@@ -256,11 +256,13 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             out, hidden = model(input_vars, hidden)
             output_dist = model.predict_distribution(out)
             output_dist = output_dist.squeeze(1)
-            test_loss += loss(output_dist, batch[:, t + 1].to(device))
+            test_loss += loss(output_dist, batch[:, t + 1].to(device)).item()
+
+        hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
     model.train()
 
-    return test_loss.cpu().detach().numpy()
+    return test_loss
 
 
 def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation_loss: float, **misc: Dict) -> dict:
