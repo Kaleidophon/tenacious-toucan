@@ -146,7 +146,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
             for t in range(seq_len - 1):
                 input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-                out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
+                out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
                 output_dist = model.predict_distribution(out)
                 output_dist = output_dist.squeeze(1)
                 batch_loss += loss(output_dist, batch[:, t+1].to(device))

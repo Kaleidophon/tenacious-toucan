@@ -215,9 +215,9 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         )
 
         # Initialize additional parts of model to make it more adaptive
-        device = self.model.device
+        self.device = self.model.device
         self.window_size = window_size
-        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size).to(device)
+        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size).to(self.device)
         self.hidden_buffer = []  # Save hidden states
 
     def train(self):
@@ -231,14 +231,13 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         self.hidden_buffer = []
 
     def _determine_step_size(self, hidden: Tensor) -> float:
-
         hidden = self.hidden_select(hidden)
         num_layers, batch_size, _ = hidden.size()
         hidden = hidden.view(batch_size, num_layers, self.hidden_size)
 
         # If buffer is empty, initialize it with zero hidden states
         if len(self.hidden_buffer) == 0:
-            self.hidden_buffer = [torch.zeros(hidden.shape)] * self.window_size
+            self.hidden_buffer = [torch.zeros(hidden.shape).to(self.device)] * self.window_size
 
         # Add hidden state to buffer
         self.hidden_buffer.append(hidden)
