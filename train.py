@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
 import torch
+from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss
@@ -192,7 +193,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
             optimizer.step()
 
             # Detach from history so the computational graph from the previous sentence doesn't get carried over
-            hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: h.detach())
+            hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
             total_batch_i += 1
 
             # Log
