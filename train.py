@@ -140,7 +140,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
             batch_loss = 0
 
             if hidden is None:
-                hidden = model.init_hidden(batch_size)
+                hidden = model.init_hidden(batch_size, device)
 
             for t in range(seq_len - 1):
                 input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
@@ -198,7 +198,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         batch_size, seq_len = batch.shape
 
         if hidden is None:
-            hidden = model.init_hidden(batch_size)
+            hidden = model.init_hidden(batch_size, device)
 
         for t in range(seq_len - 1):
             input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1

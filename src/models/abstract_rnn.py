@@ -49,11 +49,11 @@ class AbstractRNN(ABC, nn.Module):
         """
         ...
 
-    def init_hidden(self, batch_size: int) -> AmbiguousHidden:
+    def init_hidden(self, batch_size: int, device: torch.device = "cpu") -> AmbiguousHidden:
         """
         Initialize the hidden states for the current network.
         """
-        hidden_zero = torch.zeros(self.num_layers, batch_size, self.hidden_size)
+        hidden_zero = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
 
         if self.rnn_type == "LSTM":
             return hidden_zero, hidden_zero.clone()
