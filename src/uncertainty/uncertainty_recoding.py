@@ -54,6 +54,7 @@ class StepPredictor(nn.Module):
 
         self.output_layer = nn.Linear(last_layer_size, 1, bias=False)  # Output scalar alpha_t
 
+        # TODO: Simplify this with add_module()
         self.model = nn.Sequential(
             self.input_layer,
             ReLU(),
@@ -191,7 +192,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         return new_out, new_hidden
 
-    def _predict_with_dropout(self, output: Tensor, model: AbstractRNN, target_idx: Optional[Tensor] = None):
+    def _predict_with_dropout(self, hidden: Tensor, model: AbstractRNN, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -209,16 +210,16 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         target_predictions: Tensor
             Predicted probabilities for target token.
         """
+        W_ho, b_ho = self._get_output_weights(self.model)
+        out = torch.tanh(hidden @ W_ho + b_ho)
         device = self.model.device
-        batch_size, seq_len, output_dim = output.size()
-        output.view(seq_len, batch_size, output_dim)
 
         # Temporarily add dropout layer
         # Use DataParallel in order to perform k passes in parallel (with different masks!
         dropout_layer = nn.DataParallel(nn.Dropout(p=self.dropout_prob))
 
         # Collect sample predictions
-        output = model.predict_distribution(output)
+        output = model.predict_distribution(out)
         output = output.repeat(self.num_samples, 1, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = dropout_layer(output)
