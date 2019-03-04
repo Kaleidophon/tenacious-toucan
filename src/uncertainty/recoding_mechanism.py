@@ -126,13 +126,11 @@ class RecodingMechanism(ABC):
             backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
 
         # Correct any corruptions
-        hidden.grad = self.replace_nans(hidden.grad)
-
-        # Apply step sizes
-        hidden.grad *= step_size
+        grad = self.replace_nans(hidden.grad)
+        grad = Variable(grad.data, requires_grad=False)  # Detach from graph
 
         # Perform recoding
-        optimizer.step()
+        hidden = hidden - step_size * grad
 
         return hidden
 

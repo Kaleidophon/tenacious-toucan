@@ -11,6 +11,7 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import ReLU, Sigmoid
+from torch.autograd import Variable
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -356,6 +357,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             Predicted step size.
         """
         hidden = self.hidden_select(hidden)
+        hidden = Variable(hidden.data, requires_grad=False)  # Detach from graph
         num_layers, batch_size, _ = hidden.size()
         hidden = hidden.view(batch_size, num_layers, self.hidden_size)
 
