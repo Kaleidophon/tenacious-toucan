@@ -123,7 +123,11 @@ class RecodingMechanism(ABC):
             delta.backward()
         # Calculate recoding gradients per instance -> More computationally expensive but higher accuracy
         else:
-            backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
+            import time
+            start_recoding_backward = time.time()
+            backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)  # Idk why this works but it does
+            end_recoding_backward = time.time()
+            self.model.recoding_backward += end_recoding_backward - start_recoding_backward
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)

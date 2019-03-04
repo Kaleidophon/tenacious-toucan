@@ -37,6 +37,7 @@ class LSTMLanguageModel(AbstractRNN):
         self.embeddings = nn.Embedding(vocab_size, embedding_size)
         self.out_layer = nn.Linear(hidden_size, vocab_size)
         self.vocab_size = vocab_size
+        self.recoding_backward = 0
 
     @overrides
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:

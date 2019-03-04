@@ -30,6 +30,10 @@ from src.utils.logging import log_tb_data, log_to_file
 WRITER = None
 MODEL_NAME = None
 
+# TODO Gradients:
+# Add code to measure backward speed
+# Add code to measure speed for different sequence lengths
+
 # TODO list:
 # Add missing documentation
 # Purge todos
@@ -81,7 +85,7 @@ def main():
 
     # Load data
     start = time.time()
-    train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len, load_torch=False)
+    train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False)
     valid_set = read_wiki_corpus(
         corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False, vocab=train_set.vocab
     )
@@ -166,40 +170,59 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     for epoch in range(num_epochs):
         epoch_loss = 0
 
-        for batch_i, batch in enumerate(dataloader):
+        for o in range(1, 16):
+            for batch_i, batch in enumerate(dataloader):
 
-            batch_size, seq_len = batch.shape
-            optimizer.zero_grad()
-            batch_loss = 0
+                batch_size, seq_len = batch.shape
+                optimizer.zero_grad()
+                batch_loss = 0
 
-            if hidden is None:
-                hidden = model.init_hidden(batch_size, device)
+                if hidden is None:
+                    hidden = model.init_hidden(batch_size, device)
 
-            for t in range(seq_len - 1):
-                input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-                out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
-                output_dist = model.predict_distribution(out)
-                output_dist = output_dist.squeeze(1)
-                batch_loss += loss(output_dist, batch[:, t+1].to(device))
+                for t in range(o):
+                    input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
+                    out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
+                    output_dist = model.predict_distribution(out)
+                    output_dist = output_dist.squeeze(1)
+                    batch_loss += loss(output_dist, batch[:, t+1].to(device))
 
-            if (total_batch_i + 1) % print_every == 0:
-                print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Training Loss: {batch_loss:.4f}")
+                if (total_batch_i + 1) % print_every == 0:
+                    print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Training Loss: {batch_loss:.4f}")
 
-            # Backward pass
-            batch_loss /= batch_size
-            epoch_loss += batch_loss.item()
-            batch_loss.backward(retain_graph=True)
-            clip_grad_norm_(batch_loss, clip)
-            optimizer.step()
+                # Backward pass
+                batch_loss /= batch_size
+                epoch_loss += batch_loss.item()
 
-            # Detach from history so the computational graph from the previous sentence doesn't get carried over
-            hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
-            total_batch_i += 1
+                start_main_backward = time.time()
+                batch_loss.backward(retain_graph=True)
+                end_main_backward = time.time()
+                main_backward = end_main_backward - start_main_backward
+                recoding_backward = model.recoding_backward
+                log_to_file(
+                    {"batch_num": total_batch_i, "main_backward": main_backward, "recoding_backward": recoding_backward},
+                    f"{log_dir}/{MODEL_NAME}_backward_t{o}.log"
+                )
+                if hasattr(model, "recoding_backward"):
+                    model.recoding_backward = 0
 
-            # Log
-            batch_loss = float(batch_loss.cpu().detach())
-            log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
-            log_tb_data(WRITER, f"data/batch_loss/{MODEL_NAME}", batch_loss, total_batch_i)
+                clip_grad_norm_(batch_loss, clip)
+                optimizer.step()
+
+                if total_batch_i == 4:
+                    total_batch_i = 0
+                    break
+
+                # Detach from history so the computational graph from the previous sentence doesn't get carried over
+                hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
+                total_batch_i += 1
+
+                # Log
+                batch_loss = float(batch_loss.cpu().detach())
+                log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
+                log_tb_data(WRITER, f"data/batch_loss/{MODEL_NAME}", batch_loss, total_batch_i)
+
+        return
 
         # Calculate validation loss
         if (epoch + 1) % eval_every == 0 and valid_set is not None:
