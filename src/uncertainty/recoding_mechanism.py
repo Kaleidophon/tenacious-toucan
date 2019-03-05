@@ -29,8 +29,7 @@ class RecodingMechanism(ABC):
         self.optimizer_class = optimizer_class
         self.average_recoding = average_recoding
 
-    def __call__(self,
-                 forward_func: Callable) -> Callable:
+    def __call__(self, forward_func: Callable) -> Callable:
         """
         Wrap the intervention function about the models forward function and return the decorated function.
 
@@ -123,22 +122,19 @@ class RecodingMechanism(ABC):
             delta.backward()
         # Calculate recoding gradients per instance -> More computationally expensive but higher accuracy
         else:
-            backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
+            backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)  # Idk why this works but it does
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
 
-        # Apply step sizes
-        hidden.grad *= step_size
-
         # Perform recoding
         optimizer.step()
+        hidden = Variable(hidden.data)  # Detach from computational graph
 
         return hidden
 
     @staticmethod
-    def _wrap_in_var(tensor: Tensor,
-                     requires_grad: bool) -> Variable:
+    def _wrap_in_var(tensor: Tensor, requires_grad: bool) -> Variable:
         """
         Wrap a numpy array into a PyTorch Variable.
 
