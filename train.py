@@ -172,6 +172,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
         for o in range(1, 16):
             for batch_i, batch in enumerate(dataloader):
+                begin_total = time.time()
 
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()
@@ -199,8 +200,14 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 end_main_backward = time.time()
                 main_backward = end_main_backward - start_main_backward
                 recoding_backward = model.recoding_backward
+                end_total = time.time()
+                total = end_total - begin_total
+
                 log_to_file(
-                    {"batch_num": total_batch_i, "main_backward": main_backward, "recoding_backward": recoding_backward},
+                    {
+                        "batch_num": total_batch_i, "main_backward": main_backward,
+                        "recoding_backward": recoding_backward, "total": total
+                    },
                     f"{log_dir}/{MODEL_NAME}_backward_t{o}.log"
                 )
                 if hasattr(model, "recoding_backward"):
