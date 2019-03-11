@@ -170,7 +170,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     for epoch in range(num_epochs):
         epoch_loss = 0
 
-        for o in range(1, 16):
+        for o in range(15, 16):
             for batch_i, batch in enumerate(dataloader):
                 begin_total = time.time()
 
@@ -196,7 +196,16 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 epoch_loss += batch_loss.item()
 
                 start_main_backward = time.time()
+
+                #import torchviz
+                #dot = torchviz.make_dot(batch_loss)
+                #dot.view(filename=f"main_{o}")
+                #dot.clear()
+
                 batch_loss.backward(retain_graph=True)
+
+                #continue  # TODO: Tryout
+
                 end_main_backward = time.time()
                 main_backward = end_main_backward - start_main_backward
                 recoding_backward = model.recoding_backward

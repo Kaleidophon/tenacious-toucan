@@ -90,6 +90,48 @@ class LSTMLanguageModel(AbstractRNN):
 
         return output_dist
 
+    def detached_predict_distribution(self, output: Tensor, out_layer: Optional[nn.Module] = None):
+        """
+        Generate the output distribution using an affine transformation.
+
+        Parameters
+        ----------
+        output: Tensor
+            Decoded output Tensor of current time step.
+        out_layer: nn.Module
+            Layer used to transform the current output to the distribution.
+
+        Returns
+        -------
+        output_dist: Tensor
+            Unnormalized output distribution for current time step.
+        """
+        # Default to models own output layer
+        out_layer = out_layer if out_layer is not None else self.out_layer
+
+        batch_size, seq_len, hidden_size = output.size()
+        W_out = out_layer.weight
+        b_out = out_layer.bias
+        output = output.view(batch_size * seq_len, hidden_size)
+        output_dist = output @ W_out.detach().t() + b_out.detach()
+        output_dist = output_dist.view(batch_size, seq_len, self.vocab_size)
+
+        return output_dist
+
+    def get_params(self):
+        # TODO: Documentation
+        params = []
+        NHID = self.hidden_size
+
+        for param in self.rnn._parameters.values():
+            ii = param[0: NHID]
+            if_ = param[NHID:2 * NHID]
+            ig = param[2 * NHID:3 * NHID]
+            io = param[3 * NHID:4 * NHID]
+            params.extend([ii, if_, ig, io])
+
+        return params
+
 
 class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     """

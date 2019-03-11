@@ -18,6 +18,8 @@ from torch.optim import SGD, Optimizer
 # PROJECT
 from ..models.abstract_rnn import AbstractRNN
 
+calls = 0
+
 
 class RecodingMechanism(ABC):
     """
@@ -123,18 +125,32 @@ class RecodingMechanism(ABC):
             delta.backward()
         # Calculate recoding gradients per instance -> More computationally expensive but higher accuracy
         else:
-            import time
+            import time #, torchviz
+            #global calls
             start_recoding_backward = time.time()
-            backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)  # Idk why this works but it does
+
+            #dot = torchviz.make_dot(delta)
+            #dot.view(filename=f"recoding{calls}")
+            #calls += 1
+
+            with torch.autograd.profiler.profile() as profiler:
+
+                backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
+
+            print(profiler.table(sort_by="cpu_time_total"))
             end_recoding_backward = time.time()
             self.model.recoding_backward += end_recoding_backward - start_recoding_backward
 
         # Correct any corruptions
-        grad = self.replace_nans(hidden.grad)
-        grad = Variable(grad.data, requires_grad=False)  # Detach from graph
+        hidden.grad = self.replace_nans(hidden.grad)
+        optimizer.step()
+        hidden.grad.data.zero_()
+        hidden = hidden.detach()
+        #hidden = hidden.detach()
+        #grad = self.replace_nans(hidden.grad)
 
         # Perform recoding
-        hidden = hidden - step_size * grad
+        #hidden = hidden - step_size * grad
 
         return hidden
 

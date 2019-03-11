@@ -11,7 +11,7 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import ReLU, Sigmoid
-from torch.autograd import Variable
+from torch.autograd import Variable, backward
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -122,6 +122,10 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.data_length = data_length
         self.step_size = step_size
 
+        # Add dropout layer
+        # Use DataParallel in order to perform k passes in parallel (with different masks!
+        self.dropout_layer = nn.Dropout(p=self.dropout_prob)
+
     def _determine_step_size(self, hidden: Tensor) -> float:
         """
         Determine recoding step size. In this case, only a fixed step size is returned.
@@ -167,6 +171,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # Make predictions using different dropout mask
         hidden = self.hidden_compatible(hidden, self._wrap_in_var, requires_grad=True)
+
         # Use a step-size (or "learning-rate") of 1 here because optimizers don't support a different step size for
         # for every batch instance, actual step size is applied in recode()
         optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.hidden_scatter(hidden)]
@@ -191,7 +196,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         return new_out, new_hidden
 
-    def _predict_with_dropout(self, output: Tensor, model: AbstractRNN, target_idx: Optional[Tensor] = None):
+    def _predict_with_dropout(self, hidden: Tensor, model: AbstractRNN, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -209,19 +214,15 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         target_predictions: Tensor
             Predicted probabilities for target token.
         """
+        W_ho, b_ho = self._get_output_weights(self.model)
+        out = torch.tanh(hidden @ W_ho.detach() + b_ho.detach())
         device = self.model.device
-        batch_size, seq_len, output_dim = output.size()
-        output.view(seq_len, batch_size, output_dim)
-
-        # Temporarily add dropout layer
-        # Use DataParallel in order to perform k passes in parallel (with different masks!
-        dropout_layer = nn.DataParallel(nn.Dropout(p=self.dropout_prob))
 
         # Collect sample predictions
-        output = model.predict_distribution(output)
+        output = model.predict_distribution(out)
         output = output.repeat(self.num_samples, 1, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
-        predictions = dropout_layer(output)
+        predictions = self.dropout_layer(output)
 
         # Normalize "in batch"
         # TODO: Does this make sense?
@@ -357,7 +358,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             Predicted step size.
         """
         hidden = self.hidden_select(hidden)
-        hidden = Variable(hidden.data, requires_grad=False)  # Detach from graph
+        hidden = hidden.detach()
         num_layers, batch_size, _ = hidden.size()
         hidden = hidden.view(batch_size, num_layers, self.hidden_size)
 
