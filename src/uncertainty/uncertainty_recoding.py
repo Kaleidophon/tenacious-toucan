@@ -11,7 +11,7 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import ReLU, Sigmoid
-from torch.autograd import Variable
+from torch.nn.parallel import DataParallel
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -79,8 +79,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
     In this case the step size is constant during the recoding step.
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
-                 prior_scale: float, average_recoding: bool, step_size: float, data_length: Optional[int] = None,
-                 **unused: Any):
+                 prior_scale: float, average_recoding: bool, step_size: float, parallel_sampling: bool,
+                 data_length: Optional[int] = None, **unused: Any):
         """
         Initialize the mechanism.
 
@@ -116,9 +116,12 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.data_length = data_length
         self.step_size = step_size
 
-        # Add dropout layer
-        # Use DataParallel in order to perform k passes in parallel (with different masks!
+        # Add dropout layer to estimate predictive uncertainty
         self.dropout_layer = nn.Dropout(p=self.dropout_prob)
+
+        # Use DataParallel in order to perform k passes in parallel (with different masks!)
+        if parallel_sampling:
+            self.dropout_layer = DataParallel(self.dropout_layer)
 
     def _determine_step_size(self, hidden: Tensor) -> float:
         """
@@ -325,16 +328,20 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         self.window_size = window_size
         self.predictor = StepPredictor(predictor_layers, hidden_size, window_size).to(self.device)
         self.hidden_buffer = []  # Save hidden states
+        self._buffer_copy = []  # Save training buffer when testing the model
 
     def train(self):
         """ When model mode changes, erase buffer. """
         super().train()
-        self.hidden_buffer = []
+        # Either use new, empty buffer or continue with buffer used before model was switched to testing mode
+        self.hidden_buffer = self._buffer_copy
 
     def test(self):
         """ When model mode changes, erase buffer. """
         super().test()
+        self._buffer_copy = self.hidden_buffer
         self.hidden_buffer = []
+        self.dropout_layer.train()  # Don't switch dropout to eval
 
     def _determine_step_size(self, hidden: Tensor) -> float:
         """

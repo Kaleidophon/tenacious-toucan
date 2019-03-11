@@ -4,6 +4,7 @@ Train the model with the uncertainty-based intervention mechanism.
 
 # STD
 from argparse import ArgumentParser
+import sys
 import time
 from typing import Optional, Dict, Any
 
@@ -17,6 +18,7 @@ from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils import clip_grad_norm_
 from tensorboardX import SummaryWriter
+from tqdm import tqdm
 
 # PROJECT
 from src.corpus.corpora import read_wiki_corpus, WikiCorpus
@@ -31,7 +33,6 @@ WRITER = None
 MODEL_NAME = None
 
 # TODO list:
-# Add missing documentation
 # Purge todos
 
 
@@ -45,8 +46,8 @@ def main():
                   "model_save_path", "device", "model_name"},
         "logging": {"log_dir", "layout"},
         "corpus": {"corpus_dir", "max_sentence_len"},
-        "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale",
-                     "hidden_size", "weight_decay", "average_recoding", "step_size"},
+        "recoding": {"predictor_layers", "window_size", "num_samples", "parallel_sampling", "dropout_prob",
+                     "prior_scale", "hidden_size", "weight_decay", "average_recoding", "step_size"},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -81,7 +82,7 @@ def main():
 
     # Load data
     start = time.time()
-    # TODO: Change back, only for debugging
+    # TODO: Change back, only for debugging (also print_every in config)
     train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False)
     valid_set = read_wiki_corpus(
         corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False, vocab=train_set.vocab
@@ -164,60 +165,68 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     hidden = None
     best_validation_loss = np.inf
 
-    for epoch in range(num_epochs):
-        epoch_loss = 0
+    # Changing format to avoid redundant information
+    bar_format = "{desc}{percentage:3.0f}% {bar} | {elapsed} < {remaining} | {rate_fmt}\n"
+    with tqdm(total=num_epochs * num_batches, file=sys.stdout, bar_format=bar_format) as progress_bar:
 
-        for batch_i, batch in enumerate(dataloader):
+        for epoch in range(num_epochs):
+            epoch_loss = 0
 
-            batch_size, seq_len = batch.shape
-            optimizer.zero_grad()
-            batch_loss = 0
+            for batch_i, batch in enumerate(dataloader):
 
-            if hidden is None:
-                hidden = model.init_hidden(batch_size, device)
+                batch_size, seq_len = batch.shape
+                optimizer.zero_grad()
+                batch_loss = 0
 
-            for t in range(seq_len - 1):
-                input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-                out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
-                output_dist = model.predict_distribution(out)
-                output_dist = output_dist.squeeze(1)
-                batch_loss += loss(output_dist, batch[:, t+1].to(device))
+                if hidden is None:
+                    hidden = model.init_hidden(batch_size, device)
 
-            if (total_batch_i + 1) % print_every == 0:
-                print(f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Training Loss: {batch_loss:.4f}")
+                for t in range(seq_len - 1):
+                    input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
+                    out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
+                    output_dist = model.predict_distribution(out)
+                    output_dist = output_dist.squeeze(1)
+                    batch_loss += loss(output_dist, batch[:, t+1].to(device))
 
-            # Backward pass
-            batch_loss /= batch_size
-            epoch_loss += batch_loss.item()
-            batch_loss.backward(retain_graph=True)
-            clip_grad_norm_(batch_loss, clip)
-            optimizer.step()
+                # Backward pass
+                batch_loss /= batch_size
+                epoch_loss += batch_loss.item()
+                batch_loss.backward(retain_graph=True)
+                clip_grad_norm_(batch_loss, clip)
+                optimizer.step()
 
-            # Detach from history so the computational graph from the previous sentence doesn't get carried over
-            hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
-            total_batch_i += 1
+                # Detach from history so the computational graph from the previous sentence doesn't get carried over
+                hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
+                total_batch_i += 1
 
-            # Log
-            batch_loss = float(batch_loss.cpu().detach())
-            log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
-            log_tb_data(WRITER, f"data/batch_loss/{MODEL_NAME}", batch_loss, total_batch_i)
+                if (total_batch_i + 1) % print_every == 0:
+                    progress_bar.set_description(
+                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:.4f}",
+                        refresh=False
+                    )
+                    progress_bar.update(print_every)
 
-        # Calculate validation loss
-        if (epoch + 1) % eval_every == 0 and valid_set is not None:
-            validation_loss = evaluate_model(model, valid_set, batch_size, device)
-            print(f"Epoch {epoch+1:>3} | Validation Loss: {validation_loss:.4f}")
+                # Log
+                batch_loss = float(batch_loss.cpu().detach())
+                log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
+                log_tb_data(WRITER, f"data/batch_loss/{MODEL_NAME}", batch_loss, total_batch_i)
 
-            if validation_loss < best_validation_loss and model_save_path is not None:
-                model_info = add_model_info(model, epoch, epoch_loss, validation_loss)
-                torch.save(model, model_save_path)
-                best_validation_loss = validation_loss
+            # Calculate validation loss
+            if (epoch + 1) % eval_every == 0 and valid_set is not None:
+                validation_loss = evaluate_model(model, valid_set, batch_size, device)
+                progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Loss: {validation_loss:.4f}")
 
-                log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
+                if validation_loss < best_validation_loss and model_save_path is not None:
+                    model_info = add_model_info(model, epoch, epoch_loss, validation_loss)
+                    torch.save(model, model_save_path)
+                    best_validation_loss = validation_loss
 
-            log_to_file(
-                {"batch_num": total_batch_i, "val_loss": validation_loss}, f"{log_dir}/{MODEL_NAME}_val.log"
-            )
-            log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
+                    log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
+
+                log_to_file(
+                    {"batch_num": total_batch_i, "val_loss": validation_loss}, f"{log_dir}/{MODEL_NAME}_val.log"
+                )
+                log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
@@ -303,6 +312,9 @@ def init_argparser() -> ArgumentParser:
                           help="Indicate whether recoding gradients should be averaged over batch in order to save "
                                "computational resources.")
     from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
+    from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
+    from_cmd.add_argument("--parallel_sampling", action="store_true", default=None,
+                          help="Sample predictions when estimating uncertainty in parallel.")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")

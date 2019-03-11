@@ -6,3 +6,4 @@ torch
 -e git://github.com/dieuwkehupkes/diagnosing_lms.git#egg=rnnalyse
 overrides
 tensorboardX
+tqdm
