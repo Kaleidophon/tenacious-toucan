@@ -133,11 +133,11 @@ class RecodingMechanism(ABC):
             #dot.view(filename=f"recoding{calls}")
             #calls += 1
 
-            with torch.autograd.profiler.profile() as profiler:
+            #with torch.autograd.profiler.profile() as profiler:
 
-                backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
+            backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
 
-            print(profiler.table(sort_by="cpu_time_total"))
+            #print(profiler.table(sort_by="cpu_time_total"))
             end_recoding_backward = time.time()
             self.model.recoding_backward += end_recoding_backward - start_recoding_backward
 

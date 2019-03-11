@@ -182,8 +182,8 @@ if __name__ == "__main__":
     mlp_base_data = aggregate_data(LOG_PATH, "mlp_step_baseline", TIME_STEPS)
 
     # Load new model dara
-    fixed_data = aggregate_data(LOG_PATH, "fixed_step_detach", TIME_STEPS)
-    mlp_data = aggregate_data(LOG_PATH, "mlp_step_fix_weight_detach", TIME_STEPS)
+    fixed_data = aggregate_data(LOG_PATH, "fixed_step_single_sample", TIME_STEPS)
+    mlp_data = aggregate_data(LOG_PATH, "mlp_step_single_sample", TIME_STEPS)
 
     # Plot
     plot_main_gradient_times(

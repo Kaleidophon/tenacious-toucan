@@ -170,7 +170,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     for epoch in range(num_epochs):
         epoch_loss = 0
 
-        for o in range(15, 16):
+        for o in range(1, 16):
             for batch_i, batch in enumerate(dataloader):
                 begin_total = time.time()
 

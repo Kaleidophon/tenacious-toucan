@@ -202,8 +202,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         Parameters
         ----------
-        output: Tensor
-            Current output activations.
+        hidden: Tensor
+            Current hidden activations.
         model: AbstractRNN
             Model which predictive uncertainty is being estimated.
         target_idx: Optional[Tensor]
