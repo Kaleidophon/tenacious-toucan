@@ -17,6 +17,7 @@ from torch.nn.parallel import DataParallel
 from src.models.abstract_rnn import AbstractRNN
 from src.uncertainty.recoding_mechanism import RecodingMechanism
 from src.utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
+from src.utils.gaussian_dropout import GaussianDropout
 from src.models.language_model import LSTMLanguageModel
 
 
@@ -117,7 +118,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.step_size = step_size
 
         # Add dropout layer to estimate predictive uncertainty
-        self.dropout_layer = nn.Dropout(p=self.dropout_prob)
+        self.dropout_layer = GaussianDropout(p=self.dropout_prob)
 
         # Use DataParallel in order to perform k passes in parallel (with different masks!)
         if parallel_sampling:
