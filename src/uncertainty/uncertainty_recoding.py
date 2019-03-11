@@ -43,25 +43,18 @@ class StepPredictor(nn.Module):
         self.window_size = window_size
 
         # Init layers
+        self.model = nn.Sequential()
         last_layer_size = predictor_layers[0]
-        self.input_layer = nn.Linear(hidden_size * window_size, last_layer_size, bias=False)
-        self.hidden_layers = []
+        self.model.add_module("input", nn.Linear(hidden_size * window_size, last_layer_size, bias=False))
+        self.model.add_module("relu0", ReLU())
 
-        for current_layer_size in predictor_layers[1:]:
-            self.hidden_layers.append(nn.Linear(last_layer_size, current_layer_size, bias=False))
-            self.hidden_layers.append(ReLU())
+        for layer_n, current_layer_size in enumerate(predictor_layers[1:]):
+            self.model.add_module(f"hidden{layer_n+1}", nn.Linear(last_layer_size, current_layer_size, bias=False))
+            self.model.add_module(f"relu{layer_n+1}", ReLU())
             last_layer_size = current_layer_size
 
-        self.output_layer = nn.Linear(last_layer_size, 1, bias=False)  # Output scalar alpha_t
-
-        # TODO: Simplify this with add_module()
-        self.model = nn.Sequential(
-            self.input_layer,
-            ReLU(),
-            *self.hidden_layers,
-            self.output_layer,
-            Sigmoid()
-        )
+        self.model.add_module("out", nn.Linear(last_layer_size, 1, bias=False))  # Output scalar alpha_t
+        self.model.add_module("sigmoid", Sigmoid())
 
     def forward(self, hidden_window: Tensor) -> Tensor:
         """
@@ -123,6 +116,10 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.data_length = data_length
         self.step_size = step_size
 
+        # Add dropout layer
+        # Use DataParallel in order to perform k passes in parallel (with different masks!
+        self.dropout_layer = nn.Dropout(p=self.dropout_prob)
+
     def _determine_step_size(self, hidden: Tensor) -> float:
         """
         Determine recoding step size. In this case, only a fixed step size is returned.
@@ -168,6 +165,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # Make predictions using different dropout mask
         hidden = self.hidden_compatible(hidden, self._wrap_in_var, requires_grad=True)
+
         # Use a step-size (or "learning-rate") of 1 here because optimizers don't support a different step size for
         # for every batch instance, actual step size is applied in recode()
         optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.hidden_scatter(hidden)]
@@ -198,8 +196,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         Parameters
         ----------
-        output: Tensor
-            Current output activations.
+        hidden: Tensor
+            Current hidden activations.
         model: AbstractRNN
             Model which predictive uncertainty is being estimated.
         target_idx: Optional[Tensor]
@@ -211,18 +209,14 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             Predicted probabilities for target token.
         """
         W_ho, b_ho = self._get_output_weights(self.model)
-        out = torch.tanh(hidden @ W_ho + b_ho)
+        out = torch.tanh(hidden @ W_ho.detach() + b_ho.detach())
         device = self.model.device
-
-        # Temporarily add dropout layer
-        # Use DataParallel in order to perform k passes in parallel (with different masks!
-        dropout_layer = nn.DataParallel(nn.Dropout(p=self.dropout_prob))
 
         # Collect sample predictions
         output = model.predict_distribution(out)
         output = output.repeat(self.num_samples, 1, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
-        predictions = dropout_layer(output)
+        predictions = self.dropout_layer(output)
 
         # Normalize "in batch"
         # TODO: Does this make sense?
@@ -358,7 +352,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             Predicted step size.
         """
         hidden = self.hidden_select(hidden)
-        hidden = Variable(hidden.data, requires_grad=False)  # Detach from graph
+        hidden = hidden.detach()
         num_layers, batch_size, _ = hidden.size()
         hidden = hidden.view(batch_size, num_layers, self.hidden_size)
 
