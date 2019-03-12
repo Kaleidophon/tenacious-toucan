@@ -15,7 +15,7 @@ import torch
 from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.nn import CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, DataParallel
 from torch.nn.utils import clip_grad_norm_
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -239,18 +239,29 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
 
     if model_type == "vanilla":
         model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
+
     elif model_type == "fixed_step":
         model = UncertaintyLSTMLanguageModel(
             vocab_size, **config_dict["model"],
             mechanism_class=UncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
         )
+
     elif model_type == "mlp_step":
         model = UncertaintyLSTMLanguageModel(
             vocab_size, **config_dict["model"],
             mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
         )
+
     else:
         raise Exception("Invalid model type chosen!")
+
+    # Distribute model over GPUs
+    multi_gpu = config_dict["train"]["multi_gpu"]
+    num_gpus = torch.cuda.device_count()
+
+    if device != "cpu" and multi_gpu and num_gpus > 1:
+        print(f"Using {num_gpus} for training...")
+        model = DataParallel(model)
 
     return model
 
@@ -284,7 +295,7 @@ def manage_config() -> dict:
         "general": {"model_type"},
         "model": {"embedding_size", "hidden_size", "num_layers"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
-                  "model_save_path", "device", "model_name"},
+                  "model_save_path", "device", "model_name", "multi_gpu"},
         "logging": {"log_dir", "layout"},
         "corpus": {"corpus_dir", "max_sentence_len"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale", "hidden_size",
@@ -350,6 +361,8 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--batch_size", type=int, help="Batch size during training.")
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
     from_cmd.add_argument("--clip", type=float, help="Threshold for gradient clipping.")
+    from_cmd.add_argument("--multi_gpu", action="store_true", default=None,
+                          help="Flag to indicate whether multiple GPUs should be used for training (if available).")
 
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
