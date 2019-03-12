@@ -24,7 +24,8 @@ class StepPredictor(nn.Module):
     """
     Function that determines the recoding step size based on a window of previous hidden states.
     """
-    def __init__(self, predictor_layers: Iterable[int], hidden_size: int, window_size: int):
+    def __init__(self, predictor_layers: Iterable[int], hidden_size: int, window_size: int,
+                 device: torch.device = "cpu"):
         """
         Initialize model.
 
@@ -41,6 +42,7 @@ class StepPredictor(nn.Module):
         self.predictor_layers = predictor_layers
         self.hidden_size = hidden_size
         self.window_size = window_size
+        self.device = device
 
         # Init layers
         self.model = nn.Sequential()
@@ -55,6 +57,8 @@ class StepPredictor(nn.Module):
 
         self.model.add_module("out", nn.Linear(last_layer_size, 1, bias=False))  # Output scalar alpha_t
         self.model.add_module("sigmoid", Sigmoid())
+
+        self.model.to(device)
 
     def forward(self, hidden_window: Tensor) -> Tensor:
         """
@@ -276,6 +280,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             W_ho, b_ho = None, None
             # TODO: Support models other than LSTM
 
+        W_ho.to(self.model.device), b_ho.to(self.model.device)
+
         return W_ho, b_ho
 
 
@@ -363,7 +369,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             self.hidden_buffer.pop()  # If buffer is full, remove oldest element
 
         # Predict step size
-        hidden_window = torch.cat(self.hidden_buffer, dim=2)
+        hidden_window = torch.cat(self.hidden_buffer, dim=2).to(self.predictor.device)
         step_size = self.predictor(hidden_window)
         step_size = step_size.view(1, batch_size, 1)
 
