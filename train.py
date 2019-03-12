@@ -96,17 +96,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
     # Changing format to avoid redundant information
     bar_format = "{desc}{percentage:3.0f}% {bar} | {elapsed} < {remaining} | {rate_fmt}\n"
-
-    # Calculate the total number of batches that have to be processed
-    total_num_batches = num_epochs * num_batches
-
-    if valid_set is not None:
-        num_val_batches = len(valid_set) // batch_size
-        total_val_batches = (total_num_batches // eval_every) * num_val_batches
-        total_num_batches += total_val_batches
-
-    # Main train loop
-    with tqdm(total=total_num_batches, file=sys.stdout, bar_format=bar_format) as progress_bar:
+    with tqdm(total=num_epochs * num_batches, file=sys.stdout, bar_format=bar_format) as progress_bar:
 
         for epoch in range(num_epochs):
             epoch_loss = 0
