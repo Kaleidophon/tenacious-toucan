@@ -287,8 +287,8 @@ def manage_config() -> dict:
                   "model_save_path", "device", "model_name"},
         "logging": {"log_dir", "layout"},
         "corpus": {"corpus_dir", "max_sentence_len"},
-        "recoding": {"predictor_layers", "window_size", "num_samples", "parallel_sampling", "dropout_prob",
-                     "prior_scale", "hidden_size", "weight_decay", "step_size"},
+        "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale", "hidden_size",
+                     "weight_decay", "step_size"},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -340,8 +340,6 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--dropout_prob", type=float, help="Dropout probability when estimating uncertainty.")
     from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
-    from_cmd.add_argument("--parallel_sampling", action="store_true", default=None,
-                          help="Sample predictions when estimating uncertainty in parallel.")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")

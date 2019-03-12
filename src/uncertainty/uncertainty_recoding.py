@@ -79,8 +79,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
     In this case the step size is constant during the recoding step.
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
-                 prior_scale: float, step_size: float, parallel_sampling: bool, data_length: Optional[int] = None,
-                 **unused: Any):
+                 prior_scale: float, step_size: float, data_length: Optional[int] = None, **unused: Any):
         """
         Initialize the mechanism.
 
@@ -98,8 +97,6 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             L2-regularization parameter.
         prior_scale: float
             Parameter that express belief about frequencies in the input data.
-        average_recoding: bool
-            Flag to indicate whether recoding gradients should be average over batch.
         step_size: float
             Fixed step size for decoding.
         data_length: Optional[int]
@@ -118,10 +115,6 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # Add dropout layer to estimate predictive uncertainty
         self.dropout_layer = nn.Dropout(p=self.dropout_prob)
-
-        # Use DataParallel in order to perform k passes in parallel (with different masks!)
-        if parallel_sampling:
-            self.dropout_layer = DataParallel(self.dropout_layer)
 
     def _determine_step_size(self, hidden: Tensor) -> float:
         """
