@@ -179,11 +179,11 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         ]
 
         # Re-decode
-        W_ho, b_ho = self._get_output_weights(self.model)
+        W_ho, b_ho = self._get_output_weights()
         new_out = torch.tanh(self.hidden_select(hidden) @ W_ho + b_ho)
         num_layers, batch_size, out_dim = new_out.shape
         new_out = new_out.view(batch_size, num_layers, out_dim)
-        new_out_dist = self.model.predict_distribution(new_out)
+        new_out_dist = self.model.predict_distribution(new_out, self.model.out_layer)
 
         return new_out_dist, new_hidden
 
@@ -208,13 +208,13 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         device = self.model.device
 
         # Re-compute output distribution, otherwise required gradient for hidden gets lost
-        W_ho, b_ho = self._get_output_weights(self.model)
+        W_ho, b_ho = self._get_output_weights()
         out = torch.tanh(hidden @ W_ho.detach() + b_ho.detach())
         seq_len, batch_size, out_dim = out.size()
         out = out.view(batch_size, seq_len, out_dim)
 
         # Collect sample predictions
-        output = model.predict_distribution(out)
+        output = self.model.predict_distribution(out, self.model.out_layer)
         output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.dropout_layer(output)
@@ -257,27 +257,21 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         prior_info = 2 * self.dropout_prob * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
         return predictions.var(dim=0).unsqueeze(1) * prior_info
 
-    @staticmethod
-    def _get_output_weights(model: AbstractRNN) -> Tuple[Tensor, Tensor]:
+    def _get_output_weights(self) -> Tuple[Tensor, Tensor]:
         """
         Retrieve output weights of model for later re-decoding.
-
-        Parameters
-        ----------
-        model: AbstractRNN
-            Model for which the weights are going to be retrieved for.
 
         Returns
         -------
         weights: Tuple[Tensor, Tensor]
             Tuple of weights W_ho and bias b_ho.
         """
-        NHID = model.hidden_size
+        NHID = self.model.hidden_size
 
         # TODO: Support multiple layers
-        if isinstance(model, LSTMLanguageModel):
-            W_ho = model.rnn.weight_hh_l0[3*NHID:4*NHID]
-            b_ho = model.rnn.bias_hh_l0[3*NHID:4*NHID]
+        if isinstance(self, LSTMLanguageModel):
+            W_ho = self.rnn.weight_hh_l0[3*NHID:4*NHID]
+            b_ho = self.rnn.bias_hh_l0[3*NHID:4*NHID]
         else:
             W_ho, b_ho = None, None
             # TODO: Support models other than LSTM
