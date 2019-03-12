@@ -321,7 +321,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         # Initialize additional parts of model to make it more adaptive
         self.device = self.model.device
         self.window_size = window_size
-        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size).to(self.device)
+        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size, device=self.device).to(self.device)
         self.hidden_buffer = []  # Save hidden states
         self._buffer_copy = []  # Save training buffer when testing the model
 
