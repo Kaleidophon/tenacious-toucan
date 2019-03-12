@@ -270,8 +270,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # TODO: Support multiple layers
         if isinstance(self.model, LSTMLanguageModel):
-            W_ho = self.rnn.weight_hh_l0[3*NHID:4*NHID]
-            b_ho = self.rnn.bias_hh_l0[3*NHID:4*NHID]
+            W_ho = self.model.rnn.weight_hh_l0[3*NHID:4*NHID]
+            b_ho = self.model.rnn.bias_hh_l0[3*NHID:4*NHID]
         else:
             W_ho, b_ho = None, None
             # TODO: Support models other than LSTM
