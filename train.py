@@ -250,8 +250,7 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
 
     if device != "cpu" and multi_gpu and num_gpus > 1:
         print(f"Using {num_gpus} GPUs for training...")
-    # TODO: Debug
-    model = DataParallel(model)
+        model = DataParallel(model)
 
     model.to(device)
 
@@ -266,8 +265,7 @@ def load_data(config_dict) -> Tuple[WikiCorpus, WikiCorpus]:
     max_sentence_len = config_dict["corpus"]["max_sentence_len"]
 
     start = time.time()
-    # TODO: Debug
-    train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len)
+    train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len)
     valid_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, vocab=train_set.vocab)
     end = time.time()
     duration = end - start
