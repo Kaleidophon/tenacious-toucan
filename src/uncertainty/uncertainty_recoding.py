@@ -269,7 +269,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         NHID = self.model.hidden_size
 
         # TODO: Support multiple layers
-        if isinstance(self, LSTMLanguageModel):
+        if isinstance(self.model, LSTMLanguageModel):
             W_ho = self.rnn.weight_hh_l0[3*NHID:4*NHID]
             b_ho = self.rnn.bias_hh_l0[3*NHID:4*NHID]
         else:
