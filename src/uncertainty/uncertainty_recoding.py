@@ -183,8 +183,9 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         new_out = torch.tanh(self.hidden_select(hidden) @ W_ho + b_ho)
         num_layers, batch_size, out_dim = new_out.shape
         new_out = new_out.view(batch_size, num_layers, out_dim)
+        new_out_dist = self.model.predict_distribution(new_out)
 
-        return new_out, new_hidden
+        return new_out_dist, new_hidden
 
     def _predict_with_dropout(self, hidden: Tensor, model: AbstractRNN, target_idx: Optional[Tensor] = None):
         """
@@ -204,13 +205,17 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         target_predictions: Tensor
             Predicted probabilities for target token.
         """
+        device = self.model.device
+
+        # Re-compute output distribution, otherwise required gradient for hidden gets lost
         W_ho, b_ho = self._get_output_weights(self.model)
         out = torch.tanh(hidden @ W_ho.detach() + b_ho.detach())
-        device = self.model.device
+        seq_len, batch_size, out_dim = out.size()
+        out = out.view(batch_size, seq_len, out_dim)
 
         # Collect sample predictions
         output = model.predict_distribution(out)
-        output = output.repeat(self.num_samples, 1, 1)  # Create identical copies for pseudo-batch
+        output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.dropout_layer(output)
 
@@ -221,8 +226,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # Select predicted probabilities of target index
         predictions.exp_()  # Exponentiate for later softmax
-        target_idx = target_idx.view(1, target_idx.shape[0], 1)
-        target_idx = target_idx.repeat(self.num_samples, 1, 1)
+        target_idx = target_idx.view(target_idx.shape[0], 1, 1)
+        target_idx = target_idx.repeat(1, self.num_samples, 1)
         target_predictions = torch.gather(predictions, 2, target_idx)
         target_predictions = target_predictions.squeeze(2)
 

@@ -59,8 +59,14 @@ class LSTMLanguageModel(AbstractRNN):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
+        if hidden is None:
+            batch_size = input_var.shape[0]
+            hidden = self.init_hidden(batch_size, self.device)
+
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
-        output, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
+        out, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
+
+        output = self.predict_distribution(out)
 
         return output, hidden
 

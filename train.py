@@ -86,9 +86,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     log_dir: Optional[str]
         Path log data is being written to if given.
     """
-    # Move models
-    model.to(device)
-
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
     dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size, drop_last=True)
     num_batches = len(dataloader)
@@ -110,13 +107,9 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 optimizer.zero_grad()
                 batch_loss = 0
 
-                if hidden is None:
-                    hidden = model.init_hidden(batch_size, device)
-
                 for t in range(seq_len - 1):
                     input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-                    out, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
-                    output_dist = model.predict_distribution(out)
+                    output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
                     output_dist = output_dist.squeeze(1)
                     batch_loss += loss(output_dist, batch[:, t+1].to(device))
 
@@ -190,13 +183,9 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     for batch in dataloader:
         batch_size, seq_len = batch.shape
 
-        if hidden is None:
-            hidden = model.init_hidden(batch_size, device)
-
         for t in range(seq_len - 1):
             input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-            out, hidden = model(input_vars, hidden)
-            output_dist = model.predict_distribution(out)
+            output_dist, hidden = model(input_vars, hidden)
             output_dist = output_dist.squeeze(1)
             test_loss += loss(output_dist, batch[:, t + 1].to(device)).item()
 
@@ -260,8 +249,11 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
     num_gpus = torch.cuda.device_count()
 
     if device != "cpu" and multi_gpu and num_gpus > 1:
-        print(f"Using {num_gpus} for training...")
-        model = DataParallel(model)
+        print(f"Using {num_gpus} GPUs for training...")
+    # TODO: Debug
+    model = DataParallel(model)
+
+    model.to(device)
 
     return model
 
@@ -274,7 +266,8 @@ def load_data(config_dict) -> Tuple[WikiCorpus, WikiCorpus]:
     max_sentence_len = config_dict["corpus"]["max_sentence_len"]
 
     start = time.time()
-    train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len)
+    # TODO: Debug
+    train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len)
     valid_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, vocab=train_set.vocab)
     end = time.time()
     duration = end - start
