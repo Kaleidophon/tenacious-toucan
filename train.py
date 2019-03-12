@@ -6,7 +6,7 @@ Train the model with the uncertainty-based intervention mechanism.
 from argparse import ArgumentParser
 import sys
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 # EXT
 import numpy as np
@@ -32,89 +32,21 @@ from src.utils.logging import log_tb_data, log_to_file
 WRITER = None
 MODEL_NAME = None
 
-# TODO list:
-# Purge todos
-
 
 def main():
-    # Manage config
-    required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir", "model_type"}
-    arg_groups = {
-        "general": {"model_type"},
-        "model": {"embedding_size", "hidden_size", "num_layers"},
-        "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
-                  "model_save_path", "device", "model_name"},
-        "logging": {"log_dir", "layout"},
-        "corpus": {"corpus_dir", "max_sentence_len"},
-        "recoding": {"predictor_layers", "window_size", "num_samples", "parallel_sampling", "dropout_prob",
-                     "prior_scale", "hidden_size", "weight_decay", "average_recoding", "step_size"},
-    }
-    argparser = init_argparser()
-    config_object = ConfigSetup(argparser, required_args, arg_groups)
-    config_dict = config_object.config_dict
+    config_dict = manage_config()
 
-    # Set device for training
-    device = config_dict['train']['device']
-    if not (device == "cuda" and torch.cuda.is_available()):
-        config_dict["train"]["device"] = "cpu"
-
-    print(f"Using {device} for training...")
-
-    # Retrieve config options
-    corpus_dir = config_dict["corpus"]["corpus_dir"]
-    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
-    log_dir = config_dict["logging"]["log_dir"]
-    layout = config_dict["logging"]["layout"]
-
-    # Initialize writer
-    if log_dir is not None:
-        global WRITER, MODEL_NAME
-        WRITER = SummaryWriter(log_dir)
-        MODEL_NAME = config_dict["train"]["model_name"]
-
-        if layout is not None:
-            custom_layout = {
-                "Losses": {
-                    "train_loss": ["Multiline", layout], "val_loss": ["Multiline", layout]
-                }
-            }
-            WRITER.add_custom_scalars(custom_layout)
+    # Init logging
+    init_writer(config_dict)
 
     # Load data
-    start = time.time()
-    # TODO: Change back, only for debugging (also print_every in config)
-    train_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False)
-    valid_set = read_wiki_corpus(
-        corpus_dir, "valid", max_sentence_len=max_sentence_len, load_torch=False, vocab=train_set.vocab
-    )
-    end = time.time()
-    duration = end - start
-    minutes, seconds = divmod(duration, 60)
-
-    print(f"Data loading took {int(minutes)} minute(s), {seconds:.2f} second(s).")
+    train_set, valid_set = load_data(config_dict)
 
     # Initialize model
-    vocab_size = len(train_set.vocab)
-    model_type = config_dict["general"]["model_type"]
-    mechanism_kwargs = config_dict["recoding"]
-    mechanism_kwargs["data_length"] = len(train_set)
-
-    if model_type == "vanilla":
-        model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
-    elif model_type == "fixed_step":
-        model = UncertaintyLSTMLanguageModel(
-            vocab_size, **config_dict["model"],
-            mechanism_class=UncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
-        )
-    elif model_type == "mlp_step":
-        model = UncertaintyLSTMLanguageModel(
-            vocab_size, **config_dict["model"],
-            mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
-        )
-    else:
-        raise Exception("Invalid model type chosen!")
+    model = init_model(config_dict, vocab_size=len(train_set.vocab), corpus_size=len(train_set))
 
     # Train
+    log_dir = config_dict["logging"]["log_dir"]
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
 
 
@@ -289,6 +221,104 @@ def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation
     return model.info
 
 
+def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLanguageModel:
+    """
+    Initialize the model for training.
+    """
+    # Set device for training
+    device = config_dict['train']['device']
+    if not (device == "cuda" and torch.cuda.is_available()):
+        config_dict["train"]["device"] = "cpu"
+
+    print(f"Using {device} for training...")
+
+    # Init model
+    model_type = config_dict["general"]["model_type"]
+    mechanism_kwargs = config_dict["recoding"]
+    mechanism_kwargs["data_length"] = corpus_size
+
+    if model_type == "vanilla":
+        model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
+    elif model_type == "fixed_step":
+        model = UncertaintyLSTMLanguageModel(
+            vocab_size, **config_dict["model"],
+            mechanism_class=UncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
+        )
+    elif model_type == "mlp_step":
+        model = UncertaintyLSTMLanguageModel(
+            vocab_size, **config_dict["model"],
+            mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
+        )
+    else:
+        raise Exception("Invalid model type chosen!")
+
+    return model
+
+
+def load_data(config_dict) -> Tuple[WikiCorpus, WikiCorpus]:
+    """
+    Load training and validation set.
+    """
+    corpus_dir = config_dict["corpus"]["corpus_dir"]
+    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
+
+    start = time.time()
+    train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len)
+    valid_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, vocab=train_set.vocab)
+    end = time.time()
+    duration = end - start
+    minutes, seconds = divmod(duration, 60)
+
+    print(f"Data loading took {int(minutes)} minute(s), {seconds:.2f} second(s).")
+
+    return train_set, valid_set
+
+
+def manage_config() -> dict:
+    """
+    Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
+    of different config groups.
+    """
+    required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir", "model_type"}
+    arg_groups = {
+        "general": {"model_type"},
+        "model": {"embedding_size", "hidden_size", "num_layers"},
+        "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
+                  "model_save_path", "device", "model_name"},
+        "logging": {"log_dir", "layout"},
+        "corpus": {"corpus_dir", "max_sentence_len"},
+        "recoding": {"predictor_layers", "window_size", "num_samples", "parallel_sampling", "dropout_prob",
+                     "prior_scale", "hidden_size", "weight_decay", "step_size"},
+    }
+    argparser = init_argparser()
+    config_object = ConfigSetup(argparser, required_args, arg_groups)
+    config_dict = config_object.config_dict
+
+    return config_dict
+
+
+def init_writer(config_dict: dict) -> None:
+    """
+    Initialize the tensorboardX writer.
+    """
+    log_dir = config_dict["logging"]["log_dir"]
+    layout = config_dict["logging"]["layout"]
+
+    # Initialize writer
+    if log_dir is not None:
+        global WRITER, MODEL_NAME
+        WRITER = SummaryWriter(log_dir)
+        MODEL_NAME = config_dict["train"]["model_name"]
+
+        if layout is not None:
+            custom_layout = {
+                "Losses": {
+                    "train_loss": ["Multiline", layout], "val_loss": ["Multiline", layout]
+                }
+            }
+            WRITER.add_custom_scalars(custom_layout)
+
+
 def init_argparser() -> ArgumentParser:
     """
     Init the parser that parses additional command line arguments. These overwrite the default options
@@ -308,9 +338,6 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--hidden_size", type=int, help="Dimensionality of hidden states.")
     from_cmd.add_argument("--num_layers", type=int, help="Number of network layers.")
     from_cmd.add_argument("--dropout_prob", type=float, help="Dropout probability when estimating uncertainty.")
-    from_cmd.add_argument("--average_recoding", action="store_true", default=None,
-                          help="Indicate whether recoding gradients should be averaged over batch in order to save "
-                               "computational resources.")
     from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
     from_cmd.add_argument("--parallel_sampling", action="store_true", default=None,

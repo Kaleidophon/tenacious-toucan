@@ -24,10 +24,9 @@ class RecodingMechanism(ABC):
     Abstract superclass for a recoding mechanism.
     """
     @abstractmethod
-    def __init__(self, model: AbstractRNN, optimizer_class: Type[Optimizer] = SGD, average_recoding: bool = True):
+    def __init__(self, model: AbstractRNN, optimizer_class: Type[Optimizer] = SGD):
         self.model = model
         self.optimizer_class = optimizer_class
-        self.average_recoding = average_recoding
 
     def __call__(self,
                  forward_func: Callable) -> Callable:
@@ -116,17 +115,13 @@ class RecodingMechanism(ABC):
         device = self.model.device
 
         # Compute recoding gradients
-        # Average recoding gradients for a batch -> Higher speed, less accuracy
-        # The speedup of course depends on the batch size
-        if self.average_recoding:
-            delta = delta.mean(dim=0)
-            delta.backward()
-        # Calculate recoding gradients per instance -> More computationally expensive but higher accuracy
-        else:
-            backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
+
+        # Apply step sizes
+        hidden.grad = hidden.grad * step_size
 
         # Perform recoding
         optimizer.step()

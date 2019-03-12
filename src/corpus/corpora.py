@@ -121,31 +121,27 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
 
 class WikiCorpus(Dataset):
     """ Corpus Class used to train a PyTorch Language Model. """
-    def __init__(self, sentences: List[List[str]], indexed_sentences: List[Tensor], vocab: W2I):
+    def __init__(self, indexed_sentences: List[Tensor], vocab: W2I):
         """
         Attributes
         ----------
-        sentences: List[List[str]]
-            List of raw sentences.
         indexed_sentences: List[Tensor]
             List of indexed senteces as PyTorch sentences.
         vocab: W2I
             Vocabulary as W2I object.
         """
-        self.sentences = sentences
         self.indexed_sentences = indexed_sentences
         self.vocab = vocab
 
     def __len__(self):
-        return len(self.sentences)
+        return len(self.indexed_sentences)
 
     def __getitem__(self, item):
         return self.indexed_sentences[item]
 
 
 def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optional[int] = 50,
-                     vocab: Optional[dict] = None, load_torch: bool = True,
-                     stop_after: Optional[int] = None) -> WikiCorpus:
+                     vocab: Optional[dict] = None, stop_after: Optional[int] = None) -> WikiCorpus:
     """
     Read in the Wikipedia data set used by [1] to train a language model.
 
@@ -163,9 +159,6 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
     vocab: dict or None
         Dictionary from type to id. If not given, the "vocab.txt" file will be read from corpus_dir to generate this
         data structure.
-    load_torch: bool
-        Whether to load the dataset directly as a PyTorch Dataset in case it has been saved that way in the corpus_dir
-        directory.
     stop_after: Optional[int]
         Stop reading after some number of lines.
 
@@ -184,13 +177,6 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             return w2i
 
     assert corpus_split in ("train", "valid", "test"), "Invalid split selected!"
-
-    # If corpus was already saved as torch dataset, load it
-    if os.path.exists(f"{corpus_dir}/{corpus_split}.pt") and load_torch:
-        print(f"Loading torch dataset under {corpus_dir}/{corpus_split}.pt...")
-        return torch.load(f"{corpus_dir}/{corpus_split}.pt")
-
-    # Otherwise construct the dataset from scratch
 
     if vocab is None:
         print(f"Reading vocabulary under {corpus_dir}/vocab.txt...")
@@ -219,6 +205,6 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
                 if i > stop_after:
                     break
 
-    corpus = WikiCorpus(sentences, indexed_sentences, vocab)
+    corpus = WikiCorpus(indexed_sentences, vocab)
 
     return corpus

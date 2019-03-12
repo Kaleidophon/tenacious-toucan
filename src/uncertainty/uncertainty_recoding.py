@@ -17,7 +17,6 @@ from torch.nn.parallel import DataParallel
 from src.models.abstract_rnn import AbstractRNN
 from src.uncertainty.recoding_mechanism import RecodingMechanism
 from src.utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
-from src.utils.gaussian_dropout import GaussianDropout
 from src.models.language_model import LSTMLanguageModel
 
 
@@ -80,8 +79,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
     In this case the step size is constant during the recoding step.
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
-                 prior_scale: float, average_recoding: bool, step_size: float, parallel_sampling: bool,
-                 data_length: Optional[int] = None, **unused: Any):
+                 prior_scale: float, step_size: float, parallel_sampling: bool, data_length: Optional[int] = None,
+                 **unused: Any):
         """
         Initialize the mechanism.
 
@@ -106,7 +105,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         data_length: Optional[int]
             Number of data points used.
         """
-        super().__init__(model, average_recoding=average_recoding)
+        super().__init__(model)
 
         self.model = model
         self.hidden_size = hidden_size
@@ -118,7 +117,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.step_size = step_size
 
         # Add dropout layer to estimate predictive uncertainty
-        self.dropout_layer = GaussianDropout(p=self.dropout_prob)
+        self.dropout_layer = nn.Dropout(p=self.dropout_prob)
 
         # Use DataParallel in order to perform k passes in parallel (with different masks!)
         if parallel_sampling:
@@ -222,8 +221,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.dropout_layer(output)
 
-        # Normalize "in batch"
         # TODO: Does this make sense?
+        # If no target is given, compute uncertainty of most likely token
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
         target_idx = target_idx.to(device)
 
@@ -294,7 +293,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
     on a window of previous hidden states.
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
-                 prior_scale: float, average_recoding: bool, window_size: int, predictor_layers: Iterable[int],
+                 prior_scale: float, window_size: int, predictor_layers: Iterable[int],
                  data_length: Optional[int] = None, **unused: Any):
         """
         Parameters
@@ -311,8 +310,6 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             L2-regularization parameter.
         prior_scale: float
             Parameter that express belief about frequencies in the input data.
-        average_recoding: bool
-            Flag to indicate whether recoding gradients should be average over batch.
         predictor_layers: Iterable[int]
             Layer sizes for MLP as some sort of iterable.
         data_length: Optional[int]
@@ -320,8 +317,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         """
         super().__init__(
             model=model, hidden_size=hidden_size, num_samples=num_samples, dropout_prob=dropout_prob,
-            weight_decay=weight_decay, prior_scale=prior_scale, average_recoding=average_recoding,
-            data_length=data_length, **unused
+            weight_decay=weight_decay, prior_scale=prior_scale, data_length=data_length, **unused
         )
 
         # Initialize additional parts of model to make it more adaptive
