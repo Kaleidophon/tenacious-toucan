@@ -1,0 +1,20 @@
+{
+  "embedding_size": 650,
+  "hidden_size": 650,
+  "num_layers": 1,
+  "window_size": 4,
+  "learning_rate": 0.001,
+  "batch_size": 32,
+  "num_epochs": 8,
+  "corpus_dir": "data/corpora/enwiki",
+  "clip": 0.25,
+  "print_every": 1,
+  "eval_every": 2500,
+  "model_save_path": "data/models/uncertainty/test.pt",
+  "model_type": "mlp_step",
+  "log_dir": "logs",
+  "model_name": "test",
+  "layout": null,
+  "max_sentence_len": 35,
+  "multi_gpu": true
+}
