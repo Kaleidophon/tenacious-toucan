@@ -112,10 +112,10 @@ class RecodingMechanism(ABC):
             Recoded activations.predictor_layers: Iterable[int]
             Layer sizes for MLP as some sort of iterable.
         """
-        device = self.model.device
-
-        # Compute recoding gradients
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))  # Idk why this works but it does
+        # Compute recoding gradients - in contrast to the usual backward() call, we calculate the derivatives
+        # of a batch of values w.r.t some parameters instead of a single (loss) term
+        # Idk why this works but it does
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(self.consistent_device))
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
@@ -167,3 +167,15 @@ class RecodingMechanism(ABC):
         tensor[tensor != tensor] = 0  # Exploit the fact that nan != nan
 
         return tensor
+
+    @property
+    def consistent_device(self):
+        """
+        Same as AbstractRNN.consistent_device.
+
+        Returns
+        -------
+        device: torch.device
+            Currently relevant device.
+        """
+        return self.model.consistent_device

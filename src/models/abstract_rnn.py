@@ -40,6 +40,7 @@ class AbstractRNN(ABC, nn.Module):
         self.embedding_size = embedding_size
         self.num_layers = num_layers
         self.device = device
+        self.inferred_device = device
 
     @abstractmethod
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
@@ -62,7 +63,32 @@ class AbstractRNN(ABC, nn.Module):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
+        self.inferred_device = input_var.device  # Do this in subclasses to ensure working consistent_device property
         ...
+
+    @property
+    def consistent_device(self):
+        """
+        Make sure that tensors are moved to right GPU when training with torch.nn.DataParallel. The problem is that
+        models are initialized on the default GPU, but during the forward pass the model is copied to all available
+        (or specified) GPUs and tensors that are created during the forward pass on-the-fly will still be moved to the
+        GPU specified during model initialization.
+
+        To avoid this, the device of input variables is recorded and stored inside the inferred_device
+        attribute. This property then returns the actual relevant device for the current forward pass.
+
+        Returns
+        -------
+        device: torch.device
+            Currently relevant device.
+        """
+        # The GPU of the current forward pass doesn't correspond to the initially specified one
+        # -> Return the relevant GPU
+        if self.device != self.inferred_device:
+            return self.inferred_device
+
+        # Training is done on single GPU or CPU, no problem here.
+        return self.device
 
     def init_hidden(self, batch_size: int, device: torch.device = "cpu") -> AmbiguousHidden:
         """

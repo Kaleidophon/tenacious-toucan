@@ -11,7 +11,6 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import ReLU, Sigmoid
-from torch.nn.parallel import DataParallel
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -24,8 +23,7 @@ class StepPredictor(nn.Module):
     """
     Function that determines the recoding step size based on a window of previous hidden states.
     """
-    def __init__(self, predictor_layers: Iterable[int], hidden_size: int, window_size: int,
-                 device: torch.device = "cpu"):
+    def __init__(self, predictor_layers: Iterable[int], hidden_size: int, window_size: int):
         """
         Initialize model.
 
@@ -57,8 +55,6 @@ class StepPredictor(nn.Module):
 
         self.model.add_module("out", nn.Linear(last_layer_size, 1, bias=False))  # Output scalar alpha_t
         self.model.add_module("sigmoid", Sigmoid())
-
-        self.model.to(device)
 
     def forward(self, hidden_window: Tensor) -> Tensor:
         """
@@ -171,7 +167,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.hidden_scatter(hidden)]
         [optimizer.zero_grad() for optimizer in optimizers]
         target_idx = additional.get("target_idx", None)
-        predictions = self.hidden_compatible(hidden, self._predict_with_dropout, self.model, target_idx)
+        predictions = self.hidden_compatible(hidden, self._predict_with_dropout, target_idx)
 
         # Estimate uncertainty of those same predictions
         uncertainties = [self._calculate_predictive_uncertainty(prediction) for prediction in predictions]
@@ -191,7 +187,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         return new_out_dist, new_hidden
 
-    def _predict_with_dropout(self, hidden: Tensor, model: AbstractRNN, target_idx: Optional[Tensor] = None):
+    def _predict_with_dropout(self, hidden: Tensor, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -209,8 +205,6 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         target_predictions: Tensor
             Predicted probabilities for target token.
         """
-        device = self.model.device
-
         # Re-compute output distribution, otherwise required gradient for hidden gets lost
         W_ho, b_ho = self._get_output_weights()
         out = torch.tanh(hidden @ W_ho.detach() + b_ho.detach())
@@ -226,7 +220,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         # TODO: Does this make sense?
         # If no target is given, compute uncertainty of most likely token
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
-        target_idx = target_idx.to(device)
+        target_idx = target_idx.to(self.consistent_device)
 
         # Select predicted probabilities of target index
         predictions.exp_()  # Exponentiate for later softmax
@@ -277,10 +271,11 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             W_ho = self.model.rnn.weight_hh_l0[3*NHID:4*NHID]
             b_ho = self.model.rnn.bias_hh_l0[3*NHID:4*NHID]
         else:
-            W_ho, b_ho = None, None
             # TODO: Support models other than LSTM
+            raise Exception("Other models than LSTM are currently not supported!")
 
-        W_ho.to(self.model.device), b_ho.to(self.model.device)
+        W_ho.to(self.consistent_device)
+        b_ho.to(self.consistent_device)
 
         return W_ho, b_ho
 
@@ -321,7 +316,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         # Initialize additional parts of model to make it more adaptive
         self.device = self.model.device
         self.window_size = window_size
-        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size, device=self.device).to(self.device)
+        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size).to(self.device)
         self.hidden_buffer = []  # Save hidden states
         self._buffer_copy = []  # Save training buffer when testing the model
 
@@ -353,6 +348,10 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         step_size: float
             Predicted step size.
         """
+        # Move to other GPU than specified during init if necessary
+        if self.predictor.device != self.consistent_device:
+            self.predictor.to(self.consistent_device)
+
         hidden = self.hidden_select(hidden)
         hidden = hidden.detach()
         num_layers, batch_size, _ = hidden.size()
@@ -360,7 +359,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
 
         # If buffer is empty, initialize it with zero hidden states
         if len(self.hidden_buffer) == 0:
-            self.hidden_buffer = [torch.zeros(hidden.shape).to(self.device)] * self.window_size
+            self.hidden_buffer = [torch.zeros(hidden.shape).to(self.consistent_device)] * self.window_size
 
         # Add hidden state to buffer
         self.hidden_buffer.append(hidden)
@@ -369,7 +368,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             self.hidden_buffer.pop()  # If buffer is full, remove oldest element
 
         # Predict step size
-        hidden_window = torch.cat(self.hidden_buffer, dim=2).to(self.predictor.device)
+        hidden_window = torch.cat(self.hidden_buffer, dim=2)
         step_size = self.predictor(hidden_window)
         step_size = step_size.view(1, batch_size, 1)
 
