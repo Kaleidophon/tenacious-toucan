@@ -27,6 +27,8 @@ class RecodingMechanism(ABC):
     def __init__(self, model: AbstractRNN, optimizer_class: Type[Optimizer] = SGD):
         self.model = model
         self.optimizer_class = optimizer_class
+        self.device = model.device
+        self.inferred_device = model.device
 
     def __call__(self,
                  forward_func: Callable) -> Callable:
@@ -45,6 +47,8 @@ class RecodingMechanism(ABC):
         """
         @wraps(forward_func)
         def wrapped(input_var: Tensor, hidden: Tensor, **additional: Dict) -> Tuple[Tensor, Tensor]:
+
+            self.inferred_device = input_var.device
 
             # Start recording grads for hidden here
             out, hidden = forward_func(input_var, hidden, **additional)
@@ -178,4 +182,10 @@ class RecodingMechanism(ABC):
         device: torch.device
             Currently relevant device.
         """
-        return self.model.consistent_device
+        # The GPU of the current forward pass doesn't correspond to the initially specified one
+        # -> Return the relevant GPU
+        if self.device != self.inferred_device:
+            return self.inferred_device
+
+        # Training is done on single GPU or CPU, no problem here.
+        return self.device
