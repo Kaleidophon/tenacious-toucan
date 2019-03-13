@@ -6,8 +6,7 @@ be employed during training, not only testing time.
 
 # STD
 from abc import abstractmethod, ABC
-from functools import wraps
-from typing import Tuple, Dict, Type, Callable, Union
+from typing import Tuple, Dict, Type, Union
 
 # EXT
 import torch

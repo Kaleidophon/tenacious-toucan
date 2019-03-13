@@ -65,6 +65,11 @@ class LSTMLanguageModel(AbstractRNN):
             batch_size = input_var.shape[0]
             hidden = self.init_hidden(batch_size, device)
 
+        # This is necessary when training on multiple GPUs - the batch of hidden states is moved back to main GPU
+        # after every step
+        else:
+            hidden = hidden[0].to(device), hidden[1].to(device)
+
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
         out, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
 

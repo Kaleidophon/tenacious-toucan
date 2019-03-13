@@ -252,6 +252,13 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
         print(f"Using {num_gpus} GPUs for training...")
         model = DataParallel(model)
 
+        batch_size = config_dict["train"]["batch_size"]
+
+        if batch_size % num_gpus > 0:
+            raise ValueError(
+                f"Batch size {batch_size} should be divisible by number of GPUs ({num_gpus}) to avoid problems!"
+            )
+
     model.to(device)
 
     return model

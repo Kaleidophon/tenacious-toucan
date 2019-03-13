@@ -3,6 +3,7 @@ Define a model with an intervention mechanism that bases its interventions on th
 """
 
 # STD
+from copy import deepcopy
 from typing import Dict, Tuple, Optional, Iterable, Any
 
 # EXT
@@ -182,11 +183,11 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         ]
 
         # Re-decode
-        W_ho, b_ho = self._get_output_weights()
+        W_ho, b_ho = self._get_output_weights(device)
         new_out = torch.tanh(self.hidden_select(hidden) @ W_ho + b_ho)
         num_layers, batch_size, out_dim = new_out.shape
         new_out = new_out.view(batch_size, num_layers, out_dim)
-        new_out_dist = self.model.predict_distribution(new_out, self.model.out_layer)
+        new_out_dist = self.model.predict_distribution(new_out, deepcopy(self.model.out_layer).to(device))
 
         return new_out_dist, new_hidden
 
@@ -215,7 +216,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         out = out.view(batch_size, seq_len, out_dim)
 
         # Collect sample predictions
-        output = self.model.predict_distribution(out, self.model.out_layer)
+        output = self.model.predict_distribution(out, deepcopy(self.model.out_layer).to(device))
         output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.dropout_layer(output)
@@ -283,8 +284,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             raise Exception("Other models than LSTM are currently not supported!")
 
         if device is not None:
-            W_ho.to(device)
-            b_ho.to(device)
+            W_ho = W_ho.to(device)
+            b_ho = b_ho.to(device)
 
         return W_ho, b_ho
 
@@ -359,6 +360,8 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         step_size: float
             Predicted step size.
         """
+        # TODO: Re-write buffer as actually registered PyTorch buffer
+
         hidden = self.hidden_select(hidden)
         hidden = hidden.detach()
         num_layers, batch_size, _ = hidden.size()

@@ -9,7 +9,7 @@
   "weight_decay": 0.3,
   "prior_scale": 0.01,
   "learning_rate": 0.001,
-  "batch_size": 350,
+  "batch_size": 356,
   "num_epochs": 8,
   "corpus_dir": "data/corpora/enwiki",
   "clip": 0.25,
