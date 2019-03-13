@@ -23,7 +23,7 @@ from tqdm import tqdm
 # PROJECT
 from src.corpus.corpora import read_wiki_corpus, WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
-from src.uncertainty.uncertainty_recoding import AdaptingUncertaintyMechanism, UncertaintyMechanism
+from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.logging import log_tb_data, log_to_file

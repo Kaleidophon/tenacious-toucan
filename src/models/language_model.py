@@ -59,11 +59,11 @@ class LSTMLanguageModel(AbstractRNN):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        self.inferred_device = input_var.device
+        device = self.current_device(reference=input_var)
 
         if hidden is None:
             batch_size = input_var.shape[0]
-            hidden = self.init_hidden(batch_size)
+            hidden = self.init_hidden(batch_size, device)
 
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
         out, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
@@ -129,8 +129,8 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        self.inferred_device = input_var.device
+        device = self.current_device(reference=input_var)
 
         out, hidden = super().forward(input_var, hidden, **additional)
 
-        return self.mechanism.recoding_func(input_var, hidden, out, **additional)
+        return self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)

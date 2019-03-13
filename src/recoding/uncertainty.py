@@ -14,7 +14,7 @@ from torch.nn import ReLU, Sigmoid
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
-from src.uncertainty.recoding_mechanism import RecodingMechanism
+from src.recoding.mechanism import RecodingMechanism
 from src.utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
 from src.models.language_model import LSTMLanguageModel
 
@@ -40,7 +40,6 @@ class StepPredictor(nn.Module):
         self.predictor_layers = predictor_layers
         self.hidden_size = hidden_size
         self.window_size = window_size
-        self.device = device
 
         # Init layers
         self.model = nn.Sequential()
@@ -116,7 +115,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         # Add dropout layer to estimate predictive uncertainty
         self.dropout_layer = nn.Dropout(p=self.dropout_prob)
 
-    def _determine_step_size(self, hidden: Tensor) -> float:
+    def _determine_step_size(self, hidden: Tensor, device: torch.device) -> float:
         """
         Determine recoding step size. In this case, only a fixed step size is returned.
 
@@ -124,6 +123,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         ----------
         hidden: Tensor
             Current hidden state used to determine step size (in this case unused).
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
         Returns
         -------
@@ -133,7 +134,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         return self.step_size
 
     @overrides
-    def recoding_func(self, input_var: Tensor, hidden: Tensor, out: Tensor,
+    def recoding_func(self, input_var: Tensor, hidden: Tensor, out: Tensor, device: torch.device,
                       **additional: Dict) -> Tuple[Tensor, AmbiguousHidden]:
         """
         Recode activations of current step based on some logic defined in a subclass.
@@ -146,6 +147,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             Current hidden state.
         out: Tensor
             Output Tensor of current time step.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
         additional: dict
             Dictionary of additional information delivered via keyword arguments.
 
@@ -157,7 +160,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             Hidden state of current time step after recoding.
         """
         # Predict step size
-        step_size = self._determine_step_size(hidden)
+        step_size = self._determine_step_size(hidden, device)
 
         # Make predictions using different dropout mask
         hidden = self.hidden_compatible(hidden, self._wrap_in_var, requires_grad=True)
@@ -167,14 +170,14 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.hidden_scatter(hidden)]
         [optimizer.zero_grad() for optimizer in optimizers]
         target_idx = additional.get("target_idx", None)
-        predictions = self.hidden_compatible(hidden, self._predict_with_dropout, target_idx)
+        predictions = self.hidden_compatible(hidden, self._predict_with_dropout, device, target_idx)
 
         # Estimate uncertainty of those same predictions
         uncertainties = [self._calculate_predictive_uncertainty(prediction) for prediction in predictions]
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         new_hidden = [
-            self.recode(h, delta, optimizer, step_size)
+            self.recode(h, delta, optimizer, step_size, device)
             for h, delta, optimizer in zip(hidden, uncertainties, optimizers)
         ]
 
@@ -187,7 +190,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         return new_out_dist, new_hidden
 
-    def _predict_with_dropout(self, hidden: Tensor, target_idx: Optional[Tensor] = None):
+    def _predict_with_dropout(self, hidden: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -206,7 +209,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             Predicted probabilities for target token.
         """
         # Re-compute output distribution, otherwise required gradient for hidden gets lost
-        W_ho, b_ho = self._get_output_weights()
+        W_ho, b_ho = self._get_output_weights(device)
         out = torch.tanh(hidden @ W_ho.detach() + b_ho.detach())
         seq_len, batch_size, out_dim = out.size()
         out = out.view(batch_size, seq_len, out_dim)
@@ -220,7 +223,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         # TODO: Does this make sense?
         # If no target is given, compute uncertainty of most likely token
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
-        target_idx = target_idx.to(self.consistent_device)
+        target_idx = target_idx.to(device)
 
         # Select predicted probabilities of target index
         predictions.exp_()  # Exponentiate for later softmax
@@ -255,9 +258,14 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         prior_info = 2 * self.dropout_prob * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
         return predictions.var(dim=0).unsqueeze(1) * prior_info
 
-    def _get_output_weights(self) -> Tuple[Tensor, Tensor]:
+    def _get_output_weights(self, device: Optional[torch.device] = None) -> Tuple[Tensor, Tensor]:
         """
         Retrieve output weights of model for later re-decoding.
+
+        Parameters
+        ----------
+        device: Optional[torch.device]
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
         Returns
         -------
@@ -274,8 +282,9 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             # TODO: Support models other than LSTM
             raise Exception("Other models than LSTM are currently not supported!")
 
-        W_ho.to(self.consistent_device)
-        b_ho.to(self.consistent_device)
+        if device is not None:
+            W_ho.to(device)
+            b_ho.to(device)
 
         return W_ho, b_ho
 
@@ -333,7 +342,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         self.hidden_buffer = []
         self.dropout_layer.train()  # Don't switch dropout to eval
 
-    def _determine_step_size(self, hidden: Tensor) -> float:
+    def _determine_step_size(self, hidden: Tensor, device: torch.device) -> float:
         """
         Determine recoding step size. In this case, the current hidden activations are added to a window of previous
         hidden states and used with a MLP to predict the appropriate step size.
@@ -342,16 +351,14 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         ----------
         hidden: Tensor
             Current hidden state used to determine step size.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
         Returns
         -------
         step_size: float
             Predicted step size.
         """
-        # Move to other GPU than specified during init if necessary
-        if self.predictor.device != self.consistent_device:
-            self.predictor.to(self.consistent_device)
-
         hidden = self.hidden_select(hidden)
         hidden = hidden.detach()
         num_layers, batch_size, _ = hidden.size()
@@ -359,7 +366,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
 
         # If buffer is empty, initialize it with zero hidden states
         if len(self.hidden_buffer) == 0:
-            self.hidden_buffer = [torch.zeros(hidden.shape).to(self.consistent_device)] * self.window_size
+            self.hidden_buffer = [torch.zeros(hidden.shape).to(device)] * self.window_size
 
         # Add hidden state to buffer
         self.hidden_buffer.append(hidden)

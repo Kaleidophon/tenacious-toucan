@@ -28,49 +28,10 @@ class RecodingMechanism(ABC):
         self.model = model
         self.optimizer_class = optimizer_class
         self.device = model.device
-        self.inferred_device = model.device
-
-    def __call__(self,
-                 forward_func: Callable) -> Callable:
-        """
-        Wrap the intervention function about the models forward function and return the decorated function.
-
-        Parameters
-        ----------
-        forward_func: Callable
-            Forward function of the model the mechanism is applied to.
-
-        Returns
-        -------
-        wrapped: Callable:
-            Decorated forward function.
-        """
-        @wraps(forward_func)
-        def wrapped(input_var: Tensor, hidden: Tensor, **additional: Dict) -> Tuple[Tensor, Tensor]:
-
-            self.inferred_device = input_var.device
-
-            # Start recording grads for hidden here
-            out, hidden = forward_func(input_var, hidden, **additional)
-
-            return self.recoding_func(input_var, hidden, out, **additional)
-
-        return wrapped
-
-    def apply(self) -> AbstractRNN:
-        """
-        Return an instance of the model where the recoding function decorates the model's forward function.
-
-        Returns
-        -------
-        model : AbstractRNN
-            Model with recoding mechanism applied to it.
-        """
-        self.model.forward = self(self.model.forward)  # Decorate forward function
-        return self.model
 
     @abstractmethod
-    def recoding_func(self, input_var: Tensor, hidden: Tensor, out: Tensor, **additional: Dict) -> Tuple[Tensor, Tensor]:
+    def recoding_func(self, input_var: Tensor, hidden: Tensor, out: Tensor, device: torch.device,
+                      **additional: Dict) -> Tuple[Tensor, Tensor]:
         """
         Recode activations of current step based on some logic defined in a subclass.
 
@@ -82,6 +43,8 @@ class RecodingMechanism(ABC):
             Current hidden state.
         out: Tensor
             Output Tensor of current time step.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
         additional: dict
             Dictionary of additional information delivered via keyword arguments.
 
@@ -94,7 +57,8 @@ class RecodingMechanism(ABC):
         """
         ...
 
-    def recode(self, hidden: Tensor, delta: Tensor, optimizer: Optimizer, step_size: Union[float, Tensor]) -> Tensor:
+    def recode(self, hidden: Tensor, delta: Tensor, optimizer: Optimizer, step_size: Union[float, Tensor],
+               device: torch.device) -> Tensor:
         """
         Perform a single recoding step on the current time step's hidden activations.
 
@@ -109,6 +73,8 @@ class RecodingMechanism(ABC):
         step_size: Tensor
             Either 1 x 1 tensor / float for constant batch size or Batch_size x 1 tensor with individual_batch_size for
             all batch instances.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
         Returns
         -------
@@ -119,7 +85,7 @@ class RecodingMechanism(ABC):
         # Compute recoding gradients - in contrast to the usual backward() call, we calculate the derivatives
         # of a batch of values w.r.t some parameters instead of a single (loss) term
         # Idk why this works but it does
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(self.consistent_device))
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))
 
         # Correct any corruptions
         hidden.grad = self.replace_nans(hidden.grad)
@@ -134,8 +100,7 @@ class RecodingMechanism(ABC):
         return hidden
 
     @staticmethod
-    def _wrap_in_var(tensor: Tensor,
-                     requires_grad: bool) -> Variable:
+    def _wrap_in_var(tensor: Tensor, requires_grad: bool) -> Variable:
         """
         Wrap a numpy array into a PyTorch Variable.
 
@@ -171,21 +136,3 @@ class RecodingMechanism(ABC):
         tensor[tensor != tensor] = 0  # Exploit the fact that nan != nan
 
         return tensor
-
-    @property
-    def consistent_device(self):
-        """
-        Same as AbstractRNN.consistent_device.
-
-        Returns
-        -------
-        device: torch.device
-            Currently relevant device.
-        """
-        # The GPU of the current forward pass doesn't correspond to the initially specified one
-        # -> Return the relevant GPU
-        if self.device != self.inferred_device:
-            return self.inferred_device
-
-        # Training is done on single GPU or CPU, no problem here.
-        return self.device
