@@ -90,7 +90,7 @@ class AbstractRNN(ABC, nn.Module):
         # Training is done on single GPU or CPU, no problem here.
         return self.device
 
-    def init_hidden(self, batch_size: int, device: torch.device = "cpu") -> AmbiguousHidden:
+    def init_hidden(self, batch_size: int) -> AmbiguousHidden:
         """
         Initialize the hidden states for the current network.
 
@@ -106,7 +106,7 @@ class AbstractRNN(ABC, nn.Module):
         hidden: AmbiguousHidden
             Either one hidden state or tuple of hidden and cell state.
         """
-        hidden_zero = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
+        hidden_zero = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(self.inferred_device)
 
         if self.rnn_type == "LSTM":
             return hidden_zero, hidden_zero.clone()

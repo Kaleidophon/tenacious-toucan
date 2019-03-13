@@ -63,7 +63,7 @@ class LSTMLanguageModel(AbstractRNN):
 
         if hidden is None:
             batch_size = input_var.shape[0]
-            hidden = self.init_hidden(batch_size, self.consistent_device)
+            hidden = self.init_hidden(batch_size)
 
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
         out, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
