@@ -4,9 +4,9 @@
   "num_layers": 1,
   "window_size": 4,
   "learning_rate": 0.001,
-  "batch_size": 32,
+  "batch_size": 256,
   "num_epochs": 8,
-  "corpus_dir": "data/corpora/enwiki",
+  "corpus_dir": "data/corpora/wikitext2",
   "clip": 0.25,
   "print_every": 1,
   "eval_every": 2500,
@@ -16,5 +16,5 @@
   "model_name": "test",
   "layout": null,
   "max_sentence_len": 35,
-  "multi_gpu": true
+  "multi_gpu": false
 }

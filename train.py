@@ -87,7 +87,9 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
         Path log data is being written to if given.
     """
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
-    dataloader = DataLoader(train_set, shuffle=True, batch_size=batch_size, drop_last=True)
+    dataloader = DataLoader(
+        train_set, shuffle=True, batch_size=batch_size, drop_last=True, pin_memory=(device != "cpu")
+    )
     num_batches = len(dataloader)
     loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
     total_batch_i = 0

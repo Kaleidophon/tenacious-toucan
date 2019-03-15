@@ -71,6 +71,7 @@ class LSTMLanguageModel(AbstractRNN):
             hidden = hidden[0].to(device), hidden[1].to(device)
 
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
+        # TODO: Multi-GPU asks for flatten_parameters() here but creates OOM errors on main backward()
         out, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
 
         output = self.predict_distribution(out)

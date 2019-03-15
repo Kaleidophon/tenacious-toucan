@@ -187,7 +187,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         new_out = torch.tanh(self.hidden_select(hidden) @ W_ho + b_ho)
         num_layers, batch_size, out_dim = new_out.shape
         new_out = new_out.view(batch_size, num_layers, out_dim)
-        new_out_dist = self.model.predict_distribution(new_out, deepcopy(self.model.out_layer).to(device))
+        new_out_dist = self.model.predict_distribution(new_out, self.model.out_layer).to(device)
 
         return new_out_dist, new_hidden
 
@@ -216,7 +216,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         out = out.view(batch_size, seq_len, out_dim)
 
         # Collect sample predictions
-        output = self.model.predict_distribution(out, deepcopy(self.model.out_layer).to(device))
+        output = self.model.predict_distribution(out, self.model.out_layer).to(device)
         output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.dropout_layer(output)

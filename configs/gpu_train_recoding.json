@@ -9,9 +9,9 @@
   "weight_decay": 0.3,
   "prior_scale": 0.01,
   "learning_rate": 0.001,
-  "batch_size": 356,
+  "batch_size": 256,
   "num_epochs": 8,
-  "corpus_dir": "data/corpora/enwiki",
+  "corpus_dir": "data/corpora/wikitext2",
   "clip": 0.25,
   "print_every": 1,
   "eval_every": 2500,
@@ -22,6 +22,6 @@
   "model_name": "test",
   "layout": null,
   "max_sentence_len": 35,
-  "multi_gpu": true,
+  "multi_gpu": false,
   "device": "cuda"
 }

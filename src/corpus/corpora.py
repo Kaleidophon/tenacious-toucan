@@ -3,6 +3,7 @@ Read corpora that used in experiments.
 """
 
 # STD
+from collections import defaultdict
 from typing import List, Optional, Tuple
 import os
 
@@ -180,7 +181,11 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
 
     if vocab is None:
         print(f"Reading vocabulary under {corpus_dir}/vocab.txt...")
-        vocab = _read_vocabulary(f"{corpus_dir}/vocab.txt")
+        if os.path.exists(f"{corpus_dir}/vocab.txt"):
+            vocab = _read_vocabulary(f"{corpus_dir}/vocab.txt")
+        else:
+            print("No vocabulary file found, building vocabulary from scratch...")
+            vocab = defaultdict(lambda: len(vocab))
 
     # Read in corpus
     print(f"Reading corpus under {corpus_dir}/{corpus_split}.txt...")
@@ -204,6 +209,10 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             if stop_after is not None:
                 if i > stop_after:
                     break
+
+    # If vocab was build from scratch, convert
+    if not isinstance(vocab, W2I):
+        vocab = W2I(vocab)
 
     corpus = WikiCorpus(indexed_sentences, vocab)
 
