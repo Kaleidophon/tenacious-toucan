@@ -375,7 +375,7 @@ def init_argparser() -> ArgumentParser:
 
     # Model saving and logging options
     from_cmd.add_argument("--model_name", type=str, help="Model identifier.")
-    from_cmd.add_argument("--model_save_dir", type=str, help="Directory to which current best model should be saved to.")
+    from_cmd.add_argument("--model_save_path", type=str, help="Directory to which current best model should be saved to.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--log_dir", type=str, help="Directory to write (tensorboard) logs to.")
     from_cmd.add_argument("--layout", type=list, default=None,
