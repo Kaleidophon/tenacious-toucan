@@ -19,5 +19,6 @@
   "multi_gpu": false,
   "device": "cuda",
   "evaluate": true,
-  "eval_batch_size": 50
+  "eval_batch_size": 50,
+  "weight_decay": 0.3
 }
