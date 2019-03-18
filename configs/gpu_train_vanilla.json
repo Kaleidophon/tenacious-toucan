@@ -16,5 +16,8 @@
   "model_name": "test",
   "layout": null,
   "max_sentence_len": 35,
-  "multi_gpu": false
+  "multi_gpu": false,
+  "device": "cuda",
+  "evaluate": true,
+  "eval_batch_size": 50
 }

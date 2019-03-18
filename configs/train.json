@@ -22,5 +22,7 @@
   "model_name": "test",
   "layout": null,
   "max_sentence_len": 35,
-  "multi_gpu": false
+  "multi_gpu": false,
+  "evaluate": true,
+  "eval_batch_size": 50
 }

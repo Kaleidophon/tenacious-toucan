@@ -4,6 +4,7 @@ Train the model with the uncertainty-based intervention mechanism.
 
 # STD
 from argparse import ArgumentParser
+import math
 import sys
 import time
 from typing import Optional, Dict, Any, Tuple
@@ -11,6 +12,7 @@ from typing import Optional, Dict, Any, Tuple
 # EXT
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
+from rnnalyse.models.w2i import W2I
 import torch
 from torch.autograd import Variable
 import torch.optim as optim
@@ -48,6 +50,17 @@ def main():
     # Train
     log_dir = config_dict["logging"]["log_dir"]
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
+
+    # Evaluate
+    model_save_path = config_dict["train"]["model_save_path"]
+    evaluate = config_dict["eval"]["evaluate"]
+    eval_batch_size = config_dict["eval"]["eval_batch_size"]
+
+    if model_save_path is not None and evaluate:
+        test_set = load_test_set(config_dict, train_set.vocab)
+        best_model = torch.load(model_save_path)
+        test_loss = evaluate_model(best_model, test_set, batch_size=eval_batch_size)
+        print(f"Best model under {model_save_path} achieved a perplexity of {math.exp(test_loss):.4f}")
 
 
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
@@ -128,7 +141,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 if (total_batch_i + 1) % print_every == 0:
                     progress_bar.set_description(
-                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:.4f}",
+                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:>7.3f}",
                         refresh=False
                     )
                     progress_bar.update(print_every)
@@ -285,6 +298,17 @@ def load_data(config_dict) -> Tuple[WikiCorpus, WikiCorpus]:
     return train_set, valid_set
 
 
+def load_test_set(config_dict, vocab: Optional[W2I] = None) -> WikiCorpus:
+    """
+    Load the test set.
+    """
+    corpus_dir = config_dict["corpus"]["corpus_dir"]
+    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
+    test_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len, vocab=vocab)
+
+    return test_set
+
+
 def manage_config() -> dict:
     """
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
@@ -300,6 +324,7 @@ def manage_config() -> dict:
         "corpus": {"corpus_dir", "max_sentence_len"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale", "hidden_size",
                      "weight_decay", "step_size"},
+        "eval": {"evaluate", "eval_batch_size"}
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -375,12 +400,18 @@ def init_argparser() -> ArgumentParser:
 
     # Model saving and logging options
     from_cmd.add_argument("--model_name", type=str, help="Model identifier.")
-    from_cmd.add_argument("--model_save_path", type=str, help="Directory to which current best model should be saved to.")
+    from_cmd.add_argument("--model_save_path", type=str,
+                          help="Directory to which current best model should be saved to.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--log_dir", type=str, help="Directory to write (tensorboard) logs to.")
     from_cmd.add_argument("--layout", type=list, default=None,
                             help="Define which models should be grouped together on tensorboard. Layout here is a list "
                                  "of tags corresponding to the models.")
+
+    # Evaluation options
+    from_cmd.add_argument("--evaluate", action="store_true", default=None,
+                          help="Indicate whether to evaluate the best model after training")
+    from_cmd.add_argument("--eval_batch_size", type=int, help="Batch size while evaluating on the test set.")
 
     return parser
 
