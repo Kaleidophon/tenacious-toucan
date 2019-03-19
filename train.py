@@ -304,7 +304,7 @@ def load_test_set(config_dict, vocab: Optional[W2I] = None) -> WikiCorpus:
     """
     corpus_dir = config_dict["corpus"]["corpus_dir"]
     max_sentence_len = config_dict["corpus"]["max_sentence_len"]
-    test_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len, vocab=vocab)
+    test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab)
 
     return test_set
 
