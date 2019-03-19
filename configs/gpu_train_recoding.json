@@ -14,7 +14,7 @@
   "corpus_dir": "data/corpora/wikitext2",
   "clip": 0.25,
   "print_every": 1,
-  "eval_every": 2500,
+  "eval_every": 40,
   "model_save_path": "data/models/uncertainty/test.pt",
   "model_type": "mlp_step",
   "step_size": 0.5,
