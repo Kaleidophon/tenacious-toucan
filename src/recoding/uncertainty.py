@@ -223,7 +223,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # TODO: Does this make sense?
         # If no target is given, compute uncertainty of most likely token
-        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
+        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
         target_idx = target_idx.to(device)
 
         # Select predicted probabilities of target index

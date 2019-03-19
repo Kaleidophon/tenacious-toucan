@@ -151,22 +151,22 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
                 log_tb_data(WRITER, f"data/batch_loss/{MODEL_NAME}", batch_loss, total_batch_i)
 
-            # Calculate validation loss
-            if (epoch + 1) % eval_every == 0 and valid_set is not None:
-                validation_loss = evaluate_model(model, valid_set, batch_size, device)
-                progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Loss: {validation_loss:.4f}")
+                # Calculate validation loss
+                if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
+                    validation_loss = evaluate_model(model, valid_set, batch_size, device)
+                    progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Loss: {validation_loss:.4f}")
 
-                if validation_loss < best_validation_loss and model_save_path is not None:
-                    model_info = add_model_info(model, epoch, epoch_loss, validation_loss)
-                    torch.save(model, model_save_path)
-                    best_validation_loss = validation_loss
+                    if validation_loss < best_validation_loss and model_save_path is not None:
+                        model_info = add_model_info(model, epoch, epoch_loss, validation_loss)
+                        torch.save(model, model_save_path)
+                        best_validation_loss = validation_loss
 
-                    log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
+                        log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
 
-                log_to_file(
-                    {"batch_num": total_batch_i, "val_loss": validation_loss}, f"{log_dir}/{MODEL_NAME}_val.log"
-                )
-                log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
+                    log_to_file(
+                        {"batch_num": total_batch_i, "val_loss": validation_loss}, f"{log_dir}/{MODEL_NAME}_val.log"
+                    )
+                    log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
