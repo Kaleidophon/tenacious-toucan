@@ -28,7 +28,7 @@ from src.models.abstract_rnn import AbstractRNN
 from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin
-from src.utils.logging import log_tb_data, log_to_file
+from src.utils.log import log_tb_data, log_to_file
 
 # GLOBALS
 WRITER = None

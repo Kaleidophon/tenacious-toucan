@@ -11,13 +11,13 @@ from typing import Any, Optional, Union, List, Callable, Dict
 import os
 
 # EXT
-import numpy
+import numpy as np
 import torch
 from tensorboardX import SummaryWriter
 
 # TYPES
-LogDict = Dict[str, List[float]]
-AggregatedLogs = Dict[LogDict]
+LogDict = Dict[str, np.array]
+AggregatedLogs = Dict[str, LogDict]
 
 
 def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: Optional[int] = None) -> None:
@@ -45,7 +45,7 @@ def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: 
         elif type(data) == dict:
             writer.add_scalars(tags, data, global_step=step)
 
-        elif type(data) in (numpy.ndarray, numpy.array, torch.Tensor):
+        elif type(data) in (np.ndarray, np.array, torch.Tensor):
             writer.add_embedding(tags, data, global_step=step)
 
         else:
@@ -83,7 +83,7 @@ def read_log(path: str) -> LogDict:
     """
     Read a log file into a dictionary.
     """
-    data = defaultdict(list)
+    data = defaultdict(lambda: np.array([]))
 
     with open(path, "r") as file:
         lines = file.readlines()
@@ -95,15 +95,35 @@ def read_log(path: str) -> LogDict:
             line_parts = map(float, line_parts)  # Cast to float
 
             for header, part in zip(header_parts, line_parts):
-                data[header].append(part)
+                data[header] = np.append(data[header], part)
 
     return data
+
+
+def merge_logs(log1: LogDict, log2: LogDict) -> LogDict:
+    """
+    Merge two log dicts by concatenating the data columns
+    """
+    assert log1.keys() == log2.keys(), "Logs must have the same headers!"
+
+    expand = lambda array: array if len(array.shape) == 2 else array[np.newaxis, ...]
+
+    merged_log = {}
+
+    for header in log1.keys():
+        data1, data2 = expand(log1[header]), expand(log2[header])
+        merged_data = np.concatenate([data1, data2], axis=0)
+        merged_log[header] = merged_data
+
+    return merged_log
 
 
 def aggregate_logs(paths: List[str], name_func: Optional[Callable] = None) -> AggregatedLogs:
     """
     Aggregate the data from multiple logs into one LogDict. Requires the logs to have the same headers and the same
     number of data points.
+
+    If multiple logs receive the same name via the naming function, merge the corresponding data.
     """
     def _default_name_func(path: str):
         model_name = path[:path.rfind("_")]
@@ -111,7 +131,17 @@ def aggregate_logs(paths: List[str], name_func: Optional[Callable] = None) -> Ag
         return model_name
 
     name_func = name_func if name_func is not None else _default_name_func
-    logs = {name_func(path): read_log(path) for path in paths}
+    logs = {}
+
+    for path in paths:
+        name = name_func(path)
+        log = read_log(path)
+
+        # Merge data
+        if name in logs:
+            logs[name] = merge_logs(logs[name], log)
+        else:
+            logs[name] = log
 
     return logs
 
