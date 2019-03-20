@@ -3,13 +3,21 @@ Define helpful logging functions.
 """
 
 # STD
-from typing import Any, Optional, Union
+from collections import defaultdict
+from genericpath import isfile
+from os import listdir
+from os.path import join
+from typing import Any, Optional, Union, List, Callable, Dict
 import os
 
 # EXT
 import numpy
 import torch
 from tensorboardX import SummaryWriter
+
+# TYPES
+LogDict = Dict[str, List[float]]
+AggregatedLogs = Dict[LogDict]
 
 
 def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: Optional[int] = None) -> None:
@@ -69,3 +77,53 @@ def log_to_file(data: dict, log_path: Optional[str] = None) -> None:
     else:
         with open(log_path, "a") as log_file:
             log_file.write("\t".join(map(str, data.values())) + "\n")
+
+
+def read_log(path: str) -> LogDict:
+    """
+    Read a log file into a dictionary.
+    """
+    data = defaultdict(list)
+
+    with open(path, "r") as file:
+        lines = file.readlines()
+        headers, lines = lines[0].strip(), lines[1:]
+        header_parts = headers.split()
+
+        for line in lines:
+            line_parts = line.strip().split()
+            line_parts = map(float, line_parts)  # Cast to float
+
+            for header, part in zip(header_parts, line_parts):
+                data[header].append(part)
+
+    return data
+
+
+def aggregate_logs(paths: List[str], name_func: Optional[Callable] = None) -> AggregatedLogs:
+    """
+    Aggregate the data from multiple logs into one LogDict. Requires the logs to have the same headers and the same
+    number of data points.
+    """
+    def _default_name_func(path: str):
+        model_name = path[:path.rfind("_")]
+
+        return model_name
+
+    name_func = name_func if name_func is not None else _default_name_func
+    logs = {name_func(path): read_log(path) for path in paths}
+
+    return logs
+
+
+def get_logs_in_dir(log_dir: str, selection_func: Callable = lambda path: True) -> List[str]:
+    """
+    Select paths to log files in a directory based on some selection function that returns True of the log file matches
+    some criterion.
+    """
+    p = lambda log_dir, path: join(log_dir, path)
+
+    return [
+        p(log_dir, path) for path in listdir(log_dir)
+        if isfile(p(log_dir, path)) and selection_func(p(log_dir, path))
+    ]
