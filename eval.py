@@ -8,7 +8,6 @@ from collections import defaultdict
 import math
 
 # EXT
-from tqdm import tqdm
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
 import torch
@@ -38,7 +37,8 @@ def main() -> None:
     print("Evaluating...\n")
     scores = defaultdict(lambda: np.array([]))
 
-    for model_path, model in tqdm(models.items()):
+    for i, (model_path, model) in enumerate(models.items()):
+        print(f"Evaluating model {i+1} / {len(models)}...", end="", flush=True)
         loss = evaluate_model(model, test_set, batch_size, device=device)
         perplexity = math.exp(loss)
         scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
