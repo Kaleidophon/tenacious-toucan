@@ -7,13 +7,13 @@ from argparse import ArgumentParser
 import math
 import sys
 import time
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, Union
 
 # EXT
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
-from rnnalyse.models.w2i import W2I
 import torch
+from rnnalyse.models.w2i import W2I
 from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -30,6 +30,9 @@ from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguage
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import log_tb_data, log_to_file
 
+# TYPING
+Device = Union[str, torch.device]
+
 # GLOBALS
 WRITER = None
 MODEL_NAME = None
@@ -42,7 +45,9 @@ def main():
     init_writer(config_dict)
 
     # Load data
-    train_set, valid_set = load_data(config_dict)
+    corpus_dir = config_dict["corpus"]["corpus_dir"]
+    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
+    train_set, valid_set = load_data(corpus_dir, max_sentence_len)
 
     # Initialize model
     model = init_model(config_dict, vocab_size=len(train_set.vocab), corpus_size=len(train_set))
@@ -57,14 +62,14 @@ def main():
     eval_batch_size = config_dict["eval"]["eval_batch_size"]
 
     if model_save_path is not None and evaluate:
-        test_set = load_test_set(config_dict, train_set.vocab)
+        test_set = load_test_set(corpus_dir, max_sentence_len, train_set.vocab)
         best_model = torch.load(model_save_path)
         test_loss = evaluate_model(best_model, test_set, batch_size=eval_batch_size)
         print(f"Best model under {model_save_path} achieved a perplexity of {math.exp(test_loss):.4f}")
 
 
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
-                weight_decay: float, clip: float, print_every: int, eval_every: int, device: torch.device,
+                weight_decay: float, clip: float, print_every: int, eval_every: int, device: Device,
                 valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None,
                 log_dir: Optional[str] = None, **unused: Any) -> None:
     """
@@ -169,7 +174,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
 
 
-def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: torch.device) -> float:
+def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device) -> float:
     """
     Evaluate a model on a given test set.
 
@@ -279,13 +284,10 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
     return model
 
 
-def load_data(config_dict) -> Tuple[WikiCorpus, WikiCorpus]:
+def load_data(corpus_dir: str, max_sentence_len: int) -> Tuple[WikiCorpus, WikiCorpus]:
     """
     Load training and validation set.
     """
-    corpus_dir = config_dict["corpus"]["corpus_dir"]
-    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
-
     start = time.time()
     train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len)
     valid_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, vocab=train_set.vocab)
@@ -298,12 +300,10 @@ def load_data(config_dict) -> Tuple[WikiCorpus, WikiCorpus]:
     return train_set, valid_set
 
 
-def load_test_set(config_dict, vocab: Optional[W2I] = None) -> WikiCorpus:
+def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None) -> WikiCorpus:
     """
     Load the test set.
     """
-    corpus_dir = config_dict["corpus"]["corpus_dir"]
-    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
     test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab)
 
     return test_set
