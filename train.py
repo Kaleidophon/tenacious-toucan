@@ -4,16 +4,13 @@ Train the model with the uncertainty-based intervention mechanism.
 
 # STD
 from argparse import ArgumentParser
-import math
 import sys
-import time
-from typing import Optional, Dict, Any, Tuple, Union
+from typing import Optional, Dict, Any
 
 # EXT
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
 import torch
-from rnnalyse.models.w2i import W2I
 from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -23,15 +20,15 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
 # PROJECT
-from src.corpus.corpora import read_wiki_corpus, WikiCorpus
+from corpus.corpora import load_data
+from utils.test import evaluate_model
+from src.corpus.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import log_tb_data, log_to_file
-
-# TYPING
-Device = Union[str, torch.device]
+from src.utils.types import Device
 
 # GLOBALS
 WRITER = None
@@ -55,17 +52,6 @@ def main():
     # Train
     log_dir = config_dict["logging"]["log_dir"]
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
-
-    # Evaluate
-    model_save_path = config_dict["train"]["model_save_path"]
-    evaluate = config_dict["eval"]["evaluate"]
-    eval_batch_size = config_dict["eval"]["eval_batch_size"]
-
-    if model_save_path is not None and evaluate:
-        test_set = load_test_set(corpus_dir, max_sentence_len, train_set.vocab)
-        best_model = torch.load(model_save_path)
-        test_loss = evaluate_model(best_model, test_set, batch_size=eval_batch_size)
-        print(f"Best model under {model_save_path} achieved a perplexity of {math.exp(test_loss):.4f}")
 
 
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
@@ -95,7 +81,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
         Interval at which training loss is being printed.
     eval_every: int
         Interval at which model is evaluated on the validation set.
-    device: torch.device
+    device: Device
         Torch device the model is being trained on (e.g. "cpu" or "cuda").
     valid_set: Optional[WikiCorpus]
         Validation set the model is being evaluated on.
@@ -174,48 +160,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
 
 
-def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device) -> float:
-    """
-    Evaluate a model on a given test set.
-
-    Parameters
-    ----------
-    model: AbstractRNN
-        Model to be trained.
-    test_set: Optional[WikiCorpus]
-        Validation set the model is being evaluated on.
-    batch_size: int
-        Batch size used for training.
-    device: torch.device
-        Torch device the model is being trained on (e.g. "cpu" or "cuda").
-
-    Returns
-    -------
-    test_loss: float
-        Loss on test set.
-    """
-    dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
-    loss = CrossEntropyLoss().to(device)
-    test_loss = 0
-    hidden = None
-
-    model.eval()
-    for batch in dataloader:
-        batch_size, seq_len = batch.shape
-
-        for t in range(seq_len - 1):
-            input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-            output_dist, hidden = model(input_vars, hidden)
-            output_dist = output_dist.squeeze(1)
-            test_loss += loss(output_dist, batch[:, t + 1].to(device)).item()
-
-        hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
-
-    model.train()
-
-    return test_loss
-
-
 def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation_loss: float, **misc: Dict) -> dict:
     """
     Add information about the training conditions to a model.
@@ -284,31 +228,6 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
     return model
 
 
-def load_data(corpus_dir: str, max_sentence_len: int) -> Tuple[WikiCorpus, WikiCorpus]:
-    """
-    Load training and validation set.
-    """
-    start = time.time()
-    train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len)
-    valid_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, vocab=train_set.vocab)
-    end = time.time()
-    duration = end - start
-    minutes, seconds = divmod(duration, 60)
-
-    print(f"Data loading took {int(minutes)} minute(s), {seconds:.2f} second(s).")
-
-    return train_set, valid_set
-
-
-def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None) -> WikiCorpus:
-    """
-    Load the test set.
-    """
-    test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab)
-
-    return test_set
-
-
 def manage_config() -> dict:
     """
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
@@ -323,8 +242,7 @@ def manage_config() -> dict:
         "logging": {"log_dir", "layout"},
         "corpus": {"corpus_dir", "max_sentence_len"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale", "hidden_size",
-                     "weight_decay", "step_size"},
-        "eval": {"evaluate", "eval_batch_size"}
+                     "weight_decay", "step_size"}
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -407,11 +325,6 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--layout", type=list, default=None,
                             help="Define which models should be grouped together on tensorboard. Layout here is a list "
                                  "of tags corresponding to the models.")
-
-    # Evaluation options
-    from_cmd.add_argument("--evaluate", action="store_true", default=None,
-                          help="Indicate whether to evaluate the best model after training")
-    from_cmd.add_argument("--eval_batch_size", type=int, help="Batch size while evaluating on the test set.")
 
     return parser
 

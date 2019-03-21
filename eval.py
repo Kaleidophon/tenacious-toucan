@@ -6,14 +6,17 @@ Script to evaluate a model.
 from argparse import ArgumentParser
 from collections import defaultdict
 import math
+from typing import Optional
 
 # EXT
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
 import torch
+from rnnalyse.models.w2i import W2I
 
 # PROJECT
-from train import evaluate_model, load_test_set, load_data
+from src.corpus.corpora import WikiCorpus, read_wiki_corpus, load_data
+from src.utils.test import evaluate_model
 
 
 def main() -> None:
@@ -38,9 +41,9 @@ def main() -> None:
     scores = defaultdict(lambda: np.array([]))
 
     for i, (model_path, model) in enumerate(models.items()):
-        print(f"Evaluating model {i+1} / {len(models)}...", end="", flush=True)
+        print(f"\rEvaluating model {i+1} / {len(models)}...", end="", flush=True)
         loss = evaluate_model(model, test_set, batch_size, device=device)
-        perplexity = math.exp(loss)
+        perplexity = math.exp(loss / test_set.num_tokens)
         scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
 
     print("\nEvaluation results:")
@@ -56,6 +59,15 @@ def _grouping_function(path: str):
     model_type = path[:path.rfind("/") - 1]
 
     return model_type
+
+
+def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None) -> WikiCorpus:
+    """
+    Load the test set.
+    """
+    test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab)
+
+    return test_set
 
 
 def manage_config() -> dict:

@@ -3,7 +3,6 @@ Define a model with an intervention mechanism that bases its interventions on th
 """
 
 # STD
-from copy import deepcopy
 from typing import Dict, Tuple, Optional, Iterable, Any
 
 # EXT
@@ -16,7 +15,8 @@ from torch.nn import ReLU, Sigmoid
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.mechanism import RecodingMechanism
-from src.utils.compatability import RNNCompatabilityMixin, AmbiguousHidden
+from src.utils.compatability import RNNCompatabilityMixin
+from utils.types import AmbiguousHidden
 from src.models.language_model import LSTMLanguageModel
 
 

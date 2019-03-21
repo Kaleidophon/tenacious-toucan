@@ -3,6 +3,7 @@ Read corpora that used in experiments.
 """
 
 # STD
+import time
 from collections import defaultdict
 from typing import List, Optional, Tuple
 import os
@@ -133,6 +134,11 @@ class WikiCorpus(Dataset):
         """
         self.indexed_sentences = indexed_sentences
         self.vocab = vocab
+        self.num_tokens = 0
+
+        # Count tokens
+        for sentence in self.indexed_sentences:
+            self.num_tokens += len(sentence)
 
     def __len__(self):
         return len(self.indexed_sentences)
@@ -217,3 +223,19 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
     corpus = WikiCorpus(indexed_sentences, vocab)
 
     return corpus
+
+
+def load_data(corpus_dir: str, max_sentence_len: int) -> Tuple[WikiCorpus, WikiCorpus]:
+    """
+    Load training and validation set.
+    """
+    start = time.time()
+    train_set = read_wiki_corpus(corpus_dir, "train", max_sentence_len=max_sentence_len)
+    valid_set = read_wiki_corpus(corpus_dir, "valid", max_sentence_len=max_sentence_len, vocab=train_set.vocab)
+    end = time.time()
+    duration = end - start
+    minutes, seconds = divmod(duration, 60)
+
+    print(f"Data loading took {int(minutes)} minute(s), {seconds:.2f} second(s).")
+
+    return train_set, valid_set

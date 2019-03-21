@@ -3,17 +3,15 @@ Define functions to plot loss curves and other noteworthy model characteristics.
 """
 
 # STD
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple
 
 # EXT
 import numpy as np
 from matplotlib import pyplot as plt
 
 # PROJECT
-from utils.log import get_logs_in_dir, aggregate_logs, AggregatedLogs
-
-# TYPES
-ColorDict = Dict[str, Dict]
+from utils.log import get_logs_in_dir, aggregate_logs
+from utils.types import ColorDict, AggregatedLogs
 
 # CONSTANTS
 # Define some standard colors for models used in this project

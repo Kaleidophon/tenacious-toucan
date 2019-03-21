@@ -1,8 +1,11 @@
 """
 Quick and dirty script to convert the necessary corpora into the expected data structures.
 """
+
+# STD
 import pickle
 
+# PROJECT
 from src.corpus.corpora import read_gulordava_corpus, read_giulianelli_corpus
 
 

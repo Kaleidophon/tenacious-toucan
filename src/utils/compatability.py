@@ -3,13 +3,13 @@ Define some functions to ensure compatability between vanilla RNNs, LSTMs and GR
 """
 
 # STD
-from typing import Union, Callable, Iterable, Any
+from typing import Callable, Iterable, Any
 
 # EXT
 from torch import Tensor
 
-# TYPES
-AmbiguousHidden = Union[Tensor, Iterable[Tensor]]
+# PROJECT
+from utils.types import AmbiguousHidden
 
 
 class RNNCompatabilityMixin:

@@ -7,7 +7,7 @@ from collections import defaultdict
 from genericpath import isfile
 from os import listdir
 from os.path import join
-from typing import Any, Optional, Union, List, Callable, Dict
+from typing import Any, Optional, Union, List, Callable
 import os
 
 # EXT
@@ -15,9 +15,8 @@ import numpy as np
 import torch
 from tensorboardX import SummaryWriter
 
-# TYPES
-LogDict = Dict[str, np.array]
-AggregatedLogs = Dict[str, LogDict]
+# PROJECT
+from utils.types import LogDict, AggregatedLogs
 
 
 def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: Optional[int] = None) -> None:
