@@ -42,14 +42,13 @@ def main() -> None:
 
     for i, (model_path, model) in enumerate(models.items()):
         print(f"\rEvaluating model {i+1} / {len(models)}...", end="", flush=True)
-        loss = evaluate_model(model, test_set, batch_size, device=device)
-        perplexity = math.exp(loss / test_set.num_tokens)
+        loss = evaluate_model(model, test_set, batch_size, device=device, perplexity=True)
         scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
 
     print("\nEvaluation results:")
     for model, perplexities in scores.items():
         mean_perpl, std_perpl = perplexities.mean(), perplexities.std()
-        print(f"{model} test perplexity: {mean_perpl:.2f} ± {std_perpl:.2f}")
+        print(f"{model} test perplexity: {mean_perpl:.2f} | Std. dev {std_perpl:.2f}")
 
 
 def _grouping_function(path: str):

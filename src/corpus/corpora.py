@@ -134,11 +134,6 @@ class WikiCorpus(Dataset):
         """
         self.indexed_sentences = indexed_sentences
         self.vocab = vocab
-        self.num_tokens = 0
-
-        # Count tokens
-        for sentence in self.indexed_sentences:
-            self.num_tokens += len(sentence)
 
     def __len__(self):
         return len(self.indexed_sentences)

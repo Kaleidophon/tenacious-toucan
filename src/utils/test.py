@@ -3,6 +3,7 @@ This modules defines some function to test models.
 """
 
 # STD
+import math
 from typing import Tuple
 
 # EXT
@@ -17,7 +18,8 @@ from src.utils.types import Device
 from src.utils.compatability import RNNCompatabilityMixin
 
 
-def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device) -> Tuple[float, float]:
+def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
+                   perplexity: bool = False) -> Tuple[float, float]:
     """
     Evaluate a model on a given test set.
 
@@ -31,6 +33,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         Batch size used for training.
     device: Device
         Torch device the model is being trained on (e.g. "cpu" or "cuda").
+    perplexity: bool
+        Indicate whether perplexity should be returned instead of the loss.
 
     Returns
     -------
@@ -39,7 +43,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     """
     dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
     loss = CrossEntropyLoss().to(device)
-    test_loss = 0
+    test_metric = 0
+    total_length = 0
     hidden = None
 
     model.eval()
@@ -50,10 +55,18 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
             output_dist, hidden = model(input_vars, hidden)
             output_dist = output_dist.squeeze(1)
-            test_loss += loss(output_dist, batch[:, t + 1].to(device)).item()
+            current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
+
+            test_metric += current_loss
+
+        total_length += seq_len
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
     model.train()
 
-    return test_loss
+    if perplexity:
+        test_metric /= total_length
+        test_metric = math.exp(test_metric)
+
+    return test_metric
