@@ -367,9 +367,11 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         num_layers, batch_size, _ = hidden.size()
         hidden = hidden.view(batch_size, num_layers, self.hidden_size)
 
-        # If buffer is empty, initialize it with zero hidden states
-        if len(self.hidden_buffer) == 0:
-            self.hidden_buffer = [torch.zeros(hidden.shape).to(device)] * self.window_size
+        # If buffer is empty or batch size changes (e.g. when going from training to testing), initialize it with zero
+        # hidden states
+        buffer_batch_size = self.hidden_buffer[0].shape[0]
+        if len(self.hidden_buffer) == 0 or buffer_batch_size != batch_size:
+            self.hidden_buffer = [torch.zeros((batch_size, 1, self.hidden_size)).to(device)] * self.window_size
 
         # Add hidden state to buffer
         self.hidden_buffer.append(hidden)
