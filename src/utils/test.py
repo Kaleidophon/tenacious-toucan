@@ -11,10 +11,10 @@ from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 
 # PROJECT
-from corpus.corpora import WikiCorpus
-from models.abstract_rnn import AbstractRNN
-from utils.types import Device
-from utils.compatability import RNNCompatabilityMixin
+from src.corpus.corpora import WikiCorpus
+from src.models.abstract_rnn import AbstractRNN
+from src.utils.types import Device
+from src.utils.compatability import RNNCompatabilityMixin
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device) -> Tuple[float, float]:

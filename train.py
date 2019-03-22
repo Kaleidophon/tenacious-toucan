@@ -20,7 +20,7 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
 # PROJECT
-from corpus.corpora import load_data
+from src.corpus.corpora import load_data
 from utils.test import evaluate_model
 from src.corpus.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
