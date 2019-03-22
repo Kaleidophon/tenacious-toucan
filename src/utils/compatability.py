@@ -9,7 +9,7 @@ from typing import Callable, Iterable, Any
 from torch import Tensor
 
 # PROJECT
-from utils.types import AmbiguousHidden
+from src.utils.types import AmbiguousHidden
 
 
 class RNNCompatabilityMixin:

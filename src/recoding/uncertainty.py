@@ -16,7 +16,7 @@ from torch.nn import ReLU, Sigmoid
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.mechanism import RecodingMechanism
 from src.utils.compatability import RNNCompatabilityMixin
-from utils.types import AmbiguousHidden
+from src.utils.types import AmbiguousHidden
 from src.models.language_model import LSTMLanguageModel
 
 

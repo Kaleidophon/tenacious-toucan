@@ -16,7 +16,7 @@ import torch
 from tensorboardX import SummaryWriter
 
 # PROJECT
-from utils.types import LogDict, AggregatedLogs
+from src.utils.types import LogDict, AggregatedLogs
 
 
 def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: Optional[int] = None) -> None:

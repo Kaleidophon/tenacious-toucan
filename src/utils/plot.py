@@ -10,8 +10,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # PROJECT
-from utils.log import get_logs_in_dir, aggregate_logs
-from utils.types import ColorDict, AggregatedLogs
+from src.utils.log import get_logs_in_dir, aggregate_logs
+from src.utils.types import ColorDict, AggregatedLogs
 
 # CONSTANTS
 # Define some standard colors for models used in this project
