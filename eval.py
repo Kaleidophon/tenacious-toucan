@@ -56,7 +56,7 @@ def _grouping_function(path: str):
     """
     Defines how model scores are grouped by their path.
     """
-    model_type = path[:path.rfind("/") - 1]
+    model_type = path[path.rfind("/") + 1:-1]
 
     return model_type
 
