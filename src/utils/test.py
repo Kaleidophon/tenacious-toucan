@@ -57,12 +57,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             output_dist = output_dist.squeeze(1)
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
-            # The loss is by default averaged of the batch. If we are computing the perplexity instead, we still want
-            # to maintain the original losses so we can easily compute the score for all sentences with a math.exp in
-            # the end.
-            if perplexity:
-                current_loss *= batch_size
-
             test_metric += current_loss
 
         total_length += seq_len
@@ -72,7 +66,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     model.train()
 
     if perplexity:
-        test_metric /= total_length
+        test_metric = test_metric / total_length * batch_size
         test_metric = math.exp(test_metric)
 
     return test_metric
