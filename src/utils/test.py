@@ -59,7 +59,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
             test_metric += current_loss
-            total_length += batch_size
+
+        total_length += (seq_len - 1) * batch_size
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
@@ -67,6 +68,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
     if perplexity:
         test_metric /= total_length
-        test_metric = math.exp(test_metric)
+        test_metric = math.exp(test_metric) * batch_size
 
     return test_metric
