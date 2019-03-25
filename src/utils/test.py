@@ -42,7 +42,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         Loss on test set.
     """
     dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
-    loss = CrossEntropyLoss().to(device)
+    loss = CrossEntropyLoss(reduction=("mean" if not perplexity else "sum")).to(device)
     test_metric = 0
     total_length = 0
     hidden = None
@@ -59,14 +59,14 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
             test_metric += current_loss
 
-        total_length += seq_len
+        total_length += seq_len * batch_size
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
     model.train()
 
     if perplexity:
-        test_metric = test_metric / total_length * batch_size
+        test_metric = test_metric / total_length
         test_metric = math.exp(test_metric)
 
     return test_metric
