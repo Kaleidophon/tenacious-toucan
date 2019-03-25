@@ -68,6 +68,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
     if perplexity:
         test_metric /= total_length
-        test_metric = math.exp(test_metric) * batch_size
+        test_metric = math.exp(test_metric)
 
     return test_metric
