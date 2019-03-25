@@ -51,6 +51,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     model.eval()
     for batch in dataloader:
         batch_size, seq_len = batch.shape
+        sequence_metric = 0
 
         for t in range(seq_len - 1):
             input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
@@ -58,9 +59,13 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             output_dist = output_dist.squeeze(1)
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
-            test_metric += current_loss
+            sequence_metric += current_loss
 
-        total_length += (seq_len - 1) * batch_size
+        if perplexity:
+            sequence_metric *= (seq_len - 1)
+
+        test_metric += sequence_metric
+        total_length += (seq_len - 1)
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
