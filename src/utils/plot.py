@@ -68,7 +68,7 @@ def plot_losses(logs: AggregatedLogs, x_name: str, y_name: str, intervals: bool 
 
     # If data is not truncated in any way, select everything
     if selection is None:
-        selection = slice(stop=x.shape[0])
+        selection = slice(x.shape[0])
 
     x = x[selection]
 
