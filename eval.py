@@ -5,7 +5,6 @@ Script to evaluate a model.
 # STD
 from argparse import ArgumentParser
 from collections import defaultdict
-import math
 from typing import Optional
 
 # EXT
