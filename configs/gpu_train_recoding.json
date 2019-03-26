@@ -10,7 +10,7 @@
   "prior_scale": 0.01,
   "learning_rate": 1,
   "batch_size": 256,
-  "num_epochs": 8,
+  "num_epochs": 25,
   "corpus_dir": "data/corpora/wikitext2",
   "clip": 0.25,
   "print_every": 1,
