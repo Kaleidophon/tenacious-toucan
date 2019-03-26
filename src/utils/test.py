@@ -43,7 +43,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     """
     unk_idx = test_set.vocab["<unk>"]
     dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
-    loss = CrossEntropyLoss(reduction=("sum" if perplexity else None), ignore_index=unk_idx).to(device)
+    loss = CrossEntropyLoss(reduction=("sum" if perplexity else "mean"), ignore_index=unk_idx).to(device)
     test_metric = 0
     total_length = 0
     hidden = None
