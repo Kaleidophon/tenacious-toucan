@@ -19,6 +19,28 @@ from tensorboardX import SummaryWriter
 from src.utils.types import LogDict, AggregatedLogs
 
 
+def remove_logs(log_dir: str, model_name: str) -> None:
+    """
+    Remove logs from previous runs if necessary.
+
+    Parameters
+    ----------
+    log_dir: str
+        Logging directory in which to look for out logs.
+    model_name: str
+        Name of the model the logs belong to.
+    """
+    train_log_path = f"{log_dir}/{model_name}_train.log"
+    val_log_path = f"{log_dir}/model_name}_val.log"
+
+    # Remove logs from previous runs
+    if log_dir is not None and os.path.exists(train_log_path):
+        os.remove(train_log_path)
+
+    if log_dir is not None and os.path.exists(val_log_path):
+        os.remove(val_log_path)
+
+
 def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: Optional[int] = None) -> None:
     """
     Log some sort of data to Tensorboard if a SummaryWriter has been initialized.

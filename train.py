@@ -5,6 +5,7 @@ Train the model with the uncertainty-based intervention mechanism.
 # STD
 from argparse import ArgumentParser
 import sys
+import os
 from typing import Optional, Dict, Any
 
 # EXT
@@ -27,7 +28,7 @@ from src.models.abstract_rnn import AbstractRNN
 from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin
-from src.utils.log import log_tb_data, log_to_file
+from src.utils.log import log_tb_data, log_to_file, remove_logs
 from src.utils.types import Device
 
 # GLOBALS
@@ -90,6 +91,9 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     log_dir: Optional[str]
         Path log data is being written to if given.
     """
+    global MODEL_NAME
+    remove_logs(log_dir, MODEL_NAME)
+
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
     dataloader = DataLoader(
         train_set, shuffle=True, batch_size=batch_size, drop_last=True, pin_memory=(device != "cpu")
