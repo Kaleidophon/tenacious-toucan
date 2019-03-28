@@ -41,10 +41,11 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     test_loss: float
         Loss on test set.
     """
-    unk_idx = test_set.vocab["<unk>"]
+    pad_idx = test_set.vocab["<pad>"]
     dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
-    loss = CrossEntropyLoss(reduction=("sum" if perplexity else "mean"), ignore_index=unk_idx).to(device)
+    loss = CrossEntropyLoss(reduction="sum", ignore_index=pad_idx).to(device)
     test_metric = 0
+    global_norm = 0
     hidden = None
 
     model.eval()
@@ -57,13 +58,9 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             output_dist = output_dist.squeeze(1)
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
-            if perplexity:
-                # Only normalize over non-unk tokens as they are ignored
-                norm = (batch[:, t] != unk_idx).int().sum()
-                # Already normalize here: This way we normalize over the batch size and as we are doing it at every
-                # time step, we also implicitly normalize over the sequence length
-                # In case we're training, this already done by reduction="mean" of CrossEntropyLoss
-                current_loss /= norm
+            # Only normalize over non-pad tokens as they are ignored
+            norm = (batch[:, t] != pad_idx).int().sum()
+            global_norm += norm
 
             test_metric += current_loss
 
@@ -72,7 +69,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     model.train()
 
     if perplexity:
-        test_metric /= len(dataloader)  # Lastly, normalize over the number of batches
+        test_metric /= global_norm
         test_metric = math.exp(test_metric)
 
     return test_metric
