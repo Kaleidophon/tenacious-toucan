@@ -42,6 +42,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         Loss on test set.
     """
     pad_idx = test_set.vocab["<pad>"]
+    unk_idx = test_set.vocab["<unk>"]
     dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
     loss = CrossEntropyLoss(reduction="sum", ignore_index=pad_idx).to(device)
     test_metric = 0
@@ -59,7 +60,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
             # Only normalize over non-pad tokens as they are ignored
-            norm = (batch[:, t] != pad_idx).int().sum()
+            norm = batch[:, t][batch[:, t] != pad_idx]
+            norm = (norm != unk_idx).int().sum()
             global_norm += norm
 
             test_metric += current_loss
