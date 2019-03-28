@@ -66,7 +66,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             current_loss = loss(target_output_dist, targets).item()
 
             # Only normalize over tokens which are not pad and where next token is not <unk>
-            norm = (batch[target_indices, t] != unk_idx).int().sum()
+            norm = (batch[target_indices, t] != pad_idx).int().sum()
             global_norm += norm
 
             test_metric += current_loss
