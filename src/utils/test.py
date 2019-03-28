@@ -57,10 +57,15 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             output_dist = output_dist.squeeze(1)
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
-            norm = (batch[:, t] != unk_idx).int().sum()  # Only normalize over non-unk tokens as they are ignored
-            # Already normalize here: This way we normalize over the batch size and we are doing it at every time step,
-            # we also implicitly normalize over the sequence length
-            test_metric += current_loss / norm
+            if perplexity:
+                # Only normalize over non-unk tokens as they are ignored
+                norm = (batch[:, t] != unk_idx).int().sum()
+                # Already normalize here: This way we normalize over the batch size and as we are doing it at every
+                # time step, we also implicitly normalize over the sequence length
+                # In case we're training, this already done by reduction="mean" of CrossEntropyLoss
+                current_loss /= norm
+
+            test_metric += current_loss
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
