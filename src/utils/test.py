@@ -45,7 +45,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
     loss = CrossEntropyLoss(reduction=("sum" if perplexity else "mean"), ignore_index=unk_idx).to(device)
     test_metric = 0
-    total_length = 0
     hidden = None
 
     model.eval()
@@ -59,9 +58,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             output_dist = output_dist.squeeze(1)
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
-            sequence_metric += current_loss
-            norm = (batch[:, t] != unk_idx).int().sum()
-            total_length += norm
+            norm = (batch[:, t] != unk_idx).int().sum()  # Only normalize over non-unk tokens as they are ignored
+            sequence_metric += current_loss / norm
 
         test_metric += sequence_metric
 
@@ -70,7 +68,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     model.train()
 
     if perplexity:
-        test_metric /= total_length
+        test_metric /= len(dataloader)
         test_metric = math.exp(test_metric)
 
     return test_metric
