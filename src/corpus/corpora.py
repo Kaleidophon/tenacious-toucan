@@ -14,6 +14,9 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from rnnalyse.models.w2i import W2I
 
+# PROJECT
+from src.utils.types import Device
+
 
 def read_gulordava_corpus(corpus_dir: str) -> dict:
     """
@@ -128,18 +131,46 @@ class WikiCorpus(Dataset):
         Attributes
         ----------
         indexed_sentences: List[Tensor]
-            List of indexed senteces as PyTorch sentences.
+            List of indexed sentences as PyTorch sentences.
         vocab: W2I
             Vocabulary as W2I object.
         """
-        self.indexed_sentences = indexed_sentences
+        self.indexed_sentences = torch.stack(indexed_sentences)
+        self.seq_len = self.indexed_sentences.shape[1]
         self.vocab = vocab
+        self.batches = None
+        self.repeat = None
+        self.num_batches = None
+
+    def create_batches(self, batch_size: int, repeat: bool, device: Device) -> None:
+        self.repeat = repeat
+
+        # Work out how cleanly we can divide the dataset into batch-sized parts
+        self.num_batches = self.indexed_sentences.shape[0] // batch_size
+
+        # Trim off any extra elements that wouldn't cleanly fit (remainders)
+        self.indexed_sentences = self.indexed_sentences.narrow(0, 0, self.num_batches * batch_size)
+
+        # Evenly divide the data across the bsz batches.
+        raw_batches = self.indexed_sentences.view(batch_size, -1).t().contiguous().to(device)
+
+        self.batches = [raw_batches[n: n + self.seq_len].t() for n in range(self.num_batches)]
+
+    def __iter__(self):
+        if self.batches is None:
+            raise ValueError("Batches have not initialized yet. Call create_batches() first.")
+
+        while True:
+            for batch in self.batches:
+                yield batch
+            if not self.repeat:
+                return
 
     def __len__(self):
-        return len(self.indexed_sentences)
+        return len(self.indexed_sentences) if self.batches is None else len(self.batches)
 
     def __getitem__(self, item):
-        return self.indexed_sentences[item]
+        return self.indexed_sentences[item] if self.batches is None else self.batches[item]
 
 
 def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optional[int] = 50,
@@ -196,6 +227,7 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
         for i, line in enumerate(corpus_file.readlines()):
             line = line.strip()
             tokens = line.split()
+            tokens.append("<eos>")
 
             if len(tokens) > max_sentence_len:
                 continue

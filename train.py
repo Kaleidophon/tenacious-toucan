@@ -95,10 +95,12 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     remove_logs(log_dir, MODEL_NAME)
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
-    dataloader = DataLoader(
-        train_set, shuffle=True, batch_size=batch_size, drop_last=True, pin_memory=(device != "cpu")
-    )
-    num_batches = len(dataloader)
+    train_set.create_batches(batch_size, repeat=False, device=device)
+    num_batches = train_set.num_batches
+
+    if valid_set is not None:
+        valid_set.create_batches(batch_size, repeat=False, device=device)
+
     loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
     total_batch_i = 0
     hidden = None
@@ -111,7 +113,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
         for epoch in range(num_epochs):
             epoch_loss = 0
 
-            for batch_i, batch in enumerate(dataloader):
+            for batch_i, batch in enumerate(train_set):
 
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()

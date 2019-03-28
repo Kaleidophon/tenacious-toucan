@@ -9,7 +9,6 @@ from typing import Tuple
 # EXT
 from torch.autograd import Variable
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader
 
 # PROJECT
 from src.corpus.corpora import WikiCorpus
@@ -43,14 +42,14 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     """
     pad_idx = test_set.vocab["<pad>"]
     unk_idx = test_set.vocab["<unk>"]
-    dataloader = DataLoader(test_set, batch_size=batch_size, drop_last=True)
     loss = CrossEntropyLoss(reduction="sum", ignore_index=pad_idx).to(device)
     test_metric = 0
     global_norm = 0
     hidden = None
+    test_set.create_batches(batch_size, repeat=False, device=device)
 
     model.eval()
-    for batch in dataloader:
+    for batch in test_set:
         batch_size, seq_len = batch.shape
 
         for t in range(seq_len - 1):
