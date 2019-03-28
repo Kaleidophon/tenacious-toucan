@@ -60,9 +60,10 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
             sequence_metric += current_loss
+            norm = (batch[:, t] != unk_idx).int().sum()
+            total_length += norm
 
         test_metric += sequence_metric
-        total_length += (seq_len - 1)
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
