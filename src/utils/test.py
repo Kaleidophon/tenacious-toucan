@@ -61,9 +61,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
             sequence_metric += current_loss
 
-        if perplexity:
-            sequence_metric *= (seq_len - 1)
-
         test_metric += sequence_metric
         total_length += (seq_len - 1)
 

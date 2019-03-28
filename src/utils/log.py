@@ -31,7 +31,7 @@ def remove_logs(log_dir: str, model_name: str) -> None:
         Name of the model the logs belong to.
     """
     train_log_path = f"{log_dir}/{model_name}_train.log"
-    val_log_path = f"{log_dir}/model_name}_val.log"
+    val_log_path = f"{log_dir}/{model_name}_val.log"
 
     # Remove logs from previous runs
     if log_dir is not None and os.path.exists(train_log_path):
