@@ -50,7 +50,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     model.eval()
     for batch in dataloader:
         batch_size, seq_len = batch.shape
-        sequence_metric = 0
 
         for t in range(seq_len - 1):
             input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
@@ -59,16 +58,16 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
             norm = (batch[:, t] != unk_idx).int().sum()  # Only normalize over non-unk tokens as they are ignored
-            sequence_metric += current_loss / norm
-
-        test_metric += sequence_metric
+            # Already normalize here: This way we normalize over the batch size and we are doing it at every time step,
+            # we also implicitly normalize over the sequence length
+            test_metric += current_loss / norm
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
 
     model.train()
 
     if perplexity:
-        test_metric /= len(dataloader)
+        test_metric /= len(dataloader)  # Lastly, normalize over the number of batches
         test_metric = math.exp(test_metric)
 
     return test_metric
