@@ -57,11 +57,16 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
             output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
             output_dist = output_dist.squeeze(1)
-            current_loss = loss(output_dist, batch[:, t + 1].to(device)).item()
 
-            # Only normalize over non-pad tokens as they are ignored
-            norm = batch[:, t][batch[:, t] != pad_idx]
-            norm = (norm != unk_idx).int().sum()
+            # Calculate loss where the target is not <unk>
+            target_indices = batch[:, t + 1] != unk_idx
+            targets = batch[target_indices, t + 1].to(device)
+            target_output_dist = output_dist[target_indices, :]
+
+            current_loss = loss(target_output_dist, targets).item()
+
+            # Only normalize over tokens which are not pad and where next token is not <unk>
+            norm = (batch[target_indices, t] != unk_idx).int().sum()
             global_norm += norm
 
             test_metric += current_loss
