@@ -9,12 +9,12 @@
   "weight_decay": 0.3,
   "prior_scale": 0.01,
   "learning_rate": 0.01,
-  "batch_size": 256,
+  "batch_size": 64,
   "num_epochs": 25,
   "corpus_dir": "data/corpora/wikitext2",
   "clip": 0.25,
   "print_every": 1,
-  "eval_every": 40,
+  "eval_every": 25,
   "model_save_path": "data/models/uncertainty/test.pt",
   "model_type": "mlp_step",
   "step_size": 0.5,
@@ -25,5 +25,5 @@
   "multi_gpu": false,
   "device": "cuda",
   "evaluate": true,
-  "eval_batch_size": 50
+  "eval_batch_size": 32
 }
