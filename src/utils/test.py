@@ -41,7 +41,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         Loss on test set.
     """
     unk_idx = test_set.vocab["<unk>"]
-    loss = CrossEntropyLoss(reduction="sum", ignore_index=pad_idx).to(device)
+    loss = CrossEntropyLoss(reduction="sum").to(device)
     test_metric = 0
     global_norm = 0
     hidden = None
