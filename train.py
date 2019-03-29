@@ -14,7 +14,6 @@ from rnnalyse.config.setup import ConfigSetup
 import torch
 from torch.autograd import Variable
 import torch.optim as optim
-from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss, DataParallel
 from torch.nn.utils import clip_grad_norm_
 from tensorboardX import SummaryWriter
@@ -116,7 +115,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()
-                batch_loss = 0
+                batch_loss = torch.FloatTensor([0])
 
                 for t in range(seq_len - 1):
                     input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
@@ -136,7 +135,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 if (total_batch_i + 1) % print_every == 0:
                     progress_bar.set_description(
-                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:>7.3f}",
+                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss.item():>7.3f}",
                         refresh=False
                     )
                     progress_bar.update(print_every)
