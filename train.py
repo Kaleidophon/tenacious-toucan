@@ -21,7 +21,7 @@ from tqdm import tqdm
 # PROJECT
 from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
-from utils.corpora import WikiCorpus
+from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
