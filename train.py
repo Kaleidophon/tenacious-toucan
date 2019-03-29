@@ -104,14 +104,13 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
     total_batch_i = 0
     hidden = None
-    best_validation_loss = np.inf
+    best_validation_ppl = np.inf
 
     # Changing format to avoid redundant information
     bar_format = "{desc}{percentage:3.0f}% {bar} | {elapsed} < {remaining} | {rate_fmt}\n"
     with tqdm(total=num_epochs * num_batches, file=sys.stdout, bar_format=bar_format) as progress_bar:
 
         for epoch in range(num_epochs):
-            epoch_loss = 0
 
             for batch_i, batch in enumerate(train_set):
 
@@ -120,14 +119,13 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 batch_loss = 0
 
                 for t in range(seq_len - 1):
-                    input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-                    output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
+                    input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
+                    output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
                     output_dist = output_dist.squeeze(1)
-                    batch_loss += loss(output_dist, batch[:, t+1].to(device))
+                    batch_loss += loss(output_dist, batch[:, t+1])
 
                 # Backward pass
                 batch_loss /= batch_size
-                epoch_loss += batch_loss.item()
                 batch_loss.backward(retain_graph=True)
                 clip_grad_norm_(batch_loss, clip)
                 optimizer.step()
@@ -150,29 +148,28 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
-                    validation_loss = evaluate_model(model, valid_set, batch_size, device)
-                    progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Loss: {validation_loss:.4f}")
+                    validation_ppl = evaluate_model(model, valid_set, batch_size, device, perplexity=True)
+                    progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Loss: {validation_ppl:.4f}")
 
-                    if validation_loss < best_validation_loss and model_save_path is not None:
-                        model_info = add_model_info(model, epoch, epoch_loss, validation_loss)
+                    if validation_ppl < best_validation_ppl and model_save_path is not None:
+                        model_info = add_model_info(model, epoch, validation_ppl)
                         torch.save(model, model_save_path)
-                        best_validation_loss = validation_loss
+                        best_validation_ppl = validation_ppl
 
                         log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
 
                     log_to_file(
-                        {"batch_num": total_batch_i, "val_loss": validation_loss}, f"{log_dir}/{MODEL_NAME}_val.log"
+                        {"batch_num": total_batch_i, "val_ppl": validation_ppl}, f"{log_dir}/{MODEL_NAME}_val.log"
                     )
-                    log_tb_data(WRITER, f"data/val_loss/{MODEL_NAME}/", validation_loss, total_batch_i)
+                    log_tb_data(WRITER, f"data/val_ppl/{MODEL_NAME}/", validation_ppl, total_batch_i)
 
 
-def add_model_info(model: AbstractRNN, epoch: int, train_loss: float, validation_loss: float, **misc: Dict) -> dict:
+def add_model_info(model: AbstractRNN, epoch: int, validation_loss: float, **misc: Dict) -> dict:
     """
     Add information about the training conditions to a model.
     """
     model.info = {
         "epoch": epoch,
-        "train_loss": train_loss,
         "validation_loss": validation_loss
     }
     model.info.update(**misc)
