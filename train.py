@@ -149,7 +149,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
                     validation_ppl = evaluate_model(model, valid_set, batch_size, device, perplexity=True)
-                    progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Loss: {validation_ppl:.4f}")
+                    progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Perplexity: {validation_ppl:.4f}")
 
                     if validation_ppl < best_validation_ppl and model_save_path is not None:
                         model_info = add_model_info(model, epoch, validation_ppl)
