@@ -95,10 +95,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
     train_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
-    num_batches = train_set.num_batches
-
-    if valid_set is not None:
-        valid_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
+    num_batches = len(train_set)
 
     loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
     total_batch_i = 0
