@@ -115,7 +115,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()
-                batch_loss = torch.FloatTensor([0])
+                batch_loss = torch.FloatTensor([0], device=device)
 
                 for t in range(seq_len - 1):
                     input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
