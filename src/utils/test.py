@@ -45,7 +45,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     test_metric = 0
     global_norm = 0
     hidden = None
-    test_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
+    test_set.create_batches(batch_size, repeat=False, drop_last=False, device=device)
 
     model.eval()
     for batch in test_set:
@@ -62,6 +62,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             target_output_dist = output_dist[target_indices, :]
 
             current_loss = loss(target_output_dist, targets).item()
+
             global_norm += targets.shape[0]
             test_metric += current_loss
 

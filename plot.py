@@ -160,14 +160,14 @@ if __name__ == "__main__":
     train_logs = aggregate_logs(train_log_paths, name_function)
     plot_losses(
         train_logs, x_name="batch_num", y_name="batch_loss", intervals=False, save_path="img/train_losses.png",
-        title="Train loss (n=5)", colors=COLOR_DICT, selection=slice(0, 400)
+        title="Train loss (n=5)", colors=COLOR_DICT, selection=slice(0, 200)
     )
 
     # Plot validation logs
-    val_selection_func = lambda path: "val" in path
+    val_selection_func = lambda path: "val" in path and "step" in path
     val_log_paths = get_logs_in_dir(LOGDIR, val_selection_func)
     val_logs = aggregate_logs(val_log_paths, name_function)
     plot_losses(
         val_logs, x_name="batch_num", y_name="val_ppl", intervals=False, save_path="img/val_ppls.png",
-        title="Validation perplexity (n=5)", colors=COLOR_DICT, selection=slice(0, 200)
+        title="Validation perplexity (n=5)", colors=COLOR_DICT, selection=slice(0, 20)
     )

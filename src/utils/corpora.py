@@ -235,9 +235,6 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             tokens = line.split()
             tokens.append("<eos>")
 
-            if len(tokens) > max_sentence_len + 1:  # Accounting for <eos>
-                continue
-
             indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))  # Index lookup
             indexed_sentences.append(indexed_sentence)
 
