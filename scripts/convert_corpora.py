@@ -6,7 +6,7 @@ Quick and dirty script to convert the necessary corpora into the expected data s
 import pickle
 
 # PROJECT
-from src.corpus.corpora import read_gulordava_corpus, read_giulianelli_corpus
+from src.utils.corpora import read_gulordava_corpus, read_giulianelli_corpus
 
 
 # Convert Gulordava corpus

@@ -11,7 +11,7 @@ from torch.autograd import Variable
 from torch.nn import CrossEntropyLoss
 
 # PROJECT
-from src.corpus.corpora import WikiCorpus
+from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.types import Device
 from src.utils.compatability import RNNCompatabilityMixin
@@ -40,7 +40,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     test_loss: float
         Loss on test set.
     """
-    pad_idx = test_set.vocab["<pad>"]
     unk_idx = test_set.vocab["<unk>"]
     loss = CrossEntropyLoss(reduction="sum", ignore_index=pad_idx).to(device)
     test_metric = 0
@@ -63,11 +62,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             target_output_dist = output_dist[target_indices, :]
 
             current_loss = loss(target_output_dist, targets).item()
-
-            # Only normalize over tokens which are not pad and where next token is not <unk>
-            norm = (batch[target_indices, t] != pad_idx).int().sum()
-            global_norm += norm
-
             test_metric += current_loss
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))

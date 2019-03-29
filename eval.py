@@ -14,7 +14,7 @@ import torch
 from rnnalyse.models.w2i import W2I
 
 # PROJECT
-from src.corpus.corpora import WikiCorpus, read_wiki_corpus, load_data
+from src.utils.corpora import WikiCorpus, read_wiki_corpus, load_data
 from src.utils.test import evaluate_model
 
 

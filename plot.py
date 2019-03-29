@@ -3,6 +3,7 @@ Define functions to plot loss curves and other noteworthy model characteristics.
 """
 
 # STD
+from collections import OrderedDict
 from typing import Optional, Tuple
 
 # EXT
@@ -99,14 +100,18 @@ def plot_losses(logs: AggregatedLogs, x_name: str, y_name: str, intervals: bool 
             # Just plot all the curves separately
             else:
                 for i, y_i in enumerate(y):
-                    curve = plt.plot(x, y_i[selection], label=f"{model_name} {i}", alpha=0.6, color=color)
+                    curve = plt.plot(x, y_i[selection], label=f"{model_name}", alpha=0.6, color=color)
                     # Make sure color is consistent for all curve belonging to the same model type
                     color = curve[0].get_color()
 
     # Add additional information to plot
     plt.xlabel(x_name)
     plt.ylabel(y_name)
-    plt.legend()
+
+    # Avoid having the same labels multiple times in the legend
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = OrderedDict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys())
 
     if title is not None:
         plt.title(title)
@@ -154,8 +159,8 @@ if __name__ == "__main__":
     train_log_paths = get_logs_in_dir(LOGDIR, train_selection_func)
     train_logs = aggregate_logs(train_log_paths, name_function)
     plot_losses(
-        train_logs, x_name="batch_num", y_name="batch_loss", intervals=True, save_path="img/train_losses.png",
-        title="Train loss (n=5)", colors=COLOR_DICT, selection=slice(0, 100)
+        train_logs, x_name="batch_num", y_name="batch_loss", intervals=False, save_path="img/train_losses.png",
+        title="Train loss (n=5)", colors=COLOR_DICT, selection=slice(0, 400)
     )
 
     # Plot validation logs
@@ -163,6 +168,6 @@ if __name__ == "__main__":
     val_log_paths = get_logs_in_dir(LOGDIR, val_selection_func)
     val_logs = aggregate_logs(val_log_paths, name_function)
     plot_losses(
-        val_logs, x_name="batch_num", y_name="val_loss", intervals=True, save_path="img/val_losses.png",
-        title="Validation losses (n=5)", colors=COLOR_DICT, selection=slice(0, 25)
+        val_logs, x_name="batch_num", y_name="val_ppl", intervals=False, save_path="img/val_ppls.png",
+        title="Validation perplexity (n=5)", colors=COLOR_DICT, selection=slice(0, 200)
     )

@@ -5,7 +5,6 @@ Train the model with the uncertainty-based intervention mechanism.
 # STD
 from argparse import ArgumentParser
 import sys
-import os
 from typing import Optional, Dict, Any
 
 # EXT
@@ -20,9 +19,9 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
 # PROJECT
-from src.corpus.corpora import load_data
+from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
-from src.corpus.corpora import WikiCorpus
+from utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel

@@ -1,5 +1,5 @@
 mkdir -p ./data/corpora/labeled/
-python3 convert_corpora.py
+python3 ./scripts/convert_corpora.py
 wget -O ./data/models/gulordava/model.pt https://dl.fbaipublicfiles.com/colorless-green-rnns/best-models/English/hidden650_batch128_dropout0.2_lr20.0.pt
 mkdir -p ./data/activations/giulianelli/
 mkdir -p ./data/activations/gulordava/
