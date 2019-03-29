@@ -62,6 +62,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             target_output_dist = output_dist[target_indices, :]
 
             current_loss = loss(target_output_dist, targets).item()
+            global_norm += targets.shape[0]
             test_metric += current_loss
 
         hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
