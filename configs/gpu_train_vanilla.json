@@ -3,7 +3,7 @@
   "hidden_size": 650,
   "num_layers": 1,
   "learning_rate": 0.01,
-  "batch_size": 128,
+  "batch_size": 64,
   "num_epochs": 15,
   "corpus_dir": "data/corpora/wikitext2",
   "clip": 0.25,
