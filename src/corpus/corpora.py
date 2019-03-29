@@ -126,7 +126,7 @@ def read_giulianelli_corpus(corpus_path: str) -> dict:
 
 class WikiCorpus(Dataset):
     """ Corpus Class used to train a PyTorch Language Model. """
-    def __init__(self, indexed_sentences: List[Tensor], vocab: W2I):
+    def __init__(self, indexed_sentences: List[Tensor], vocab: W2I, max_sentence_len: int):
         """
         Attributes
         ----------
@@ -135,8 +135,8 @@ class WikiCorpus(Dataset):
         vocab: W2I
             Vocabulary as W2I object.
         """
-        self.indexed_sentences = torch.stack(indexed_sentences)
-        self.seq_len = self.indexed_sentences.shape[1]
+        self.indexed_sentences = torch.cat(indexed_sentences, dim=0)
+        self.seq_len = max_sentence_len
         self.vocab = vocab
         self.batches = None
         self.repeat = None
@@ -221,7 +221,7 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
 
     # Read in corpus
     print(f"Reading corpus under {corpus_dir}/{corpus_split}.txt...")
-    sentences, indexed_sentences = [], []
+    indexed_sentences = []
 
     with open(f"{corpus_dir}/{corpus_split}.txt", "r") as corpus_file:
         for i, line in enumerate(corpus_file.readlines()):
@@ -229,14 +229,10 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             tokens = line.split()
             tokens.append("<eos>")
 
-            if len(tokens) > max_sentence_len:
+            if len(tokens) > max_sentence_len + 1:  # Accounting for <eos>
                 continue
 
-            # Pad sentences up to max_sentence_len
-            num_pads = max_sentence_len - len(tokens)
-            tokens = tokens + ["<pad>"] * num_pads
             indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))  # Index lookup
-            sentences.append(tokens)
             indexed_sentences.append(indexed_sentence)
 
             if stop_after is not None:
@@ -247,7 +243,7 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
     if not isinstance(vocab, W2I):
         vocab = W2I(vocab)
 
-    corpus = WikiCorpus(indexed_sentences, vocab)
+    corpus = WikiCorpus(indexed_sentences, vocab, max_sentence_len)
 
     return corpus
 
