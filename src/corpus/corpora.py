@@ -140,19 +140,25 @@ class WikiCorpus(Dataset):
         self.vocab = vocab
         self.batches = None
         self.repeat = None
-        self.num_batches = None
+        self.num_batches = 0
 
-    def create_batches(self, batch_size: int, repeat: bool, device: Device) -> None:
+    def create_batches(self, batch_size: int, repeat: bool, drop_last: bool, device: Device) -> None:
         self.repeat = repeat
 
         # Work out how cleanly we can divide the dataset into batch-sized parts
-        self.num_batches = self.indexed_sentences.shape[0] // batch_size
+        num_batched_steps = self.indexed_sentences.shape[0] // batch_size
 
         # Trim off any extra elements that wouldn't cleanly fit (remainders)
-        self.indexed_sentences = self.indexed_sentences.narrow(0, 0, self.num_batches * batch_size)
+        self.indexed_sentences = self.indexed_sentences.narrow(0, 0, num_batched_steps * batch_size)
 
         # Evenly divide the data across the bsz batches.
         raw_batches = self.indexed_sentences.view(batch_size, -1).t().contiguous().to(device)
+
+        # If the last batch would be too short and drop_last is true, remove it
+        if num_batched_steps % self.seq_len > 0 and drop_last:
+            num_batched_steps -= num_batched_steps % self.seq_len
+
+        self.num_batches = int(num_batched_steps / self.seq_len)
 
         self.batches = [raw_batches[n: n + self.seq_len].t() for n in range(self.num_batches)]
 

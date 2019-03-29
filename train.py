@@ -94,11 +94,11 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     remove_logs(log_dir, MODEL_NAME)
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
-    train_set.create_batches(batch_size, repeat=False, device=device)
+    train_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
     num_batches = train_set.num_batches
 
     if valid_set is not None:
-        valid_set.create_batches(batch_size, repeat=False, device=device)
+        valid_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
 
     loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
     total_batch_i = 0
@@ -115,7 +115,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()
-                batch_loss = torch.FloatTensor([0], device=device)
+                batch_loss = 0
 
                 for t in range(seq_len - 1):
                     input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
@@ -133,9 +133,9 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
                 total_batch_i += 1
 
-                if (total_batch_i + 1) % print_every == 0:
+                if total_batch_i % print_every == 0:
                     progress_bar.set_description(
-                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss.item():>7.3f}",
+                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:>7.3f}",
                         refresh=False
                     )
                     progress_bar.update(print_every)
