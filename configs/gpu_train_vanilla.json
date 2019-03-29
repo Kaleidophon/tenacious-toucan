@@ -4,7 +4,7 @@
   "num_layers": 1,
   "learning_rate": 0.01,
   "batch_size": 128,
-  "num_epochs": 25,
+  "num_epochs": 15,
   "corpus_dir": "data/corpora/wikitext2",
   "clip": 0.25,
   "print_every": 1,
