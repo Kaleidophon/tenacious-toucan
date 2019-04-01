@@ -232,7 +232,12 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
     with open(f"{corpus_dir}/{corpus_split}.txt", "r") as corpus_file:
         for i, line in enumerate(corpus_file.readlines()):
             line = line.strip()
-            tokens = line.split()
+
+            # Skip empty lines
+            if line == "":
+                continue
+
+            tokens = line.split()[:max_sentence_len]  # Truncate sentences that are too long
             tokens.append("<eos>")
 
             indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))  # Index lookup
