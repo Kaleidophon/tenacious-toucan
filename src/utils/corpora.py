@@ -234,11 +234,12 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             line = line.strip()
 
             # Skip empty lines
-            if line == "":
+            if line in ("", "<eos>"):
                 continue
 
             tokens = line.split()[:max_sentence_len]  # Truncate sentences that are too long
-            tokens.append("<eos>")
+            if tokens[-1] != "<eos>":
+                tokens.append("<eos>")
 
             indexed_sentence = torch.LongTensor(list(map(vocab.__getitem__, tokens)))  # Index lookup
             indexed_sentences.append(indexed_sentence)
