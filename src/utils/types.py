@@ -23,3 +23,7 @@ AggregatedLogs = Dict[str, LogDict]
 
 # Either tuple of two hidden states or single hidden state
 AmbiguousHidden = Union[Tensor, Iterable[Tensor]]
+
+# Dictionary of layer -> hidden state
+HiddenDict = Dict[int, Tensor]
+

@@ -35,7 +35,6 @@ class AbstractRNN(ABC, nn.Module):
         """
         super().__init__()
         self.rnn_type = rnn_type
-        self.rnn = getattr(nn, rnn_type)(embedding_size, hidden_size, num_layers, batch_first=True)
         self.hidden_size = hidden_size
         self.embedding_size = embedding_size
         self.num_layers = num_layers
@@ -114,7 +113,7 @@ class AbstractRNN(ABC, nn.Module):
         hidden: AmbiguousHidden
             Either one hidden state or tuple of hidden and cell state.
         """
-        hidden_zero = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
+        hidden_zero = torch.zeros(batch_size, self.hidden_size).to(device)
 
         if self.rnn_type == "LSTM":
             return hidden_zero, hidden_zero.clone()

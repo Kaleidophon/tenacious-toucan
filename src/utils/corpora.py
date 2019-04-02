@@ -237,7 +237,7 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
             if line in ("", "<eos>"):
                 continue
 
-            tokens = line.split()[:max_sentence_len]  # Truncate sentences that are too long
+            tokens = line.split()
             if tokens[-1] != "<eos>":
                 tokens.append("<eos>")
 

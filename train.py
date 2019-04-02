@@ -23,7 +23,7 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
-from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
+from recoding.mc_dropout import UncertaintyMechanism, AdaptingUncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.log import log_tb_data, log_to_file, remove_logs
@@ -129,7 +129,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 optimizer.step()
 
                 # Detach from history so the computational graph from the previous sentence doesn't get carried over
-                hidden = CompatibleRNN.map(hidden, func=lambda h: Variable(h.data))
+                hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}
                 total_batch_i += 1
 
                 if total_batch_i % print_every == 0:
