@@ -69,7 +69,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             global_norm += targets.shape[0]
             test_metric += current_loss
 
-        hidden = CompatibleRNN.map(hidden, func=lambda h: Variable(h.data))
+        hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}
 
     model.train()
 
