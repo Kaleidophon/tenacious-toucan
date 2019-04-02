@@ -239,12 +239,12 @@ def manage_config() -> dict:
     required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir", "model_type"}
     arg_groups = {
         "general": {"model_type"},
-        "model": {"embedding_size", "hidden_size", "num_layers"},
+        "model": {"embedding_size", "hidden_size", "num_layers", "dropout"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
                   "model_save_path", "device", "model_name", "multi_gpu"},
         "logging": {"log_dir", "layout"},
         "corpus": {"corpus_dir", "max_sentence_len"},
-        "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale", "hidden_size",
+        "recoding": {"predictor_layers", "window_size", "num_samples", "mc_dropout", "prior_scale", "hidden_size",
                      "weight_decay", "step_size"},
         "eval": {"ignore_unk"}
     }
@@ -295,7 +295,8 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--embedding_size", type=int, help="Dimensionality of word embeddings.")
     from_cmd.add_argument("--hidden_size", type=int, help="Dimensionality of hidden states.")
     from_cmd.add_argument("--num_layers", type=int, help="Number of network layers.")
-    from_cmd.add_argument("--dropout_prob", type=float, help="Dropout probability when estimating uncertainty.")
+    from_cmd.add_argument("--mc_dropout", type=float, help="Dropout probability when estimating uncertainty.")
+    from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
     from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
 

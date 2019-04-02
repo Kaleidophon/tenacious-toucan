@@ -18,7 +18,7 @@ class LSTMLanguageModel(AbstractRNN):
     """
     Implementation of a LSTM language model that can process inputs token-wise or in sequences.
     """
-    def __init__(self, vocab_size, hidden_size, embedding_size, num_layers, device: torch.device = "cpu"):
+    def __init__(self, vocab_size, hidden_size, embedding_size, num_layers, dropout, device: torch.device = "cpu"):
         """
         Parameters
         ----------
@@ -37,6 +37,7 @@ class LSTMLanguageModel(AbstractRNN):
         self.embeddings = nn.Embedding(vocab_size, embedding_size)
         self.out_layer = nn.Linear(hidden_size, vocab_size)
         self.vocab_size = vocab_size
+        self.dropout_layer = nn.Dropout(dropout)
 
     @overrides
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
@@ -70,9 +71,11 @@ class LSTMLanguageModel(AbstractRNN):
         else:
             hidden = hidden[0].to(device), hidden[1].to(device)
 
-        embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
+        embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim+
+        embed = self.dropout_layer(embed)
         # TODO: Multi-GPU asks for flatten_parameters() here but creates OOM errors on main backward()
         out, hidden = self.rnn(embed, hidden)  # Output: batch:size x seq_len x hidden_dim
+        out = self.dropout_layer(out)
 
         output = self.predict_distribution(out)
 
@@ -109,9 +112,9 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
     the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, mechanism_class, mechanism_kwargs,
+    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class, mechanism_kwargs,
                  device: torch.device = "cpu"):
-        super().__init__(vocab_size, embedding_size, hidden_size, num_layers, device)
+        super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
         self.mechanism = mechanism_class(model=self, **mechanism_kwargs)
 
     @overrides

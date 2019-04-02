@@ -78,7 +78,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
     Intervention mechanism that bases its intervention on the predictive uncertainty of a model.
     In this case the step size is constant during the recoding step.
     """
-    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
+    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, mc_dropout: float, weight_decay: float,
                  prior_scale: float, step_size: float, data_length: Optional[int] = None, **unused: Any):
         """
         Initialize the mechanism.
@@ -91,7 +91,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             Dimensionality of hidden activations.
         num_samples: int
             Number of samples used to estimate uncertainty.
-        dropout_prob: float
+        mc_dropout: float
             Dropout probability used to estimate uncertainty.
         weight_decay: float
             L2-regularization parameter.
@@ -107,14 +107,14 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.model = model
         self.hidden_size = hidden_size
         self.num_samples = num_samples
-        self.dropout_prob = dropout_prob
+        self.mc_dropout = mc_dropout
         self.weight_decay = weight_decay
         self.prior_scale = prior_scale
         self.data_length = data_length
         self.step_size = step_size
 
         # Add dropout layer to estimate predictive uncertainty
-        self.dropout_layer = nn.Dropout(p=self.dropout_prob)
+        self.mc_dropout_layer = nn.Dropout(p=self.mc_dropout)
 
     def _determine_step_size(self, hidden: Tensor, device: torch.device) -> float:
         """
@@ -171,7 +171,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.scatter(hidden)]
         [optimizer.zero_grad() for optimizer in optimizers]
         target_idx = additional.get("target_idx", None)
-        predictions = self.map(hidden, self._predict_with_dropout, device, target_idx)
+        predictions = self.map(hidden, self._mc_dropout_predict, device, target_idx)
 
         # Estimate uncertainty of those same predictions
         uncertainties = [self._calculate_predictive_uncertainty(prediction) for prediction in predictions]
@@ -187,11 +187,12 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         new_out = torch.tanh(self.select(hidden) @ W_ho + b_ho)
         num_layers, batch_size, out_dim = new_out.shape
         new_out = new_out.view(batch_size, num_layers, out_dim)
+        new_out = self.model.dropout_layer(new_out)
         new_out_dist = self.model.predict_distribution(new_out, self.model.out_layer).to(device)
 
         return new_out_dist, new_hidden
 
-    def _predict_with_dropout(self, hidden: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
+    def _mc_dropout_predict(self, hidden: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -219,7 +220,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         output = self.model.predict_distribution(out, self.model.out_layer).to(device)
         output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
-        predictions = self.dropout_layer(output)
+        predictions = self.mc_dropout_layer(output)
 
         # TODO: Does this make sense?
         # If no target is given, compute uncertainty of most likely token
@@ -256,7 +257,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         uncertainty: Tensor
             Estimated predictive uncertainty per batch instance.
         """
-        prior_info = 2 * self.dropout_prob * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
+        prior_info = 2 * self.mc_dropout * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
         return predictions.var(dim=0).unsqueeze(1) * prior_info
 
     def _get_output_weights(self, device: Optional[torch.device] = None) -> Tuple[Tensor, Tensor]:
@@ -295,7 +296,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
     Same as UncertaintyMechanism, except that the step size is parameterized by a MLP, which predicts it based
     on a window of previous hidden states.
     """
-    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, dropout_prob: float, weight_decay: float,
+    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, mc_dropout: float, weight_decay: float,
                  prior_scale: float, window_size: int, predictor_layers: Iterable[int],
                  data_length: Optional[int] = None, **unused: Any):
         """
@@ -307,7 +308,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             Dimensionality of hidden activations.
         num_samples: int
             Number of samples used to estimate uncertainty.
-        dropout_prob: float
+        mc_dropout: float
             Dropout probability used to estimate uncertainty.
         weight_decay: float
             L2-regularization parameter.
@@ -319,7 +320,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
             Number of data points used.
         """
         super().__init__(
-            model=model, hidden_size=hidden_size, num_samples=num_samples, dropout_prob=dropout_prob,
+            model=model, hidden_size=hidden_size, num_samples=num_samples, mc_dropout=mc_dropout,
             weight_decay=weight_decay, prior_scale=prior_scale, data_length=data_length, **unused
         )
 
@@ -341,7 +342,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         super().test()
         self._buffer_copy = self.hidden_buffer
         self.hidden_buffer = []
-        self.dropout_layer.train()  # Don't switch dropout to eval
+        self.mc_dropout_layer.train()  # Don't switch dropout to eval
 
     def _determine_step_size(self, hidden: Tensor, device: torch.device) -> float:
         """

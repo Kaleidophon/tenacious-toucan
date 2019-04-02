@@ -5,7 +5,8 @@
   "predictor_layers": [300, 100],
   "window_size": 4,
   "num_samples": 10,
-  "dropout_prob": 0.2,
+  "dropout": 0.2,
+  "mc_dropout": 0.2,
   "weight_decay": 0.3,
   "prior_scale": 0.01,
   "learning_rate": 0.01,
@@ -16,7 +17,7 @@
   "print_every": 1,
   "eval_every": 30,
   "model_save_path": "data/models/uncertainty/test.pt",
-  "model_type": "mlp_step",
+  "model_type": "vanilla",
   "step_size": 0.5,
   "log_dir": "logs",
   "model_name": "test",
@@ -24,5 +25,5 @@
   "max_sentence_len": 35,
   "multi_gpu": false,
   "evaluate": true,
-  "eval_batch_size": 50
+  "ignore_unk": true
 }
