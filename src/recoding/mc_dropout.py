@@ -2,18 +2,20 @@
 Perform recoding steps based on Monte-Carlo Dropout.
 """
 
-#
+# STD
 from typing import Iterable, Optional, Any, Dict, Tuple
 
+# EXT
 import torch
 from overrides import overrides
 from torch import nn, Tensor
 
-from models.abstract_rnn import AbstractRNN
-from models.language_model import LSTMLanguageModel
-from recoding.mechanism import RecodingMechanism
-from utils.compatability import RNNCompatabilityMixin
-from utils.types import AmbiguousHidden
+# PROJECT
+from src.models.abstract_rnn import AbstractRNN
+from src.models.language_model import LSTMLanguageModel
+from src.recoding.mechanism import RecodingMechanism
+from src.utils.compatability import RNNCompatabilityMixin
+from src.utils.types import AmbiguousHidden
 
 
 class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
