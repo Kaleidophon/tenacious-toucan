@@ -26,5 +26,5 @@
   "device": "cuda",
   "evaluate": true,
   "eval_batch_size": 32,
-  "ignore_unk": true
+  "ignore_unk": false
 }

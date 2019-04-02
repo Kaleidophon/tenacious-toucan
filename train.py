@@ -50,13 +50,14 @@ def main():
 
     # Train
     log_dir = config_dict["logging"]["log_dir"]
-    train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
+    ignore_unk = config_dict["eval"]["ignore_unk"]
+    train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir, ignore_unk=ignore_unk)
 
 
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
                 weight_decay: float, clip: float, print_every: int, eval_every: int, device: Device,
                 valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None,
-                log_dir: Optional[str] = None, **unused: Any) -> None:
+                log_dir: Optional[str] = None, ignore_unk: bool = True, **unused: Any) -> None:
     """
     Training loop for model.
 
@@ -88,6 +89,8 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
         Path the best model is being saved to if given.
     log_dir: Optional[str]
         Path log data is being written to if given.
+    ignore_unk: bool
+        Determine whether <unk> tokens should be ignored as targets when evaluation.
     """
     global MODEL_NAME
     remove_logs(log_dir, MODEL_NAME)
@@ -143,7 +146,9 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
-                    validation_ppl = evaluate_model(model, valid_set, batch_size, device, perplexity=True)
+                    validation_ppl = evaluate_model(
+                        model, valid_set, batch_size, device, perplexity=True, ignore_unk=ignore_unk
+                    )
                     progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Perplexity: {validation_ppl:.4f}")
 
                     if validation_ppl < best_validation_ppl and model_save_path is not None:
@@ -240,7 +245,8 @@ def manage_config() -> dict:
         "logging": {"log_dir", "layout"},
         "corpus": {"corpus_dir", "max_sentence_len"},
         "recoding": {"predictor_layers", "window_size", "num_samples", "dropout_prob", "prior_scale", "hidden_size",
-                     "weight_decay", "step_size"}
+                     "weight_decay", "step_size"},
+        "eval": {"ignore_unk"}
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -323,6 +329,10 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--layout", type=list, default=None,
                             help="Define which models should be grouped together on tensorboard. Layout here is a list "
                                  "of tags corresponding to the models.")
+
+    # Eval options
+    from_cmd.add_argument("--ignore_unk", action="store_true", default=None,
+                          help="Whether to ignore the <unk> token during evaluation.")
 
     return parser
 

@@ -60,7 +60,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             output_dist = output_dist.squeeze(1)
 
             # Calculate loss where the target is not <unk>
-            target_indices = batch[:, t + 1] != unk_idx if ignore_unk else torch.ones(batch_size, seq_len)
+            target_indices = batch[:, t + 1] != unk_idx if ignore_unk else torch.ones(batch_size, dtype=torch.long)
             targets = batch[target_indices, t + 1].to(device)
             target_output_dist = output_dist[target_indices, :]
 
