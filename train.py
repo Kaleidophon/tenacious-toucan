@@ -23,7 +23,7 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
-from recoding.mc_dropout import UncertaintyMechanism, AdaptingUncertaintyMechanism
+from src.recoding.mc_dropout import UncertaintyMechanism, AdaptingUncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.log import log_tb_data, log_to_file, remove_logs
