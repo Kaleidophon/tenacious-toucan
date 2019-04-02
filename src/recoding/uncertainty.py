@@ -164,14 +164,14 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         step_size = self._determine_step_size(hidden, device)
 
         # Make predictions using different dropout mask
-        hidden = self.hidden_compatible(hidden, self._wrap_in_var, requires_grad=True)
+        hidden = self.map(hidden, self._wrap_in_var, requires_grad=True)
 
         # Use a step-size (or "learning-rate") of 1 here because optimizers don't support a different step size for
         # for every batch instance, actual step size is applied in recode()
-        optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.hidden_scatter(hidden)]
+        optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.scatter(hidden)]
         [optimizer.zero_grad() for optimizer in optimizers]
         target_idx = additional.get("target_idx", None)
-        predictions = self.hidden_compatible(hidden, self._predict_with_dropout, device, target_idx)
+        predictions = self.map(hidden, self._predict_with_dropout, device, target_idx)
 
         # Estimate uncertainty of those same predictions
         uncertainties = [self._calculate_predictive_uncertainty(prediction) for prediction in predictions]
@@ -184,7 +184,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
 
         # Re-decode
         W_ho, b_ho = self._get_output_weights(device)
-        new_out = torch.tanh(self.hidden_select(hidden) @ W_ho + b_ho)
+        new_out = torch.tanh(self.select(hidden) @ W_ho + b_ho)
         num_layers, batch_size, out_dim = new_out.shape
         new_out = new_out.view(batch_size, num_layers, out_dim)
         new_out_dist = self.model.predict_distribution(new_out, self.model.out_layer).to(device)
@@ -362,7 +362,7 @@ class AdaptingUncertaintyMechanism(UncertaintyMechanism):
         """
         # TODO: Re-write buffer as actually registered PyTorch buffer
 
-        hidden = self.hidden_select(hidden)
+        hidden = self.select(hidden)
         hidden = hidden.detach()
         num_layers, batch_size, _ = hidden.size()
         hidden = hidden.view(batch_size, num_layers, self.hidden_size)

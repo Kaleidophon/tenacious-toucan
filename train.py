@@ -25,7 +25,7 @@ from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.uncertainty import AdaptingUncertaintyMechanism, UncertaintyMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
-from src.utils.compatability import RNNCompatabilityMixin
+from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.log import log_tb_data, log_to_file, remove_logs
 from src.utils.types import Device
 
@@ -122,11 +122,11 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 # Backward pass
                 batch_loss /= batch_size
                 batch_loss.backward(retain_graph=True)
-                clip_grad_norm_(batch_loss, clip)
+                clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
 
                 # Detach from history so the computational graph from the previous sentence doesn't get carried over
-                hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
+                hidden = CompatibleRNN.map(hidden, func=lambda h: Variable(h.data))
                 total_batch_i += 1
 
                 if total_batch_i % print_every == 0:

@@ -25,5 +25,6 @@
   "multi_gpu": false,
   "device": "cuda",
   "evaluate": true,
-  "eval_batch_size": 32
+  "eval_batch_size": 32,
+  "ignore_unk": true
 }

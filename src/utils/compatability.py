@@ -21,8 +21,7 @@ class RNNCompatabilityMixin:
     hidden_scatter: Wrap every state inside another iterable.
     """
     @staticmethod
-    def hidden_compatible(hidden: AmbiguousHidden, func: Callable, *func_args: Any,
-                          **func_kwargs: Any) -> Any:
+    def map(hidden: AmbiguousHidden, func: Callable, *func_args: Any, **func_kwargs: Any) -> Any:
         """
         Ensure compatibility between GRU and LSTM RNNs by applying a function to both the hidden and cell state inside
         the hidden variable if necessary.
@@ -51,7 +50,7 @@ class RNNCompatabilityMixin:
             return func(hidden, *func_args, **func_kwargs)
 
     @staticmethod
-    def hidden_select(hidden: AmbiguousHidden) -> Tensor:
+    def select(hidden: AmbiguousHidden) -> Tensor:
         """
         Ensure compatibility between GRU and LSTM RNNs by always selecting the hidden and not cell state inside
         the hidden variable if necessary.
@@ -74,7 +73,7 @@ class RNNCompatabilityMixin:
             return hidden
 
     @staticmethod
-    def hidden_scatter(hidden: AmbiguousHidden) -> Iterable[Iterable]:
+    def scatter(hidden: AmbiguousHidden) -> Iterable[Iterable]:
         """
         Ensure compatibility between GRU and LSTM RNNs by always selecting returning hidden as an iterable.
 

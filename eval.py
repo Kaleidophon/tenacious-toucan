@@ -100,6 +100,8 @@ def init_argparser() -> ArgumentParser:
     # Evaluation options
     from_cmd.add_argument("--batch_size", type=int, help="Batch size while evaluating on the test set.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for evaluation.")
+    from_cmd.add_argument("--ignore_unk", action="store_true", default=None,
+                          help="Whether to ignore the <unk> token during evaluation.")
 
     return parser
 

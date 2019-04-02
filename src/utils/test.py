@@ -7,6 +7,7 @@ import math
 from typing import Tuple
 
 # EXT
+import torch
 from torch.autograd import Variable
 from torch.nn import CrossEntropyLoss
 
@@ -14,11 +15,11 @@ from torch.nn import CrossEntropyLoss
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.types import Device
-from src.utils.compatability import RNNCompatabilityMixin
+from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
-                   perplexity: bool = False) -> Tuple[float, float]:
+                   perplexity: bool = False, ignore_unk: bool = False) -> Tuple[float, float]:
     """
     Evaluate a model on a given test set.
 
@@ -34,6 +35,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         Torch device the model is being trained on (e.g. "cpu" or "cuda").
     perplexity: bool
         Indicate whether perplexity should be returned instead of the loss.
+    ignore_unk: bool
+        Determine whether target <unk> tokens should be ignored when computing the test metric.
 
     Returns
     -------
@@ -57,7 +60,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             output_dist = output_dist.squeeze(1)
 
             # Calculate loss where the target is not <unk>
-            target_indices = batch[:, t + 1] != unk_idx
+            target_indices = batch[:, t + 1] != unk_idx if ignore_unk else torch.ones(batch_size, seq_len)
             targets = batch[target_indices, t + 1].to(device)
             target_output_dist = output_dist[target_indices, :]
 
@@ -66,7 +69,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             global_norm += targets.shape[0]
             test_metric += current_loss
 
-        hidden = RNNCompatabilityMixin.hidden_compatible(hidden, func=lambda h: Variable(h.data))
+        hidden = CompatibleRNN.map(hidden, func=lambda h: Variable(h.data))
 
     model.train()
 

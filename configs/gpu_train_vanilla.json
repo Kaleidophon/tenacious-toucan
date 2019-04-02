@@ -19,5 +19,6 @@
   "device": "cuda",
   "evaluate": true,
   "eval_batch_size": 32,
-  "weight_decay": 0.3
+  "weight_decay": 0.3,
+  "ignore_unk": true
 }
