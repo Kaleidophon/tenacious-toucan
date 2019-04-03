@@ -35,13 +35,17 @@ class RecodingMechanism(ABC):
             f"Invalid step type {step_type} found! Choose one of {', '.join(STEP_TYPES.keys())}"
 
         self.model = model
+        self.device = model.current_device()
         self.device = model.device
         self.step_type = step_type
 
         # Initialize one predictor per state per layer
         #  TODO: Make GRU compatible
         self.predictors = {
-            l: [STEP_TYPES[step_type](**predictor_kwargs), STEP_TYPES[step_type](**predictor_kwargs)]
+            l: [
+                STEP_TYPES[step_type](**predictor_kwargs).to(self.device),
+                STEP_TYPES[step_type](**predictor_kwargs).to(self.device)
+            ]
             for l in range(self.model.num_layers)
         }
 
