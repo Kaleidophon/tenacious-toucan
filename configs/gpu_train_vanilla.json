@@ -10,7 +10,7 @@
   "print_every": 1,
   "eval_every": 200,
   "model_save_path": "data/models/uncertainty/test.pt",
-  "model_type": "mlp_step",
+  "step_type": "mlp",
   "log_dir": "logs",
   "model_name": "test",
   "layout": null,

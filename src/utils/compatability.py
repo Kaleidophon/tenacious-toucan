@@ -16,9 +16,9 @@ class RNNCompatabilityMixin:
     """
     Define the following operations on hidden variables with a single hidden state or hidden / cell state tuple:
 
-    hidden_compatible: Apply a function to every every state.
-    hidden_select: Only select the actual hidden state, discard the rest.
-    hidden_scatter: Wrap every state inside another iterable.
+    map: Apply a function to every every state.
+    select: Only select the actual hidden state, discard the rest.
+    scatter: Wrap every state inside another iterable.
     """
     @staticmethod
     def map(hidden: AmbiguousHidden, func: Callable, *func_args: Any, **func_kwargs: Any) -> Any:

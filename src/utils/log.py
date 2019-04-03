@@ -7,13 +7,11 @@ from collections import defaultdict
 from genericpath import isfile
 from os import listdir
 from os.path import join
-from typing import Any, Optional, Union, List, Callable
+from typing import Optional, List, Callable
 import os
 
 # EXT
 import numpy as np
-import torch
-from tensorboardX import SummaryWriter
 
 # PROJECT
 from src.utils.types import LogDict, AggregatedLogs
@@ -39,38 +37,6 @@ def remove_logs(log_dir: str, model_name: str) -> None:
 
     if log_dir is not None and os.path.exists(val_log_path):
         os.remove(val_log_path)
-
-
-def log_tb_data(writer: Union[SummaryWriter, None], tags: str, data: Any, step: Optional[int] = None) -> None:
-    """
-    Log some sort of data to Tensorboard if a SummaryWriter has been initialized.
-
-    Parameters
-    ----------
-    writer: Union[SummaryWriter, None]
-        tensorboardX summary writer if given.
-    tags: str
-        Tag used for writing information.
-    data: Any
-        Data to be logged.
-    step: Optional[int]
-        Global step that is used to write the data.
-    """
-    if writer is not None:
-        if type(data) in (int, float):
-            writer.add_scalar(tags, data, global_step=step)
-
-        elif type(data) == str:
-            writer.add_text(tags, data, global_step=step)
-
-        elif type(data) == dict:
-            writer.add_scalars(tags, data, global_step=step)
-
-        elif type(data) in (np.ndarray, np.array, torch.Tensor):
-            writer.add_embedding(tags, data, global_step=step)
-
-        else:
-            raise TypeError(f"Can't log result of data type {type(data)}!")
 
 
 def log_to_file(data: dict, log_path: Optional[str] = None) -> None:

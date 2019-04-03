@@ -15,7 +15,6 @@ from torch.autograd import Variable
 import torch.optim as optim
 from torch.nn import CrossEntropyLoss, DataParallel
 from torch.nn.utils import clip_grad_norm_
-from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
 # PROJECT
@@ -23,22 +22,22 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
-from src.recoding.mc_dropout import UncertaintyMechanism, AdaptingUncertaintyMechanism
+from src.recoding.mc_dropout import MCDropoutMechanism
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
-from src.utils.log import log_tb_data, log_to_file, remove_logs
+from src.utils.log import remove_logs, log_to_file
 from src.utils.types import Device
 
 # GLOBALS
-WRITER = None
 MODEL_NAME = None
+RECODING_TYPES = {
+    # TODO: Add new recoding mechanisms here
+    "mc_dropout": MCDropoutMechanism
+}
 
 
 def main():
     config_dict = manage_config()
-
-    # Init logging
-    init_writer(config_dict)
 
     # Load data
     corpus_dir = config_dict["corpus"]["corpus_dir"]
@@ -142,7 +141,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 # Log
                 batch_loss = float(batch_loss.cpu().detach())
                 log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
-                log_tb_data(WRITER, f"data/batch_loss/{MODEL_NAME}", batch_loss, total_batch_i)
 
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
@@ -152,29 +150,12 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Perplexity: {validation_ppl:.4f}")
 
                     if validation_ppl < best_validation_ppl and model_save_path is not None:
-                        model_info = add_model_info(model, epoch, validation_ppl)
                         torch.save(model, model_save_path)
                         best_validation_ppl = validation_ppl
-
-                        log_tb_data(WRITER, f"data/best_model/{MODEL_NAME}/", model_info, total_batch_i)
 
                     log_to_file(
                         {"batch_num": total_batch_i, "val_ppl": validation_ppl}, f"{log_dir}/{MODEL_NAME}_val.log"
                     )
-                    log_tb_data(WRITER, f"data/val_ppl/{MODEL_NAME}/", validation_ppl, total_batch_i)
-
-
-def add_model_info(model: AbstractRNN, epoch: int, validation_loss: float, **misc: Dict) -> dict:
-    """
-    Add information about the training conditions to a model.
-    """
-    model.info = {
-        "epoch": epoch,
-        "validation_loss": validation_loss
-    }
-    model.info.update(**misc)
-
-    return model.info
 
 
 def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLanguageModel:
@@ -189,23 +170,18 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
     print(f"Using {device} for training...")
 
     # Init model
-    model_type = config_dict["general"]["model_type"]
+    recoding_type = config_dict["general"]["recoding_type"]
     mechanism_kwargs = config_dict["recoding"]
     mechanism_kwargs["data_length"] = corpus_size
+    mechanism_kwargs["predictor_kwargs"] = config_dict["step"]
 
-    if model_type == "vanilla":
+    if recoding_type is None:
         model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
 
-    elif model_type == "fixed_step":
+    elif recoding_type in RECODING_TYPES.keys():
         model = UncertaintyLSTMLanguageModel(
             vocab_size, **config_dict["model"],
-            mechanism_class=UncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
-        )
-
-    elif model_type == "mlp_step":
-        model = UncertaintyLSTMLanguageModel(
-            vocab_size, **config_dict["model"],
-            mechanism_class=AdaptingUncertaintyMechanism, mechanism_kwargs=mechanism_kwargs, device=device
+            mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
         )
 
     else:
@@ -236,16 +212,16 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir", "model_type"}
+    required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir"}
     arg_groups = {
-        "general": {"model_type"},
+        "general": {"recoding_type"},
         "model": {"embedding_size", "hidden_size", "num_layers", "dropout"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
                   "model_save_path", "device", "model_name", "multi_gpu"},
-        "logging": {"log_dir", "layout"},
+        "logging": {"log_dir"},
         "corpus": {"corpus_dir", "max_sentence_len"},
-        "recoding": {"predictor_layers", "window_size", "num_samples", "mc_dropout", "prior_scale", "hidden_size",
-                     "weight_decay", "step_size"},
+        "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay"},
+        "step": {"predictor_layers", "window_size", "step_size", "hidden_size"},
         "eval": {"ignore_unk"}
     }
     argparser = init_argparser()
@@ -253,28 +229,6 @@ def manage_config() -> dict:
     config_dict = config_object.config_dict
 
     return config_dict
-
-
-def init_writer(config_dict: dict) -> None:
-    """
-    Initialize the tensorboardX writer.
-    """
-    log_dir = config_dict["logging"]["log_dir"]
-    layout = config_dict["logging"]["layout"]
-
-    # Initialize writer
-    if log_dir is not None:
-        global WRITER, MODEL_NAME
-        WRITER = SummaryWriter(log_dir)
-        MODEL_NAME = config_dict["train"]["model_name"]
-
-        if layout is not None:
-            custom_layout = {
-                "Losses": {
-                    "train_loss": ["Multiline", layout], "val_loss": ["Multiline", layout]
-                }
-            }
-            WRITER.add_custom_scalars(custom_layout)
 
 
 def init_argparser() -> ArgumentParser:
@@ -288,16 +242,19 @@ def init_argparser() -> ArgumentParser:
     from_cmd = parser.add_argument_group('From commandline', 'Specify experiment setup via commandline arguments')
 
     # Model options
-    from_cmd.add_argument("--model_type", type=str, choices=["vanilla", "fixed_step", "mlp_step"],
-                          help="Model type used for training. Choices include a vanilla Language Model, a "
-                               "uncertainty-based model with fixed step size and an uncertainty based-model with a "
-                               "step-sized parameterized by a MLP.")
+    from_cmd.add_argument("--recoding_type", type=str, default=None, choices=["mc_dropout", "perplexity", "ensemble"],
+                          help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
+                               "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
+                               "is used.")
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp"],
+                          help="Specifies the way the step size is determined when using a recoding model.")
+    from_cmd.add_argument("--step_size", type=float,
+                          help="Step size for recoding in case the fixed step predictor is used.")
     from_cmd.add_argument("--embedding_size", type=int, help="Dimensionality of word embeddings.")
     from_cmd.add_argument("--hidden_size", type=int, help="Dimensionality of hidden states.")
     from_cmd.add_argument("--num_layers", type=int, help="Number of network layers.")
     from_cmd.add_argument("--mc_dropout", type=float, help="Dropout probability when estimating uncertainty.")
     from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
-    from_cmd.add_argument("--step_size", type=str, help="Step-size for fixed-step uncertainty-based recoding.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
 
     # Training options
@@ -327,9 +284,6 @@ def init_argparser() -> ArgumentParser:
                           help="Directory to which current best model should be saved to.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--log_dir", type=str, help="Directory to write (tensorboard) logs to.")
-    from_cmd.add_argument("--layout", type=list, default=None,
-                            help="Define which models should be grouped together on tensorboard. Layout here is a list "
-                                 "of tags corresponding to the models.")
 
     # Eval options
     from_cmd.add_argument("--ignore_unk", action="store_true", default=None,

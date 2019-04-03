@@ -9,6 +9,7 @@ from typing import Optional, Dict, Tuple
 import torch
 from torch import nn, Tensor
 from overrides import overrides
+from torch.autograd import Variable
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -39,6 +40,7 @@ class LSTMLanguageModel(AbstractRNN):
         self.out_layer = nn.Linear(hidden_size, vocab_size)
         self.vocab_size = vocab_size
         self.dropout_layer = nn.Dropout(dropout)
+        self.track_hidden_grad = True
 
         # Define parameters
         self.gates = {}
@@ -99,7 +101,6 @@ class LSTMLanguageModel(AbstractRNN):
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim+
         embed = self.dropout_layer(embed)
 
-        # TODO: Do manual forward here
         input_ = embed.squeeze(1)
         for l in range(self.num_layers):
             new_hidden = self.forward_step(l, hidden[l], input_)
@@ -126,8 +127,18 @@ class LSTMLanguageModel(AbstractRNN):
             Tuple of hidden and cell state from the previous time step.
         input_: Tensor
             Input to the current layer: Either embedding if layer = 0 or hidden state from previous layer.
+
+        Returns
+        -------
+        hx, cx: AmbiguousHidden
+            New hidden and cell state for this layer.
         """
         hx, cx = hidden
+
+        # Track gradients for these when doing recoding
+        if self.track_hidden_grad:
+            hx = self.track_grad(hx)
+            cx = self.track_grad(cx)
 
         # TODO: Employ PyTorch optimization with concatenated matrices?
 
@@ -176,6 +187,12 @@ class LSTMLanguageModel(AbstractRNN):
 
         return output_dist
 
+    def track_grad(self, var: Tensor) -> Tensor:
+        """
+        Track the (recoding) gradient of a non-leaf variable.
+        """
+        return var
+
 
 class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     """
@@ -186,6 +203,7 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
                  device: torch.device = "cpu"):
         super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
         self.mechanism = mechanism_class(model=self, **mechanism_kwargs)
+        self.track_hidden_grad = True
 
     @overrides
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
@@ -213,3 +231,19 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         out, hidden = super().forward(input_var, hidden, **additional)
 
         return self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)
+
+    def train(self, mode=True):
+        super().train(mode)
+        self.mechanism.train(mode)
+
+    def eval(self):
+        super().eval()
+        self.mechanism.eval()
+
+    def track_grad(self, var: Tensor) -> Tensor:
+        """
+        Track the (recoding) gradient of a non-leaf variable.
+        """
+        var = Variable(var, requires_grad=True)
+
+        return var

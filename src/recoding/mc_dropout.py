@@ -3,7 +3,7 @@ Perform recoding steps based on Monte-Carlo Dropout.
 """
 
 # STD
-from typing import Iterable, Optional, Any, Dict, Tuple
+from typing import Optional, Any, Dict, Tuple
 
 # EXT
 import torch
@@ -12,19 +12,19 @@ from torch import nn, Tensor
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
-from src.models.language_model import LSTMLanguageModel
 from src.recoding.mechanism import RecodingMechanism
 from src.utils.compatability import RNNCompatabilityMixin
-from src.utils.types import AmbiguousHidden
+from src.utils.types import HiddenDict
 
 
-class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
+class MCDropoutMechanism(RecodingMechanism, RNNCompatabilityMixin):
     """
     Intervention mechanism that bases its intervention on the predictive uncertainty of a model.
     In this case the step size is constant during the recoding step.
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, mc_dropout: float, weight_decay: float,
-                 prior_scale: float, step_size: float, data_length: Optional[int] = None, **unused: Any):
+                 prior_scale: float, predictor_kwargs: Dict, step_type: str, data_length: Optional[int] = None,
+                 **unused: Any):
         """
         Initialize the mechanism.
 
@@ -42,12 +42,10 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             L2-regularization parameter.
         prior_scale: float
             Parameter that express belief about frequencies in the input data.
-        step_size: float
-            Fixed step size for decoding.
         data_length: Optional[int]
             Number of data points used.
         """
-        super().__init__(model)
+        super().__init__(model, step_type, predictor_kwargs=predictor_kwargs)
 
         self.model = model
         self.hidden_size = hidden_size
@@ -56,32 +54,13 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         self.weight_decay = weight_decay
         self.prior_scale = prior_scale
         self.data_length = data_length
-        self.step_size = step_size
 
         # Add dropout layer to estimate predictive uncertainty
         self.mc_dropout_layer = nn.Dropout(p=self.mc_dropout)
 
-    def _determine_step_size(self, hidden: Tensor, device: torch.device) -> float:
-        """
-        Determine recoding step size. In this case, only a fixed step size is returned.
-
-        Parameters
-        ----------
-        hidden: Tensor
-            Current hidden state used to determine step size (in this case unused).
-        device: torch.device
-            Torch device the model is being trained on (e.g. "cpu" or "cuda").
-
-        Returns
-        -------
-        step_size: float
-            Fixed step size.
-        """
-        return self.step_size
-
     @overrides
-    def recoding_func(self, input_var: Tensor, hidden: Tensor, out: Tensor, device: torch.device,
-                      **additional: Dict) -> Tuple[Tensor, AmbiguousHidden]:
+    def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,
+                      **additional: Dict) -> Tuple[Tensor, HiddenDict]:
         """
         Recode activations of current step based on some logic defined in a subclass.
 
@@ -89,8 +68,8 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         ----------
         input_var: Tensor
             Current input variable.
-        hidden: Tensor
-            Current hidden state.
+        hidden: HiddenDict
+            Dictionary of all hidden (and cell states) of all network layers.
         out: Tensor
             Output Tensor of current time step.
         device: torch.device
@@ -105,48 +84,26 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        # Predict step size
-        step_size = self._determine_step_size(hidden, device)
-
-        # Make predictions using different dropout mask
-        hidden = self.map(hidden, self._wrap_in_var, requires_grad=True)
-
-        # Use a step-size (or "learning-rate") of 1 here because optimizers don't support a different step size for
-        # for every batch instance, actual step size is applied in recode()
-        optimizers = [self.optimizer_class(hidden, lr=1) for hidden in self.scatter(hidden)]
-        [optimizer.zero_grad() for optimizer in optimizers]
+        # TODO: Check that variables have zero grad
         target_idx = additional.get("target_idx", None)
-        predictions = self.map(hidden, self._mc_dropout_predict, device, target_idx)
+        prediction = self._mc_dropout_predict(out, device, target_idx)
 
         # Estimate uncertainty of those same predictions
-        uncertainties = [self._calculate_predictive_uncertainty(prediction) for prediction in predictions]
+        delta = self._calculate_predictive_uncertainty(prediction)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        new_hidden = [
-            self.recode(h, delta, optimizer, step_size, device)
-            for h, delta, optimizer in zip(hidden, uncertainties, optimizers)
-        ]
-
-        # Re-decode
-        W_ho, b_ho = self._get_output_weights(device)
-        new_out = torch.tanh(self.select(hidden) @ W_ho + b_ho)
-        num_layers, batch_size, out_dim = new_out.shape
-        new_out = new_out.view(batch_size, num_layers, out_dim)
-        new_out = self.model.dropout_layer(new_out)
-        new_out_dist = self.model.predict_distribution(new_out, self.model.out_layer).to(device)
+        new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
 
         return new_out_dist, new_hidden
 
-    def _mc_dropout_predict(self, hidden: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
+    def _mc_dropout_predict(self, output: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
         Parameters
         ----------
-        hidden: Tensor
-            Current hidden activations.
-        model: AbstractRNN
-            Model which predictive uncertainty is being estimated.
+        output: Tensor
+            Current output distributions.
         target_idx: Optional[Tensor]
             Indices of actual next tokens (if given). Otherwise the most likely tokens are used.
 
@@ -155,14 +112,7 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
         target_predictions: Tensor
             Predicted probabilities for target token.
         """
-        # Re-compute output distribution, otherwise required gradient for hidden gets lost
-        W_ho, b_ho = self._get_output_weights(device)
-        out = torch.tanh(hidden @ W_ho.detach() + b_ho.detach())
-        seq_len, batch_size, out_dim = out.size()
-        out = out.view(batch_size, seq_len, out_dim)
-
         # Collect sample predictions
-        output = self.model.predict_distribution(out, self.model.out_layer).to(device)
         output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.mc_dropout_layer(output)
@@ -203,131 +153,4 @@ class UncertaintyMechanism(RecodingMechanism, RNNCompatabilityMixin):
             Estimated predictive uncertainty per batch instance.
         """
         prior_info = 2 * self.mc_dropout * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
-        return predictions.var(dim=0).unsqueeze(1) * prior_info
-
-    def _get_output_weights(self, device: Optional[torch.device] = None) -> Tuple[Tensor, Tensor]:
-        """
-        Retrieve output weights of model for later re-decoding.
-
-        Parameters
-        ----------
-        device: Optional[torch.device]
-            Torch device the model is being trained on (e.g. "cpu" or "cuda").
-
-        Returns
-        -------
-        weights: Tuple[Tensor, Tensor]
-            Tuple of weights W_ho and bias b_ho.
-        """
-        NHID = self.model.hidden_size
-
-        # TODO: Support multiple layers
-        if isinstance(self.model, LSTMLanguageModel):
-            W_ho = self.model.rnn.weight_hh_l0[3*NHID:4*NHID]
-            b_ho = self.model.rnn.bias_hh_l0[3*NHID:4*NHID]
-        else:
-            # TODO: Support models other than LSTM
-            raise Exception("Other models than LSTM are currently not supported!")
-
-        if device is not None:
-            W_ho = W_ho.to(device)
-            b_ho = b_ho.to(device)
-
-        return W_ho, b_ho
-
-
-class AdaptingUncertaintyMechanism(UncertaintyMechanism):
-    """
-    Same as UncertaintyMechanism, except that the step size is parameterized by a MLP, which predicts it based
-    on a window of previous hidden states.
-    """
-    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, mc_dropout: float, weight_decay: float,
-                 prior_scale: float, window_size: int, predictor_layers: Iterable[int],
-                 data_length: Optional[int] = None, **unused: Any):
-        """
-        Parameters
-        ----------
-        model: AbstractRNN
-            Model the mechanism is being applied to.
-        hidden_size: int
-            Dimensionality of hidden activations.
-        num_samples: int
-            Number of samples used to estimate uncertainty.
-        mc_dropout: float
-            Dropout probability used to estimate uncertainty.
-        weight_decay: float
-            L2-regularization parameter.
-        prior_scale: float
-            Parameter that express belief about frequencies in the input data.
-        predictor_layers: Iterable[int]
-            Layer sizes for MLP as some sort of iterable.
-        data_length: Optional[int]
-            Number of data points used.
-        """
-        super().__init__(
-            model=model, hidden_size=hidden_size, num_samples=num_samples, mc_dropout=mc_dropout,
-            weight_decay=weight_decay, prior_scale=prior_scale, data_length=data_length, **unused
-        )
-
-        # Initialize additional parts of model to make it more adaptive
-        self.device = self.model.device
-        self.window_size = window_size
-        self.predictor = StepPredictor(predictor_layers, hidden_size, window_size).to(self.device)
-        self.hidden_buffer = []  # Save hidden states
-        self._buffer_copy = []  # Save training buffer when testing the model
-
-    def train(self):
-        """ When model mode changes, erase buffer. """
-        super().train()
-        # Either use new, empty buffer or continue with buffer used before model was switched to testing mode
-        self.hidden_buffer = self._buffer_copy
-
-    def test(self):
-        """ When model mode changes, erase buffer. """
-        super().test()
-        self._buffer_copy = self.hidden_buffer
-        self.hidden_buffer = []
-        self.mc_dropout_layer.train()  # Don't switch dropout to eval
-
-    def _determine_step_size(self, hidden: Tensor, device: torch.device) -> float:
-        """
-        Determine recoding step size. In this case, the current hidden activations are added to a window of previous
-        hidden states and used with a MLP to predict the appropriate step size.
-
-        Parameters
-        ----------
-        hidden: Tensor
-            Current hidden state used to determine step size.
-        device: torch.device
-            Torch device the model is being trained on (e.g. "cpu" or "cuda").
-
-        Returns
-        -------
-        step_size: float
-            Predicted step size.
-        """
-        # TODO: Re-write buffer as actually registered PyTorch buffer
-
-        hidden = self.select(hidden)
-        hidden = hidden.detach()
-        num_layers, batch_size, _ = hidden.size()
-        hidden = hidden.view(batch_size, num_layers, self.hidden_size)
-
-        # If buffer is empty or batch size changes (e.g. when going from training to testing), initialize it with zero
-        # hidden states
-        buffer_batch_size = -1 if len(self.hidden_buffer) == 0 else self.hidden_buffer[0].shape[0]
-        if len(self.hidden_buffer) == 0 or buffer_batch_size != batch_size:
-            self.hidden_buffer = [torch.zeros((batch_size, 1, self.hidden_size)).to(device)] * self.window_size
-
-        # Add hidden state to buffer
-        self.hidden_buffer.append(hidden)
-
-        if len(self.hidden_buffer) > self.window_size:
-            self.hidden_buffer.pop()  # If buffer is full, remove oldest element
-
-        # Predict step size
-        hidden_window = torch.cat(self.hidden_buffer, dim=2)
-        step_size = self.predictor(hidden_window)
-        step_size = step_size.view(1, batch_size, 1)
-
-        return step_size
+        return predictions.var(dim=1).unsqueeze(1) * prior_info
