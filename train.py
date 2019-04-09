@@ -23,6 +23,7 @@ from src.utils.test import evaluate_model
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.mc_dropout import MCDropoutMechanism
+from src.recoding.perplexity import PerplexityRecoding
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.log import remove_logs, log_to_file
@@ -32,6 +33,7 @@ from src.utils.types import Device
 MODEL_NAME = None
 RECODING_TYPES = {
     # TODO: Add new recoding mechanisms here
+    "perplexity": PerplexityRecoding,
     "mc_dropout": MCDropoutMechanism
 }
 

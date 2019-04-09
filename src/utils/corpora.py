@@ -238,6 +238,7 @@ def read_wiki_corpus(corpus_dir: str, corpus_split: str, max_sentence_len: Optio
                 continue
 
             tokens = line.split()
+
             if tokens[-1] != "<eos>":
                 tokens.append("<eos>")
 

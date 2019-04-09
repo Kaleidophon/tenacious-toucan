@@ -13,11 +13,10 @@ from torch import nn, Tensor
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.mechanism import RecodingMechanism
-from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.types import HiddenDict
 
 
-class MCDropoutMechanism(RecodingMechanism, RNNCompatabilityMixin):
+class MCDropoutMechanism(RecodingMechanism):
     """
     Intervention mechanism that bases its intervention on the predictive uncertainty of a model.
     In this case the step size is constant during the recoding step.

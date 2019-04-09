@@ -15,6 +15,7 @@ from torch.autograd import backward
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
+from src.utils.compatability import RNNCompatabilityMixin
 from src.recoding.step import FixedStepPredictor, AdaptiveStepPredictor
 from src.utils.types import Device, HiddenDict, StepSize
 
@@ -25,7 +26,7 @@ STEP_TYPES = {
 }
 
 
-class RecodingMechanism(ABC):
+class RecodingMechanism(ABC, RNNCompatabilityMixin):
     """
     Abstract superclass for a recoding mechanism.
     """
@@ -139,7 +140,7 @@ class RecodingMechanism(ABC):
         # Perform recoding by doing a gradient decent step
         hidden = hidden - step_size * hidden.recoding_grad
 
-        return hidden.detach()
+        return hidden
 
     @staticmethod
     def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
