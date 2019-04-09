@@ -125,12 +125,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 # Backward pass
                 batch_loss /= batch_size
-
-                import torchviz
-
-                g = torchviz.make_dot(batch_loss)
-                print(f"Graph size batch {batch_i}: {len(g.body)}")
-
                 batch_loss.backward(retain_graph=True)
                 clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
