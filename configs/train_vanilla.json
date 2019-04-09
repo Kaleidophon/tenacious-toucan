@@ -15,9 +15,9 @@
   "layout": null,
   "max_sentence_len": 35,
   "multi_gpu": false,
-  "device": "cuda",
-  "evaluate": true,
   "weight_decay": 0.3,
+  "device": "cpu",
+  "evaluate": true,
   "ignore_unk": false,
   "dropout": 0.2,
   "recoding_type": null

@@ -139,7 +139,7 @@ class RecodingMechanism(ABC):
         # Perform recoding by doing a gradient decent step
         hidden = hidden - step_size * hidden.recoding_grad
 
-        return hidden
+        return hidden.detach()
 
     @staticmethod
     def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
