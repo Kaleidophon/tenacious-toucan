@@ -130,7 +130,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 optimizer.step()
 
                 # Detach from history so the computational graph from the previous sentence doesn't get carried over
-                hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}
+                hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h)) for l, h in hidden.items()}
                 total_batch_i += 1
 
                 if total_batch_i % print_every == 0:

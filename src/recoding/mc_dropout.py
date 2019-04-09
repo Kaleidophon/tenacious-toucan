@@ -83,7 +83,6 @@ class MCDropoutMechanism(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        # TODO: Check that variables have zero grad
         target_idx = additional.get("target_idx", None)
         prediction = self._mc_dropout_predict(out, device, target_idx)
 
@@ -116,7 +115,6 @@ class MCDropoutMechanism(RecodingMechanism):
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.mc_dropout_layer(output)
 
-        # TODO: Does this make sense?
         # If no target is given, compute uncertainty of most likely token
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
         target_idx = target_idx.to(device)

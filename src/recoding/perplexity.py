@@ -3,7 +3,6 @@ Perform the recoding step based on a simple signal of the perplexity of the gold
 """
 
 # STD
-import math
 from typing import Dict, Any, Tuple, Optional
 
 # EXT
@@ -59,7 +58,6 @@ class PerplexityRecoding(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        # TODO: Check that variables have zero grad
         target_idx = additional.get("target_idx", None)
 
         # Estimate uncertainty of those same predictions

@@ -50,6 +50,12 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             for l in range(self.model.num_layers)
         }
 
+        # Collect predictor modules and add them to the model so that parameters are learned
+        #  TODO: Make GRU compatible
+        for l, predictors in self.predictors.items():
+            for n, p in enumerate(predictors):
+                self.model.add_module(f"predictor{n}_l{l}", p)
+
     @abstractmethod
     def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,
                       **additional: Dict) -> Tuple[Tensor, Tensor]:
@@ -156,7 +162,13 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         """
         # Compute recoding gradients - in contrast to the usual backward() call, we calculate the derivatives
         # of a batch of values w.r.t some parameters instead of a single (loss) term
-        # Idk why this works but it does
+        #
+        # As far as I understood, when using backward with some vector instead of a scalar, we also supply
+        # the gradients of the loss term w.r.t. the parameters. We don't have a classic scalar loss here, so just use
+        # a tensor of ones instead. As this grad_tensor is multiplied with the remaining gradient following the chain
+        # rule, we actually only obtain the derivative of delta w.r.t. the activations.
+        # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
+        # helpful in realizing this.
         backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
