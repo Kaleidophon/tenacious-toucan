@@ -117,7 +117,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 optimizer.zero_grad()
                 batch_loss = 0
 
-                for t in range(seq_len - 1):
+                for t in range(3):
                     input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
                     output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
                     output_dist = output_dist.squeeze(1)

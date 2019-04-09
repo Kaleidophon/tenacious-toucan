@@ -52,6 +52,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
 
         # Collect predictor modules and add them to the model so that parameters are learned
         #  TODO: Make GRU compatible
+        # TODO: Predictor parameters are not learned!!!
         for l, predictors in self.predictors.items():
             for n, p in enumerate(predictors):
                 self.model.add_module(f"predictor{n}_l{l}", p)
@@ -144,7 +145,10 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         hidden.recoding_grad = self.replace_nans(hidden.recoding_grad)
 
         # Perform recoding by doing a gradient decent step
-        hidden = hidden - step_size * hidden.recoding_grad
+        # TODO: Write as inplace operation?
+        hidden.recoding_grad.mul_(-step_size)
+        hidden.sub_(hidden.recoding_grad)
+        #hidden = hidden - step_size * hidden.recoding_grad
 
         return hidden.detach()
 
