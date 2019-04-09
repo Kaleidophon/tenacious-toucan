@@ -157,6 +157,11 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # Compute recoding gradients - in contrast to the usual backward() call, we calculate the derivatives
         # of a batch of values w.r.t some parameters instead of a single (loss) term
         # Idk why this works but it does
+        import torchviz
+
+        g = torchviz.make_dot(delta)
+
+        print(f"Recoding graph size {len(g.body)}")
         backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
