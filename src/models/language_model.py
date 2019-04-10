@@ -295,6 +295,4 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         """
         Track the (recoding) gradient of a non-leaf variable.
         """
-        var = Variable(var, requires_grad=True)
-
-        return var
+        return Variable(var, requires_grad=True)
