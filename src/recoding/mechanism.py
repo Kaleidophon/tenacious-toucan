@@ -11,7 +11,7 @@ from typing import Tuple, Dict
 # EXT
 import torch
 from torch import Tensor
-from torch.autograd import backward
+from torch.autograd import backward, grad
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -156,8 +156,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
 
         # Register gradient hooks
         for l, hid in hidden.items():
-            for h in hid:
-                self.register_grad_hook(h)
+            self.register_grad_hook(hid[0])
 
         #hidden = {l: [self.register_grad_hook(h) for h in hid] for l, hid in hidden.items()}
 
@@ -166,17 +165,16 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        self.compute_recoding_gradient(delta, device)
+        self.compute_recoding_gradient(hidden, delta, device)
 
         # TODO: Remove debug
         print("++++ Mem report recoding grad ++++")
         _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
 
         new_hidden = {
-            l: tuple([
+            l:
                 # Use the step predictor for the corresponding state and layer
-                self.recode(h, step_size=predictor(h, device))
-                for h, predictor in zip(hid, self.predictors[l])])  # Be LSTM / GRU agnostic
+                (self.recode(hid[0], step_size=0.5), None)
             for l, hid in hidden.items()
         }
 
@@ -214,15 +212,13 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         hidden.recoding_grad = self.replace_nans(hidden.recoding_grad)
 
         # Perform recoding by doing a gradient decent step
-        # TODO: Write as inplace operation?
-        #hidden.recoding_grad.mul_(-step_size)
-        #hidden.sub_(hidden.recoding_grad)
-        hidden = hidden - step_size * hidden.recoding_grad
+        with torch.no_grad():
+            recoded_hidden = hidden - step_size * hidden.recoding_grad
 
-        return hidden.detach()
+        return recoded_hidden.detach()
 
     @staticmethod
-    def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
+    def compute_recoding_gradient(hidden, delta: Tensor, device: Device) -> None:
         """
         Compute the recoding gradient of the error signal delta w.r.t to all hidden activations of the network.
 
@@ -242,7 +238,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # rule, we actually only obtain the derivative of delta w.r.t. the activations.
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(device), create_graph=True)
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
         """
@@ -299,8 +295,6 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             var.recoding_grad = grad
         
         var.register_hook(hook)
-
-        return var
 
     def train(self, mode=True):
         for predictors in self.predictors.values():

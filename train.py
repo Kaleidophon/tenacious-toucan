@@ -84,6 +84,16 @@ def _mem_report(tensors, mem_type):
     print('Total Tensors: %d \tUsed Memory Space: %.2f MBytes' % (total_numel, total_mem))
 
 
+def _del_tensors(type_=torch.Tensor, size=(128, 650)):
+    import gc
+    for obj in gc.get_objects():
+        if isinstance(obj, type_):
+            if obj.shape == size:
+                del obj
+
+    gc.collect()
+
+
 def main():
     config_dict = manage_config()
 
@@ -175,11 +185,17 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 # TODO: Remove debug
                 for t in range(3):
                     input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
+                    input_vars = torch.randint(0, 255, input_vars.shape)
                     output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
                     output_dist = output_dist.squeeze(1)
                     batch_loss += loss(output_dist, batch[:, t+1])
 
+                # TODO: Remove debug
+                print("++++ Mem report pre backward ++++")
+                _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
                 # Backward pass
+                #_del_tensors()  # TODO: Remove debug
                 batch_loss /= batch_size
                 batch_loss.backward()
 
@@ -200,7 +216,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 print(f"Optim step mem: {optim_mem_used :.2f} MB")
 
                 # Detach from history so the computational graph from the previous sentence doesn't get carried over
-                hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}
+                hidden = {l: hid[0].detach() for l, hid in hidden.items()}
                 total_batch_i += 1
 
                 # TODO: Remove debug
@@ -225,21 +241,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 mem_diff = (new_mem_used - mem_used) / 1024
                 print(f"#### Batch {batch_i+1} mem diff: {mem_diff:.2f} MB ####")
                 mem_used = new_mem_used
-
-                # Calculate validation loss
-                if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
-                    validation_ppl = evaluate_model(
-                        model, valid_set, batch_size, device, perplexity=True, ignore_unk=ignore_unk
-                    )
-                    progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Perplexity: {validation_ppl:.4f}")
-
-                    if validation_ppl < best_validation_ppl and model_save_path is not None:
-                        torch.save(model, model_save_path)
-                        best_validation_ppl = validation_ppl
-
-                    log_to_file(
-                        {"batch_num": total_batch_i, "val_ppl": validation_ppl}, f"{log_dir}/{MODEL_NAME}_val.log"
-                    )
 
 
 def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLanguageModel:

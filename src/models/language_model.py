@@ -14,6 +14,7 @@ from torch.autograd import Variable
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.types import HiddenDict, AmbiguousHidden
+from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
 # TODO: Debug Remove
@@ -142,16 +143,18 @@ class LSTMLanguageModel(AbstractRNN):
         # This is necessary when training on multiple GPUs - the batch of hidden states is moved back to main GPU
         # after every step
         else:
-            hidden = {l: (h[0].to(device), h[1].to(device)) for l, h in hidden.items()}
+            hidden = {l: (h[0].to(device), None) for l, h in hidden.items()}
 
-        embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim+
+        embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim
         embed = self.dropout_layer(embed)
 
         input_ = embed.squeeze(1)
+        new_hidden = {}
         for l in range(self.num_layers):
-            new_hidden = self.forward_step(l, hidden[l], input_)
-            input_ = new_hidden[0]  # New hidden state becomes input for next layer
-            hidden[l] = new_hidden  # Store for next step
+            hidden[l] = CompatibleRNN.map(hidden[l], self.track_grad) if self.track_hidden_grad else hidden[l]
+            new_hid = self.forward_step(l, hidden[l], input_)
+            input_ = new_hid[0]  # New hidden state becomes input for next layer
+            new_hidden[l] = new_hid  # Store for next step
 
         out = self.decoder(input_)
         out = self.dropout_layer(out)
@@ -159,7 +162,7 @@ class LSTMLanguageModel(AbstractRNN):
         out = out.unsqueeze(1)
         output = self.predict_distribution(out)
 
-        return output, hidden
+        return output, new_hidden
 
     def forward_step(self, layer: int, hidden: AmbiguousHidden, input_: Tensor) -> AmbiguousHidden:
         """
@@ -181,37 +184,27 @@ class LSTMLanguageModel(AbstractRNN):
         """
         hx, cx = hidden
 
-        # Track gradients for these when doing recoding
-        if self.track_hidden_grad:
-            hx = self.track_grad(hx)
-            cx = self.track_grad(cx)
-
-            # TODO: Remove debug
-            import gc
-            print(f"++++ Mem report post track vars  ++++")
-            _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
-
         # TODO: Employ PyTorch optimization with concatenated matrices?
 
         # Forget gate
-        f_g = torch.sigmoid(self.gates[layer]['if'](input_) + self.gates[layer]['hf'](hx))
+        new_hx = torch.sigmoid(self.gates[layer]['if'](input_) + self.gates[layer]['hf'](hx))
 
         # Input gate
-        i_g = torch.sigmoid(self.gates[layer]['ii'](input_) + self.gates[layer]['hi'](hx))
+        #i_g = torch.sigmoid(self.gates[layer]['ii'](input_) + self.gates[layer]['hi'](hx))
 
         # Output gate
-        o_g = torch.sigmoid(self.gates[layer]['io'](input_) + self.gates[layer]['ho'](hx))
+        #o_g = torch.sigmoid(self.gates[layer]['io'](input_) + self.gates[layer]['ho'](hx))
 
         # Intermediate cell state
-        c_tilde_g = torch.tanh(self.gates[layer]['ig'](input_) + self.gates[layer]['hg'](hx))
+        #c_tilde_g = torch.tanh(self.gates[layer]['ig'](input_) + self.gates[layer]['hg'](hx))
 
         # New cell state
-        cx = f_g * cx + i_g * c_tilde_g
+        #new_cx = f_g * cx + i_g * c_tilde_g
 
         # New hidden state
-        hx = o_g * torch.tanh(cx)
+        #new_hx = o_g * torch.tanh(new_cx)
 
-        return hx, cx
+        return new_hx, None
 
     def predict_distribution(self, output: Tensor, out_layer: Optional[nn.Module] = None):
         """
@@ -279,9 +272,9 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         """
         device = self.current_device(reference=input_var)
 
-        out, hidden = super().forward(input_var, hidden, **additional)
+        out, new_hidden = super().forward(input_var, hidden, **additional)
 
-        return self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)
+        return self.mechanism.recoding_func(input_var, new_hidden, out, device=device, **additional)
 
     def train(self, mode=True):
         super().train(mode)
