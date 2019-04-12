@@ -5,13 +5,12 @@ Train the model with the uncertainty-based intervention mechanism.
 # STD
 from argparse import ArgumentParser
 import sys
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 
 # EXT
 import numpy as np
 from rnnalyse.config.setup import ConfigSetup
 import torch
-from torch.autograd import Variable
 import torch.optim as optim
 from torch.nn import CrossEntropyLoss, DataParallel
 from torch.nn.utils import clip_grad_norm_
@@ -117,7 +116,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 optimizer.zero_grad()
                 batch_loss = 0
 
-                for t in range(3):
+                for t in range(seq_len - 1):
                     input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
                     output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
                     output_dist = output_dist.squeeze(1)
@@ -125,12 +124,13 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 # Backward pass
                 batch_loss /= batch_size
-                batch_loss.backward(retain_graph=True)
+                batch_loss.backward()
+
                 clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
 
                 # Detach from history so the computational graph from the previous sentence doesn't get carried over
-                hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h)) for l, h in hidden.items()}
+                hidden = {l: CompatibleRNN.map(h, func=lambda h: h.detach()) for l, h in hidden.items()}
                 total_batch_i += 1
 
                 if total_batch_i % print_every == 0:

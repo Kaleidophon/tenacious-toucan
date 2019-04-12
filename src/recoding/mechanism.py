@@ -51,8 +51,6 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         }
 
         # Collect predictor modules and add them to the model so that parameters are learned
-        #  TODO: Make GRU compatible
-        # TODO: Predictor parameters are not learned!!!
         for l, predictors in self.predictors.items():
             for n, p in enumerate(predictors):
                 self.model.add_module(f"predictor{n}_l{l}", p)
@@ -111,6 +109,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         self.compute_recoding_gradient(delta, device)
 
+        # Do actual recoding step
         new_hidden = {
             l: tuple([
                 # Use the step predictor for the corresponding state and layer
@@ -142,15 +141,18 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Layer sizes for MLP as some sort of iterable.
         """
         # Correct any corruptions
-        hidden.recoding_grad = self.replace_nans(hidden.recoding_grad)
+        hidden.grad = self.replace_nans(hidden.grad)
 
         # Perform recoding by doing a gradient decent step
-        # TODO: Write as inplace operation?
-        hidden.recoding_grad.mul_(-step_size)
-        hidden.sub_(hidden.recoding_grad)
-        #hidden = hidden - step_size * hidden.recoding_grad
+        # Important: Detach hidden in-place here to avoid memory spill
+        recoding_grad = hidden.grad
+        hidden.detach_()
+        new_hidden = hidden - step_size * recoding_grad
 
-        return hidden.detach()
+        # Another way could be also to detach new_hidden, but in this case gradients can't flow through step size,
+        # which is necessary to train the parameters of models like AdaptiveStepPredictor
+
+        return new_hidden
 
     @staticmethod
     def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
@@ -173,7 +175,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # rule, we actually only obtain the derivative of delta w.r.t. the activations.
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
+        # Important: Do NOT use create_graph=True here, it will cause a memory spill.
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
         """
@@ -227,9 +230,14 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Variable we register the hook for.
         """
         def hook(grad: Tensor):
-            var.recoding_grad = grad
+            # Important: Assign to .grad and not other custom attribute here or else PyTorch will allocate
+            # additional space for this tensor which won't properly be freed up after using backward(), eventually
+            # causing a memory spill
+            var.grad = grad
         
         var.register_hook(hook)
+
+        return var
 
     def train(self, mode=True):
         for predictors in self.predictors.values():
