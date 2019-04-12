@@ -26,52 +26,6 @@ STEP_TYPES = {
 }
 
 
-# TODO: Debug Remove
-def _mem_report(tensors, mem_type):
-    '''Print the selected tensors of type
-    There are two major storage types in our major concern:
-        - GPU: tensors transferred to CUDA devices
-        - CPU: tensors remaining on the system memory (usually unimportant)
-    Args:
-        - tensors: the tensors of specified type
-        - mem_type: 'CPU' or 'GPU' in current implementation '''
-    print('Storage on %s' % (mem_type))
-    total_numel = 0
-    total_mem = 0
-    visited_data = []
-
-    from collections import defaultdict
-    tensor_count = defaultdict(int)
-
-    for tensor in tensors:
-        if tensor.is_sparse:
-            continue
-        # a data_ptr indicates a memory block allocated
-        data_ptr = tensor.storage().data_ptr()
-        if data_ptr in visited_data:
-            continue
-        visited_data.append(data_ptr)
-
-        numel = tensor.storage().size()
-        total_numel += numel
-        element_size = tensor.storage().element_size()
-        mem = numel * element_size / 1024 / 1024  # 32bit=4Byte, MByte
-        total_mem += mem
-        element_type = type(tensor).__name__
-        size = tuple(tensor.size())
-
-        tensor_count['%s\t%s' % (element_type, size)] += 1
-
-        #print('%s\t%s\t%.2f' % (
-        #    element_type,
-        #    size,
-        #    mem))
-    print("Tensor\t(128, 650)", tensor_count["Tensor\t(128, 650)"])
-    #print("\n".join(f"{tensor}: {count}" for tensor, count in tensor_count.items()))
-    print(f"{len(tensor_count)} types of tensors found")
-    print('Total Tensors: %d \tUsed Memory Space: %.2f MBytes' % (total_numel, total_mem))
-
-
 class RecodingMechanism(ABC, RNNCompatabilityMixin):
     """
     Abstract superclass for a recoding mechanism.
@@ -149,28 +103,13 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         new_out_dist, new_hidden: Tuple[Tensor, HiddenDict]
             New re-decoded output distribution alongside all recoded hidden activations.
         """
-        # TODO: Remove debug
-        import gc
-        print("++++ Mem report recoding start ++++")
-        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
-
         # Register gradient hooks
         for l, hid in hidden.items():
             for h in hid:
                 self.register_grad_hook(h)
 
-        #hidden = {l: [self.register_grad_hook(h) for h in hid] for l, hid in hidden.items()}
-
-        # TODO: Remove debug
-        print("++++ Mem report post hooks++++")
-        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
-
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         self.compute_recoding_gradient(delta, device)
-
-        # TODO: Remove debug
-        print("++++ Mem report recoding grad ++++")
-        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
 
         new_hidden = {
             l: tuple([
@@ -180,16 +119,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             for l, hid in hidden.items()
         }
 
-        # TODO: Remove debug
-        print("++++ Mem report post recoding step ++++")
-        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
-
         # Re-decode current output
         new_out_dist = self.redecode_output_dist(new_hidden)
-
-        # TODO: Remove debug
-        print("++++ Mem report post decoding ++++")
-        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
 
         return new_out_dist, new_hidden
 

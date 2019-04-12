@@ -16,52 +16,6 @@ from src.models.abstract_rnn import AbstractRNN
 from src.utils.types import HiddenDict, AmbiguousHidden
 
 
-# TODO: Debug Remove
-def _mem_report(tensors, mem_type):
-    '''Print the selected tensors of type
-    There are two major storage types in our major concern:
-        - GPU: tensors transferred to CUDA devices
-        - CPU: tensors remaining on the system memory (usually unimportant)
-    Args:
-        - tensors: the tensors of specified type
-        - mem_type: 'CPU' or 'GPU' in current implementation '''
-    print('Storage on %s' % (mem_type))
-    total_numel = 0
-    total_mem = 0
-    visited_data = []
-
-    from collections import defaultdict
-    tensor_count = defaultdict(int)
-
-    for tensor in tensors:
-        if tensor.is_sparse:
-            continue
-        # a data_ptr indicates a memory block allocated
-        data_ptr = tensor.storage().data_ptr()
-        if data_ptr in visited_data:
-            continue
-        visited_data.append(data_ptr)
-
-        numel = tensor.storage().size()
-        total_numel += numel
-        element_size = tensor.storage().element_size()
-        mem = numel * element_size / 1024 / 1024  # 32bit=4Byte, MByte
-        total_mem += mem
-        element_type = type(tensor).__name__
-        size = tuple(tensor.size())
-
-        tensor_count['%s\t%s' % (element_type, size)] += 1
-
-        #print('%s\t%s\t%.2f' % (
-        #    element_type,
-        #    size,
-        #    mem))
-    print("Tensor\t(128, 650)", tensor_count["Tensor\t(128, 650)"])
-    #print("\n".join(f"{tensor}: {count}" for tensor, count in tensor_count.items()))
-    print(f"{len(tensor_count)} types of tensors found")
-    print('Total Tensors: %d \tUsed Memory Space: %.2f MBytes' % (total_numel, total_mem))
-
-
 class LSTMLanguageModel(AbstractRNN):
     """
     Implementation of a LSTM language model that can process inputs token-wise or in sequences.
@@ -185,11 +139,6 @@ class LSTMLanguageModel(AbstractRNN):
         if self.track_hidden_grad:
             hx = self.track_grad(hx)
             cx = self.track_grad(cx)
-
-            # TODO: Remove debug
-            import gc
-            print(f"++++ Mem report post track vars  ++++")
-            _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
 
         # TODO: Employ PyTorch optimization with concatenated matrices?
 

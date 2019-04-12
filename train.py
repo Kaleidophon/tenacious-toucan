@@ -38,52 +38,6 @@ RECODING_TYPES = {
 }
 
 
-# TODO: Debug Remove
-def _mem_report(tensors, mem_type):
-    '''Print the selected tensors of type
-    There are two major storage types in our major concern:
-        - GPU: tensors transferred to CUDA devices
-        - CPU: tensors remaining on the system memory (usually unimportant)
-    Args:
-        - tensors: the tensors of specified type
-        - mem_type: 'CPU' or 'GPU' in current implementation '''
-    print('Storage on %s' % (mem_type))
-    total_numel = 0
-    total_mem = 0
-    visited_data = []
-
-    from collections import defaultdict
-    tensor_count = defaultdict(int)
-
-    for tensor in tensors:
-        if tensor.is_sparse:
-            continue
-        # a data_ptr indicates a memory block allocated
-        data_ptr = tensor.storage().data_ptr()
-        if data_ptr in visited_data:
-            continue
-        visited_data.append(data_ptr)
-
-        numel = tensor.storage().size()
-        total_numel += numel
-        element_size = tensor.storage().element_size()
-        mem = numel * element_size / 1024 / 1024  # 32bit=4Byte, MByte
-        total_mem += mem
-        element_type = type(tensor).__name__
-        size = tuple(tensor.size())
-
-        tensor_count['%s\t%s' % (element_type, size)] += 1
-
-        #print('%s\t%s\t%.2f' % (
-        #    element_type,
-        #    size,
-        #    mem))
-    print("Tensor\t(128, 650)", tensor_count["Tensor\t(128, 650)"])
-    #print("\n".join(f"{tensor}: {count}" for tensor, count in tensor_count.items()))
-    print(f"{len(tensor_count)} types of tensors found")
-    print('Total Tensors: %d \tUsed Memory Space: %.2f MBytes' % (total_numel, total_mem))
-
-
 def main():
     config_dict = manage_config()
 
@@ -164,16 +118,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 optimizer.zero_grad()
                 batch_loss = 0
 
-                import gc
-                import resource
-                print(f"Batch {batch_i+1} start mem: {mem_used/1024}")
-
-                # TODO: Remove debug
-                print(f"++++ Mem report pre-loop ++++")
-                _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
-
-                # TODO: Remove debug
-                for t in range(3):
+                for t in range(seq_len - 1):
                     input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
                     output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
                     output_dist = output_dist.squeeze(1)
@@ -183,30 +128,12 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 batch_loss /= batch_size
                 batch_loss.backward()
 
-                # TODO: Remove debug
-                print("++++ Mem report post backward ++++")
-                _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
-
-                gc.collect()
-                mainback_mem_used = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
-                print(f"Main backward mem: {mainback_mem_used :.2f} MB")
-
                 clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
-
-                # TODO: Remove debug
-                gc.collect()
-                optim_mem_used = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
-                print(f"Optim step mem: {optim_mem_used :.2f} MB")
 
                 # Detach from history so the computational graph from the previous sentence doesn't get carried over
                 hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}
                 total_batch_i += 1
-
-                # TODO: Remove debug
-                gc.collect()
-                detach_mem_used = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
-                print(f"Detach mem: {detach_mem_used :.2f} MB")
 
                 if total_batch_i % print_every == 0:
                     progress_bar.set_description(
@@ -220,10 +147,12 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
 
                 # TODO: Debug remove
+                import gc
+                import resource
                 gc.collect()
                 new_mem_used = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
                 mem_diff = (new_mem_used - mem_used) / 1024
-                print(f"#### Batch {batch_i+1} mem diff: {mem_diff:.2f} MB ####")
+                print(f"#### Batch {batch_i+1} mem diff: + {mem_diff:.2f} KB ####")
                 mem_used = new_mem_used
 
                 # Calculate validation loss
