@@ -106,23 +106,15 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             for h in hid:
                 self.register_grad_hook(h)
 
-        # Calculate step sizes
-        step_sizes = {
-            l: tuple([
-                predictor(h, device)
-                # Fetch the predictor for the current layer and activation type
-                for h, predictor in zip(hid, self.predictors[l])])  # Be LSTM / GRU agnostic
-            for l, hid in hidden.items()
-        }
-
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         self.compute_recoding_gradient(delta, device)
 
         # Do actual recoding step
         new_hidden = {
             l: tuple([
-                self.recode(h, step_size=step_sizes[l][n])
-                for n, h in enumerate(hid)])  # Be LSTM / GRU agnostic
+                # Use the step predictor for the corresponding state and layer
+                self.recode(h, step_size=predictor(h, device))
+                for h, predictor in zip(hid, self.predictors[l])])  # Be LSTM / GRU agnostic
             for l, hid in hidden.items()
         }
 
