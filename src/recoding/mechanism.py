@@ -211,15 +211,15 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Layer sizes for MLP as some sort of iterable.
         """
         # Correct any corruptions
-        hidden.recoding_grad = self.replace_nans(hidden.recoding_grad)
+        hidden.grad = self.replace_nans(hidden.grad)
 
         # Perform recoding by doing a gradient decent step
-        # TODO: Write as inplace operation?
-        #hidden.recoding_grad.mul_(-step_size)
-        #hidden.sub_(hidden.recoding_grad)
-        hidden = hidden - step_size * hidden.recoding_grad
+        # Important: Do update step in-place, otherwise PyTorch allocates some extra space that won't be properly freed
+        # up after using backward(), eventually causing a memory spill.
+        hidden.add_(-step_size * hidden.grad)
+        hidden.detach_()
 
-        return hidden.detach()
+        return hidden
 
     @staticmethod
     def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
@@ -242,7 +242,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # rule, we actually only obtain the derivative of delta w.r.t. the activations.
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(device), create_graph=True)
+        # Important: Do NOT use create_graph=True here, it will cause a memory spill.
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
         """
@@ -296,7 +297,10 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Variable we register the hook for.
         """
         def hook(grad: Tensor):
-            var.recoding_grad = grad
+            # Important: Assign to .grad and not other custom attribute here or else PyTorch will allocate
+            # additional space for this tensor which won't properly be freed up after using backward(), eventually
+            # causing a memory spill
+            var.grad = grad
         
         var.register_hook(hook)
 
