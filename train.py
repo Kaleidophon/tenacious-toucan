@@ -146,15 +146,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 batch_loss = float(batch_loss.cpu().detach())
                 log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
 
-                # TODO: Debug remove
-                import gc
-                import resource
-                gc.collect()
-                new_mem_used = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-                mem_diff = (new_mem_used - mem_used) / 1024
-                print(f"#### Batch {batch_i+1} mem diff: + {mem_diff:.2f} KB ####")
-                mem_used = new_mem_used
-
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
                     validation_ppl = evaluate_model(
