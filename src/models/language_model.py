@@ -13,7 +13,8 @@ from torch.autograd import Variable
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
-from src.utils.types import HiddenDict, AmbiguousHidden
+from src.utils.types import HiddenDict, AmbiguousHidden, Device, StepSize
+from src.utils.compatability import RNNCompatabilityMixin
 
 
 # TODO: Debug Remove
@@ -137,7 +138,7 @@ class LSTMLanguageModel(AbstractRNN):
 
         if hidden is None:
             batch_size = input_var.shape[0]
-            hidden = {l: self.init_hidden(batch_size, device) for l in range(self.num_layers)}
+            hidden = {l: self.map(self.init_hidden(batch_size, device), self.track_grad) for l in range(self.num_layers)}
 
         # This is necessary when training on multiple GPUs - the batch of hidden states is moved back to main GPU
         # after every step
@@ -182,14 +183,14 @@ class LSTMLanguageModel(AbstractRNN):
         hx, cx = hidden
 
         # Track gradients for these when doing recoding
-        if self.track_hidden_grad:
-            hx = self.track_grad(hx)
-            cx = self.track_grad(cx)
+        #if self.track_hidden_grad:
+        #    hx = self.track_grad(hx)
+        #    cx = self.track_grad(cx)
 
             # TODO: Remove debug
-            import gc
-            print(f"++++ Mem report post track vars  ++++")
-            _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+        #    import gc
+        #    print(f"++++ Mem report post track vars  ++++")
+        #    _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
 
         # TODO: Employ PyTorch optimization with concatenated matrices?
 
@@ -245,7 +246,7 @@ class LSTMLanguageModel(AbstractRNN):
         return var
 
 
-class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
+class UncertaintyLSTMLanguageModel(LSTMLanguageModel, RNNCompatabilityMixin):
     """
     A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
     the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
@@ -278,10 +279,134 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
             Hidden state of current time step after recoding.
         """
         device = self.current_device(reference=input_var)
-
+        target_idx = additional.get("target_idx", None)
         out, hidden = super().forward(input_var, hidden, **additional)
 
-        return self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)
+        # Estimate uncertainty of those same predictions
+        delta = self.get_perplexity(out, target_idx)
+
+        # Calculate gradient of uncertainty w.r.t. hidden states and make step
+        new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
+
+        return new_out_dist, new_hidden
+
+    @staticmethod
+    def get_perplexity(out: Tensor, target_idx: Optional[Tensor] = None) -> Tensor:
+        out = out.squeeze(1)
+
+        # If target indices are not given, just use most likely token
+        if target_idx is None:
+            target_idx = torch.argmax(out, dim=1, keepdim=True)
+        else:
+            target_idx = target_idx.unsqueeze(1)
+
+        target_probs = torch.gather(out, 1, target_idx)
+        target_probs = torch.sigmoid(target_probs)
+        target_ppls = 2 ** (-target_probs.log2())
+
+        return target_ppls
+
+    def recode_activations(self, hidden: HiddenDict, delta: Tensor, device: Device) -> Tuple[Tensor, HiddenDict]:
+        """
+        Recode all activations stored in a HiddenDict based on an error signal delta.
+
+        Parameters
+        ----------
+        hidden: HiddenDict
+            Dictionary of all hidden (and cell states) of all network layers.
+        delta: Tensor
+            Current error signal that is used to calculate the gradients w.r.t. the hidden states.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
+
+        Returns
+        -------
+        new_out_dist, new_hidden: Tuple[Tensor, HiddenDict]
+            New re-decoded output distribution alongside all recoded hidden activations.
+        """
+        # TODO: Remove debug
+        import gc
+        print("++++ Mem report recoding start ++++")
+        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
+        # Register gradient hooks
+        for l, hid in hidden.items():
+            for h in hid:
+                self.register_grad_hook(h)
+
+        #hidden = {l: [self.register_grad_hook(h) for h in hid] for l, hid in hidden.items()}
+
+        # TODO: Remove debug
+        print("++++ Mem report post hooks++++")
+        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
+        # Calculate gradient of uncertainty w.r.t. hidden states and make step
+        delta.backward(gradient=torch.ones(delta.shape).to(device))
+
+        #self.compute_recoding_gradient(delta, device)
+
+        # TODO: Remove debug
+        print("++++ Mem report recoding grad ++++")
+        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
+        new_hidden = {
+            l: tuple([
+                # Use the step predictor for the corresponding state and layer
+                self.recode(h, step_size=0.5)
+                for h in hid])  # Be LSTM / GRU agnostic
+            for l, hid in hidden.items()
+        }
+
+        del hidden
+
+        # TODO: Remove debug
+        print("++++ Mem report post recoding step ++++")
+        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
+        # Re-decode current output
+        new_out_dist = self.redecode_output_dist(new_hidden)
+
+        # TODO: Remove debug
+        print("++++ Mem report post decoding ++++")
+        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
+        return new_out_dist, new_hidden
+
+    def recode(self, hidden: Tensor, step_size: StepSize) -> Tensor:
+        """
+        Perform a single recoding step on the current time step's hidden activations.
+
+        Parameters
+        ----------
+        hidden: Tensor
+            Current hidden state.
+        step_size: StepSize
+            Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
+
+        Returns
+        -------
+        hidden: Tensor
+            Recoded activations.predictor_layers: Iterable[int]
+            Layer sizes for MLP as some sort of iterable.
+        """
+        import gc
+        # Correct any corruptions
+        hidden.grad = self.replace_nans(hidden.grad)
+        # del hidden.recoding_grad
+        # TODO: Remove debug
+        print("++++ Mem report Remove grad++++")
+        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
+        # Perform recoding by doing a gradient decent step
+        #with torch.no_grad():
+        hidden.add_(-step_size * hidden.grad)
+        hidden.detach_()
+            #del hidden
+
+        print("++++ Mem report inner update ++++")
+        _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
+
+        return hidden
 
     def train(self, mode=True):
         super().train(mode)
@@ -291,8 +416,67 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         super().eval()
         self.mechanism.eval()
 
+    @staticmethod
+    def replace_nans(tensor: Tensor) -> Tensor:
+        """
+        Replace nans in a PyTorch tensor with zeros.
+
+        Parameters
+        ----------
+        tensor: Tensor
+            Input tensor.
+
+        Returns
+        -------
+        tensor: Tensor
+            Tensor with nan values replaced.
+        """
+        tensor[tensor != tensor] = 0  # Exploit the fact that nan != nan
+
+        return tensor
+
+    def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
+        """
+        Based on the recoded activations, also re-decode the output distribution.
+
+        Parameters
+        ----------
+        new_hidden: HiddenDict
+            Recoded hidden activations for all layers of the network.
+
+        Returns
+        -------
+        new_out_dist: Tensor
+            Re-decoded output distributions.
+        """
+        num_layers = len(new_hidden.keys())
+        new_out = self.decoder(self.select(new_hidden[num_layers - 1]))  # Select topmost hidden activations
+        new_out = self.dropout_layer(new_out)
+        new_out = new_out.unsqueeze(1)
+        new_out_dist = self.predict_distribution(new_out)
+
+        return new_out_dist
+
     def track_grad(self, var: Tensor) -> Tensor:
         """
         Track the (recoding) gradient of a non-leaf variable.
         """
         return Variable(var, requires_grad=True)
+
+    @staticmethod
+    def register_grad_hook(var: Tensor) -> None:
+        """
+        Register a hook that assigns the (recoding) gradient to a special attribute of the variable.
+
+        Parameters
+        ----------
+        var: Tensor
+            Variable we register the hook for.
+        """
+
+        def hook(grad: Tensor):
+            var.grad = grad
+
+        var.register_hook(hook)
+
+        return var

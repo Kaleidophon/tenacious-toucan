@@ -166,7 +166,9 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         _mem_report([obj for obj in gc.get_objects() if torch.is_tensor(obj)], "CPU")
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        self.compute_recoding_gradient(delta, device)
+        delta.backward(gradient=torch.ones(delta.shape).to(device))
+
+        #self.compute_recoding_gradient(delta, device)
 
         # TODO: Remove debug
         print("++++ Mem report recoding grad ++++")
@@ -179,6 +181,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
                 for h, predictor in zip(hid, self.predictors[l])])  # Be LSTM / GRU agnostic
             for l, hid in hidden.items()
         }
+
+        del hidden
 
         # TODO: Remove debug
         print("++++ Mem report post recoding step ++++")
@@ -214,10 +218,9 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         hidden.recoding_grad = self.replace_nans(hidden.recoding_grad)
 
         # Perform recoding by doing a gradient decent step
-        # TODO: Write as inplace operation?
-        #hidden.recoding_grad.mul_(-step_size)
-        #hidden.sub_(hidden.recoding_grad)
-        hidden = hidden - step_size * hidden.recoding_grad
+        with torch.no_grad():
+            hidden.recoding_grad.detach_()
+            hidden = hidden - step_size * hidden.recoding_grad
 
         return hidden.detach()
 
