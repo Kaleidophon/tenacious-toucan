@@ -37,14 +37,13 @@ class LSTMLanguageModel(AbstractRNN):
         """
         super().__init__("LSTM", hidden_size, embedding_size, num_layers, device)
         self.embeddings = nn.Embedding(vocab_size, embedding_size)
-        self.out_layer = nn.Linear(hidden_size, vocab_size)
         self.vocab_size = vocab_size
         self.dropout_layer = nn.Dropout(dropout)
         self.track_hidden_grad = True
 
         # Define parameters
         self.gates = {}
-        self.decoder = nn.Linear(hidden_size, hidden_size)
+        self.decoder = nn.Linear(hidden_size, vocab_size)
 
         for l in range(num_layers):
             # Input to first layer is embedding, for others it's the hidden state of the previous layer
@@ -107,10 +106,7 @@ class LSTMLanguageModel(AbstractRNN):
             input_ = new_hidden[0]  # New hidden state becomes input for next layer
             hidden[l] = new_hidden  # Store for next step
 
-        out = self.decoder(input_)
-        out = self.dropout_layer(out)
-
-        out = out.unsqueeze(1)
+        out = self.dropout_layer(input_)
         output = self.predict_distribution(out)
 
         return output, hidden
@@ -177,11 +173,9 @@ class LSTMLanguageModel(AbstractRNN):
             Unnormalized output distribution for current time step.
         """
         # Default to models own output layer
-        out_layer = out_layer if out_layer is not None else self.out_layer
+        out_layer = out_layer if out_layer is not None else self.decoder
 
-        batch_size, seq_len, hidden_size = output.size()
-        output_dist = out_layer(output.view(batch_size * seq_len, hidden_size))
-        output_dist = output_dist.view(batch_size, seq_len, self.vocab_size)
+        output_dist = out_layer(output)
 
         return output_dist
 

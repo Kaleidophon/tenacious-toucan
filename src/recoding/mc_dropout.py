@@ -111,6 +111,7 @@ class MCDropoutMechanism(RecodingMechanism):
             Predicted probabilities for target token.
         """
         # Collect sample predictions
+        output = output.unsqueeze(1)
         output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.mc_dropout_layer(output)

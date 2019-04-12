@@ -193,9 +193,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Re-decoded output distributions.
         """
         num_layers = len(new_hidden.keys())
-        new_out = self.model.decoder(self.select(new_hidden[num_layers - 1]))  # Select topmost hidden activations
+        new_out = self.select(new_hidden[num_layers - 1])  # Select topmost hidden activations
         new_out = self.model.dropout_layer(new_out)
-        new_out = new_out.unsqueeze(1)
         new_out_dist = self.model.predict_distribution(new_out)
 
         return new_out_dist
