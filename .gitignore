@@ -3,6 +3,7 @@ data/activations/giulianelli/*
 data/activations/gulordava/*
 data/classifiers/giulianelli/*
 data/models/gulordava/model.pt
+logs/*
 
 
 # Byte-compiled / optimized / DLL files

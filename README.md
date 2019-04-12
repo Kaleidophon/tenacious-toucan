@@ -39,7 +39,7 @@ Lastly, it should be noted that the training of the Diagnostic Classifiers intro
 replication, because the training splits are generated randomly everytime, and differently trained Diagnostic Classifiers
 therefore also impact the effects of interventions in a different way. To repeat the experiments with different classifiers
 again, delete the results in `data/classifiers/giulianelli/models` and `data/classifiers/giulianelli/preds` and execute 
-`classify.py` and `replication.py` again.
+`replication/classify.py` and `replication/replicate.py` again.
 
 
 ### References

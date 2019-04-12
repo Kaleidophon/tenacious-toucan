@@ -1,0 +1,6 @@
+{
+    "activations_dir": "data/activations/giulianelli",
+    "activation_names": ["hx0", "hx1", "cx0", "cx1"],
+    "output_dir": "data/classifiers/giulianelli",
+    "classifier_type": "logreg"
+}
