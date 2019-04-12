@@ -140,8 +140,6 @@ class LSTMLanguageModel(AbstractRNN):
             hx = self.track_grad(hx)
             cx = self.track_grad(cx)
 
-        # TODO: Employ PyTorch optimization with concatenated matrices?
-
         # Forget gate
         f_g = torch.sigmoid(self.gates[layer]['if'](input_) + self.gates[layer]['hf'](hx))
 

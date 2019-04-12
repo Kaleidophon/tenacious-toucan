@@ -10,6 +10,7 @@ from typing import Iterable
 import torch
 from torch import nn, Tensor
 from torch.nn import ReLU, Sigmoid
+from torch.autograd import Variable
 
 # PROJECT
 from src.utils.types import StepSize
@@ -91,15 +92,15 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         # Init layers
         self.model = nn.Sequential()
         last_layer_size = predictor_layers[0]
-        self.model.add_module("input", nn.Linear(hidden_size * window_size, last_layer_size, bias=False))
+        self.model.add_module("input", nn.Linear(hidden_size * window_size, last_layer_size))
         self.model.add_module("relu0", ReLU())
 
         for layer_n, current_layer_size in enumerate(predictor_layers[1:]):
-            self.model.add_module(f"hidden{layer_n+1}", nn.Linear(last_layer_size, current_layer_size, bias=False))
+            self.model.add_module(f"hidden{layer_n+1}", nn.Linear(last_layer_size, current_layer_size))
             self.model.add_module(f"relu{layer_n+1}", ReLU())
             last_layer_size = current_layer_size
 
-        self.model.add_module("out", nn.Linear(last_layer_size, 1, bias=False))  # Output scalar alpha_t
+        self.model.add_module("out", nn.Linear(last_layer_size, 1))  # Output scalar alpha_t
         self.model.add_module("sigmoid", Sigmoid())
 
         # Init buffers
@@ -163,14 +164,16 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         """
         # TODO: Re-write buffer as actually registered PyTorch buffer
         # Detach from graph so gradients don't flow through them when backpropagating for recoding or main gradients
-        hidden = hidden.detach()
+        #hidden = hidden.detach()
         batch_size, _ = hidden.size()
 
         # If buffer is empty or batch size changes (e.g. when going from training to testing), initialize it with zero
         # hidden states
         buffer_batch_size = -1 if len(self.hidden_buffer) == 0 else self.hidden_buffer[0].shape[0]
         if len(self.hidden_buffer) == 0 or buffer_batch_size != batch_size:
-            self.hidden_buffer = [torch.zeros((batch_size, self.hidden_size)).to(device)] * self.window_size
+            self.hidden_buffer = [
+                Variable(torch.zeros((batch_size, self.hidden_size)).to(device), requires_grad=True)
+            ] * self.window_size
 
         # Add hidden state to buffer
         self.hidden_buffer.append(hidden)
