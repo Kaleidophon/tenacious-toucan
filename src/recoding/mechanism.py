@@ -51,12 +51,9 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         }
 
         # Collect predictor modules and add them to the model so that parameters are learned
-        # TODO: Predictor parameters are not learned!!!
         for l, predictors in self.predictors.items():
             for n, p in enumerate(predictors):
                 self.model.add_module(f"predictor{n}_l{l}", p)
-
-        ...  # TODO: Debug
 
     @abstractmethod
     def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,
@@ -155,13 +152,15 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         hidden.grad = self.replace_nans(hidden.grad)
 
         # Perform recoding by doing a gradient decent step
-        # Important: Do update step in-place, otherwise PyTorch allocates some extra space that won't be properly freed
-        # up after using backward(), eventually causing a memory spill.
-        hidden.add_(-step_size * hidden.grad)
+        # Important: Detach hidden in-place here to avoid memory spill
+        recoding_grad = hidden.grad
+        hidden.detach_()
+        new_hidden = hidden - step_size * recoding_grad
 
-        #hidden.detach_()  # TODO: Debug
+        # Another way could be also to detach new_hidden, but in this case gradients can't flow through step size,
+        # which is necessary to train the parameters of models like AdaptiveStepPredictor
 
-        return hidden
+        return new_hidden
 
     @staticmethod
     def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
@@ -185,7 +184,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
         # Important: Do NOT use create_graph=True here, it will cause a memory spill.
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
         """

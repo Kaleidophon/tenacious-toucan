@@ -164,7 +164,6 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         """
         # TODO: Re-write buffer as actually registered PyTorch buffer
         # Detach from graph so gradients don't flow through them when backpropagating for recoding or main gradients
-        #hidden = hidden.detach()
         batch_size, _ = hidden.size()
 
         # If buffer is empty or batch size changes (e.g. when going from training to testing), initialize it with zero
