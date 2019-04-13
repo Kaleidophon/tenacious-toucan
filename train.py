@@ -123,7 +123,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     batch_loss += loss(output_dist, batch[:, t+1])
 
                 # Backward pass
-                batch_loss /= batch_size
+                batch_loss /= batch_size * (seq_len - 1)
                 batch_loss.backward()
 
                 clip_grad_norm_(model.parameters(), clip)
