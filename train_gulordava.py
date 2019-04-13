@@ -179,7 +179,8 @@ def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0
-    hidden = model.init_hidden(eval_batch_size)
+    hidden = None
+    #hidden = model.init_hidden(eval_batch_size)
 
     with torch.no_grad():
         for i in range(0, data_source.size(0) - 1, bptt):
@@ -194,7 +195,8 @@ def evaluate(data_source):
             output_flat = output.view(-1, ntokens)
             #output_candidates_info(output_flat.data, targets.data)
             total_loss += len(data) * nn.CrossEntropyLoss()(output_flat, targets).data
-            hidden = repackage_hidden(hidden)
+            #hidden = repackage_hidden(hidden)
+            hidden = {l: CompatibleRNN.map(h, func=lambda h: h.detach()) for l, h in hidden.items()}
 
     return total_loss.item() /len(data_source - 1)
 
