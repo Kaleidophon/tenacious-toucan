@@ -7,6 +7,7 @@ import os
 import torch
 from collections import defaultdict
 import logging
+import codecs
 
 from train import init_model, manage_config, init_argparser
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
@@ -27,7 +28,7 @@ class Dictionary(object):
         except FileNotFoundError:
             logging.info("Vocab file not found, creating new vocab file.")
             self.create_vocab(os.path.join(path, 'train.txt'))
-            open(vocab_path,"w").write("\n".join([w for w in self.idx2word]))
+            codecs.open(vocab_path,"w", "utf-8").write("\n".join([w for w in self.idx2word]))
 
     def add_word(self, word):
         self.word2freq[word] += 1
