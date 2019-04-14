@@ -4,6 +4,7 @@ Train the model with the uncertainty-based intervention mechanism.
 
 # STD
 from argparse import ArgumentParser
+import math
 import sys
 from typing import Optional, Any
 
@@ -135,7 +136,8 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 if total_batch_i % print_every == 0:
                     progress_bar.set_description(
-                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:>7.3f}",
+                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:>7.3f} | "
+                        f"Train ppl: {math.exp(batch_loss):>7.3f}",
                         refresh=False
                     )
                     progress_bar.update(print_every)
@@ -158,6 +160,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     log_to_file(
                         {"batch_num": total_batch_i, "val_ppl": validation_ppl}, f"{log_dir}/{MODEL_NAME}_val.log"
                     )
+                # TODO: Anneal learning rate when appropriate
 
 
 def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLanguageModel:
