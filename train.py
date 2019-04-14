@@ -9,7 +9,7 @@ from typing import Optional, Any
 
 # EXT
 import numpy as np
-from rnnalyse.config.setup import ConfigSetup
+from diagnnose.config.setup import ConfigSetup
 import torch
 import torch.optim as optim
 from torch.nn import CrossEntropyLoss, DataParallel

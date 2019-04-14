@@ -9,7 +9,7 @@ from collections import defaultdict
 import logging
 import codecs
 
-from train import init_model, manage_config, init_argparser
+from train import init_model, manage_config
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
