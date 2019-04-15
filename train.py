@@ -104,7 +104,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     if valid_set is not None:
         # Anneal learning rate if no improvement is seen after a while
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=0.25, threshold=0.1, patience=num_batches // eval_every
+            optimizer, factor=0.25, threshold=100, patience=10
         )
 
     loss = CrossEntropyLoss().to(device)
