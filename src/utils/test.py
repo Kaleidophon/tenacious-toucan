@@ -51,22 +51,24 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     test_set.create_batches(batch_size, repeat=False, drop_last=False, device=device)
 
     model.eval()
-    for batch in test_set:
+    for batch, targets in test_set:
         batch_size, seq_len = batch.shape
 
-        for t in range(seq_len - 1):
-            input_vars = batch[:, t].unsqueeze(1).to(device)  # Make input vars batch_size x 1
-            output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1].to(device))
-            output_dist = output_dist.squeeze(1)
+        for t in range(seq_len):
+            input_vars = batch[:, t].to(device)
+            output_dist, hidden = model(input_vars, hidden, target_idx=targets[:, t].to(device))
 
             # Calculate loss where the target is not <unk>
-            target_indices = batch[:, t + 1] != unk_idx if ignore_unk else torch.ones(batch_size, dtype=torch.long)
-            targets = batch[target_indices, t + 1].to(device)
-            target_output_dist = output_dist[target_indices, :]
+            if ignore_unk:
+                target_indices = targets[:, t] != unk_idx
+                current_targets = targets[target_indices, t].to(device)
+                output_dist = output_dist[target_indices, :]
+            else:
+                current_targets = targets[:, t].to(device)
 
-            current_loss = loss(target_output_dist, targets).item()
+            current_loss = loss(output_dist, current_targets).item()
 
-            global_norm += targets.shape[0]
+            global_norm += current_targets.shape[0]
             test_metric += current_loss
 
         hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}

@@ -96,11 +96,18 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     global MODEL_NAME
     remove_logs(log_dir, MODEL_NAME)
 
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, amsgrad=True)
     train_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
     num_batches = len(train_set)
 
-    loss = CrossEntropyLoss(reduction="sum").to(device)  # Don't average
+    optimizer = optim.SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
+    if valid_set is not None:
+        # Anneal learning rate if no improvement is seen after a while
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, factor=0.25, threshold=0.1, patience=num_batches // eval_every
+        )
+
+    loss = CrossEntropyLoss().to(device)
     total_batch_i = 0
     hidden = None
     best_validation_ppl = np.inf
@@ -111,20 +118,25 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
         for epoch in range(num_epochs):
 
-            for batch_i, batch in enumerate(train_set):
+            for batch_i, (batch, targets) in enumerate(train_set):
+
+                # TODO: Debug
+                if batch_i == 4:
+                    return
 
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()
-                batch_loss = 0
+                outputs = []
 
-                for t in range(seq_len - 1):
-                    input_vars = batch[:, t].unsqueeze(1)  # Make input vars batch_size x 1
-                    output_dist, hidden = model(input_vars, hidden, target_idx=batch[:, t+1])
-                    output_dist = output_dist.squeeze(1)
-                    batch_loss += loss(output_dist, batch[:, t+1])
+                for t in range(seq_len):
+                    input_vars = batch[:, t]  # Make input vars batch_size x 1
+                    output_dist, hidden = model(input_vars, hidden, target_idx=targets[:, t])
+                    outputs.append(output_dist)
 
                 # Backward pass
-                batch_loss /= batch_size * (seq_len - 1)
+                outputs = torch.cat(outputs)
+                targets = targets.contiguous().view(batch_size * seq_len)
+                batch_loss = loss(outputs, target=targets)
                 batch_loss.backward()
 
                 clip_grad_norm_(model.parameters(), clip)
@@ -141,11 +153,12 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                         ppl = 100000
 
                     progress_bar.set_description(
-                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | Train Loss: {batch_loss:>7.3f} | "
-                        f"Train ppl: {ppl:>7.3f}",
+                        f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | LR: {learning_rate:<2} | "
+                        f"Train Loss: {batch_loss:>7.3f} | Train ppl: {ppl:>7.3f}",
                         refresh=False
                     )
                     progress_bar.update(print_every)
+                    learning_rate = optimizer.param_groups[0]["lr"]  # This is only for printing
 
                 # Log
                 batch_loss = float(batch_loss.cpu().detach())
@@ -161,11 +174,12 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     if validation_ppl < best_validation_ppl and model_save_path is not None:
                         torch.save(model, model_save_path)
                         best_validation_ppl = validation_ppl
+                    else:
+                        scheduler.step(validation_ppl)  # Anneal learning rate
 
                     log_to_file(
                         {"batch_num": total_batch_i, "val_ppl": validation_ppl}, f"{log_dir}/{MODEL_NAME}_val.log"
                     )
-                # TODO: Anneal learning rate when appropriate
 
 
 def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLanguageModel:

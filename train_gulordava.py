@@ -11,6 +11,7 @@ import codecs
 
 from train import init_model, manage_config
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
+from src.utils.corpora import load_data
 
 
 class Dictionary(object):
@@ -134,18 +135,21 @@ save = config_dict["train"]["model_save_path"]
 epochs = config_dict["train"]["num_epochs"]
 
 start = time.time()
-corpus = Corpus(corpus_dir)
+
+#corpus = Corpus(corpus_dir)
+train_corpus, valid_corpus = load_data(corpus_dir, bptt)
 logging.info("( %.2f )" % (time.time() - start))
 #logging.info(corpus.train)
 
 logging.info("Batchying..")
 eval_batch_size = 10
-train_data = batchify(corpus.train, batch_size, cuda)
+train_data = batchify(train_corpus.indexed_sentences, batch_size, cuda)
 #logging.info("Train data size", train_data.size())
-val_data = batchify(corpus.valid, eval_batch_size, cuda)
-test_data = batchify(corpus.test, eval_batch_size, cuda)
+val_data = batchify(valid_corpus.indexed_sentences, eval_batch_size, cuda)
+#test_data = batchify(corpus.test, eval_batch_size, cuda)
 
-ntokens = len(corpus.dictionary)
+#ntokens = len(corpus.dictionary)
+ntokens = len(train_corpus)
 
 criterion = nn.CrossEntropyLoss()
 
@@ -155,7 +159,7 @@ criterion = nn.CrossEntropyLoss()
 
 logging.info("Building the model")
 
-model = init_model(config_dict, vocab_size=len(corpus.dictionary), corpus_size=len(corpus.train))
+model = init_model(config_dict, vocab_size=len(train_corpus.vocab), corpus_size=len(train_corpus))
 
 
 ###############################################################################
@@ -206,7 +210,7 @@ def train():
     model.train()
     total_loss = 0
     start_time = time.time()
-    ntokens = len(corpus.dictionary)
+    ntokens = len(train_corpus)
     logging.info("Vocab size %d", ntokens)
 
     #hidden = model.init_hidden(batch_size)
@@ -223,7 +227,8 @@ def train():
         #output, hidden = model(data, hidden)
         output, hidden = process_seq(model, hidden, data)
 
-        loss = criterion(output.view(-1, ntokens), targets)
+        #loss = criterion(output.view(-1, ntokens), targets)
+        loss = criterion(output, targets)
         loss.backward()
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.

@@ -168,7 +168,7 @@ class WikiCorpus(Dataset):
 
         while True:
             for batch in self.batches:
-                yield batch
+                yield batch[:, :-1], batch[:, 1:]  # Return batch and target indices
             if not self.repeat:
                 return
 
