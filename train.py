@@ -120,10 +120,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
             for batch_i, (batch, targets) in enumerate(train_set):
 
-                # TODO: Debug
-                if batch_i == 4:
-                    return
-
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()
                 outputs = []
