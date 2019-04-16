@@ -160,7 +160,7 @@ class WikiCorpus(Dataset):
 
         self.num_batches = int(num_batched_steps / self.seq_len)
 
-        self.batches = [raw_batches[n: n + self.seq_len].t() for n in range(self.num_batches)]
+        self.batches = [raw_batches[n * self.seq_len: (n + 1) * self.seq_len, :].t() for n in range(self.num_batches)]
 
     def __iter__(self):
         if self.batches is None:
