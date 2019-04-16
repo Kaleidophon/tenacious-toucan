@@ -145,9 +145,9 @@ logging.info("( %.2f )" % (time.time() - start))
 
 logging.info("Batchying..")
 eval_batch_size = 10
-#train_corpus.create_batches(batch_size, repeat=False, drop_last=True, device=device)
-#valid_corpus.create_batches(batch_size, repeat=False, drop_last=False, device=device)
-train_data = batchify(train_corpus.indexed_sentences, batch_size, cuda)
+train_corpus.create_batches(batch_size, repeat=False, drop_last=True, device=device)
+valid_corpus.create_batches(batch_size, repeat=False, drop_last=False, device=device)
+#train_data = batchify(train_corpus.indexed_sentences, batch_size, cuda)
 #logging.info("Train data size", train_data.size())
 #val_data = batchify(valid_corpus.indexed_sentences, eval_batch_size, cuda)
 #test_data = batchify(corpus.test, eval_batch_size, cuda)
