@@ -143,9 +143,11 @@ logging.info("( %.2f )" % (time.time() - start))
 
 logging.info("Batchying..")
 eval_batch_size = 10
-train_data = batchify(train_corpus.indexed_sentences, batch_size, cuda)
+train_corpus.create_batches(batch_size, repeat=False, drop_last=True, device=device)
+valid_corpus.create_batches(batch_size, repeat=False, drop_last=False, device=device)
+#train_data = batchify(train_corpus.indexed_sentences, batch_size, cuda)
 #logging.info("Train data size", train_data.size())
-val_data = batchify(valid_corpus.indexed_sentences, eval_batch_size, cuda)
+#val_data = batchify(valid_corpus.indexed_sentences, eval_batch_size, cuda)
 #test_data = batchify(corpus.test, eval_batch_size, cuda)
 
 #ntokens = len(corpus.dictionary)
@@ -216,8 +218,11 @@ def train():
     #hidden = model.init_hidden(batch_size)
     hidden = None
 
-    for batch, i in enumerate(range(0, train_data.size(0) - 1, bptt)):
-        data, targets = get_batch(train_data, i, bptt)
+    for batch, (data, targets) in enumerate(train_corpus):
+    #for batch, i in enumerate(range(0, train_data.size(0) - 1, bptt)):
+        #data, targets = get_batch(train_data, i, bptt)
+        targets = torch.flatten(targets)
+        data = data.t()
         # truncated BPP
         #hidden = repackage_hidden(hidden)
         if hidden is not None:
@@ -243,7 +248,8 @@ def train():
             elapsed = time.time() - start_time
             logging.info('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, batch, len(train_data) // bptt, lr,
+                epoch, batch, len(train_corpus), #// bptt,
+                lr,
                 elapsed * 1000 / log_interval, cur_loss, math.exp(cur_loss)))
             total_loss = 0
             start_time = time.time()
