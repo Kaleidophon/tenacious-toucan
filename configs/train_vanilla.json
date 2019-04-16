@@ -14,7 +14,7 @@
   "model_name": "test",
   "max_sentence_len": 35,
   "multi_gpu": false,
-  "weight_decay": 0.001,
+  "weight_decay": 0,
   "device": "cpu",
   "evaluate": true,
   "ignore_unk": false,
