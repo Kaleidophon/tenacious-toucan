@@ -109,7 +109,7 @@ def batchify(data, bsz, cuda):
     if cuda:
         data = data.cuda()
 
-    #batches = [get_batch(data, i, 35) for i in range(0, data.size(0) - 1, bptt)]
+    batches = [get_batch(data, i, 35) for i in range(0, data.size(0) - 1, bptt)]
     return data
 
 ###############################################################################
@@ -223,8 +223,8 @@ def train():
     for batch, (data, targets) in enumerate(train_corpus):
     #for batch, i in enumerate(range(0, train_data.size(0) - 1, bptt)):
         #data, targets = get_batch(train_data, i, bptt)
-        targets = torch.flatten(targets)
-        data = data.t()
+        #targets = torch.flatten(targets)
+        #data = data.t()
         # truncated BPP
         #hidden = repackage_hidden(hidden)
         if hidden is not None:
