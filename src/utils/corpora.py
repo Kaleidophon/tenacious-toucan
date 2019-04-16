@@ -162,8 +162,6 @@ class WikiCorpus(Dataset):
         self.num_batches = math.ceil(num_batched_steps / self.seq_len)
 
         self.batches = [raw_batches[n * self.seq_len: (n + 1) * self.seq_len + 1, :] for n in range(self.num_batches)]
-        #iter = [t for t in self]
-        #...
 
     def __iter__(self):
         if self.batches is None:
@@ -171,7 +169,7 @@ class WikiCorpus(Dataset):
 
         while True:
             for batch in self.batches:
-                yield batch[:-1, :].t(), batch[1:, :].t()  # Return batch and target indices
+                yield batch[:-1, :], batch[1:, :]  # Return batch and target indices
             if not self.repeat:
                 return
 

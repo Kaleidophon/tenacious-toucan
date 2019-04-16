@@ -120,18 +120,21 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
             for batch_i, (batch, targets) in enumerate(train_set):
 
+                # Batch and targets come out here with seq_len x batch_size
+                # So invert batch here so batch dimension is first and flatten targets later
+                batch.t_()
                 batch_size, seq_len = batch.shape
                 optimizer.zero_grad()
                 outputs = []
 
                 for t in range(seq_len):
                     input_vars = batch[:, t]  # Make input vars batch_size x 1
-                    output_dist, hidden = model(input_vars, hidden, target_idx=targets[:, t])
+                    output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :])
                     outputs.append(output_dist)
 
                 # Backward pass
                 outputs = torch.cat(outputs)
-                targets = targets.contiguous().view(batch_size * seq_len)
+                targets = torch.flatten(targets)
                 batch_loss = loss(outputs, target=targets)
                 batch_loss.backward()
 

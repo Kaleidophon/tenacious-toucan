@@ -52,19 +52,22 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
     model.eval()
     for batch, targets in test_set:
+        # Batch and targets come out here with seq_len x batch_size
+        # So invert batch here so batch dimension is first and flatten targets later
+        batch.t_()
         batch_size, seq_len = batch.shape
 
         for t in range(seq_len):
             input_vars = batch[:, t].to(device)
-            output_dist, hidden = model(input_vars, hidden, target_idx=targets[:, t].to(device))
+            output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :].to(device))
 
             # Calculate loss where the target is not <unk>
             if ignore_unk:
-                target_indices = targets[:, t] != unk_idx
-                current_targets = targets[target_indices, t].to(device)
-                output_dist = output_dist[target_indices, :]
+                target_indices = targets[t, :] != unk_idx
+                current_targets = targets[t, target_indices].to(device)
+                output_dist = output_dist[:, target_indices]
             else:
-                current_targets = targets[:, t].to(device)
+                current_targets = targets[t, :].to(device)
 
             current_loss = loss(output_dist, current_targets).item()
 
