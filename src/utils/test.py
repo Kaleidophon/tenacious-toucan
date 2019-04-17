@@ -65,7 +65,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             if ignore_unk:
                 target_indices = targets[t, :] != unk_idx
                 current_targets = targets[t, target_indices].to(device)
-                output_dist = output_dist[:, target_indices]
+                output_dist = output_dist[target_indices, :]
             else:
                 current_targets = targets[t, :].to(device)
 

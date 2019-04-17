@@ -64,7 +64,7 @@ class FixedStepPredictor(AbstractStepPredictor):
         step_size: StepSize
             Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
         """
-        return self.step_size
+        return torch.Tensor([self.step_size])
 
 
 class AdaptiveStepPredictor(AbstractStepPredictor):
