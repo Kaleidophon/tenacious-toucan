@@ -51,20 +51,19 @@ class StatsCollector:
         """
         @wraps(func)
         def wrapper(self, hidden: torch.Tensor, step_size: StepSize, name: Optional[str]) -> torch.Tensor:
-            grad = hidden.grad
-            grad[grad != grad] = 0  # Replace nans
+            grad_norm = torch.norm(hidden.grad)
 
             if name is None:
                 if "recoding_grads" not in cls._stats.keys():
                     cls._stats["recoding_grads"], cls._stats["step_sizes"] = [], []
 
-                cls._stats["recoding_grads"].append(grad)
+                cls._stats["recoding_grads"].append(grad_norm)
                 cls._stats["step_sizes"].append(step_size)
             else:
                 if "recoding_grads" not in cls._stats.keys():
                     cls._stats["recoding_grads"], cls._stats["step_sizes"] = defaultdict(list), defaultdict(list)
 
-                cls._stats["recoding_grads"][name].append(grad)
+                cls._stats["recoding_grads"][name].append(grad_norm)
                 cls._stats["step_sizes"][name].append(step_size)
 
             return func(self, hidden, step_size, name)
@@ -80,8 +79,8 @@ class StatsCollector:
 
     @classmethod
     def _reduce_recoding_gradients(cls, recoding_gradients: List[torch.Tensor]):
-        recoding_gradients = torch.cat(recoding_gradients, dim=0)
-        mean_grad_norm = torch.norm(recoding_gradients, dim=0).mean()
+        recoding_gradients = torch.stack(recoding_gradients)
+        mean_grad_norm = recoding_gradients.mean()
 
         return mean_grad_norm.item()
 

@@ -21,7 +21,7 @@
 
   "corpus_dir": "data/corpora/wikitext2",
   "model_save_path": "data/models/uncertainty/test.pt",
-  "print_every": 1,
+  "print_every": 10,
   "eval_every": 200,
   "log_dir": "logs",
   "model_name": "test",
