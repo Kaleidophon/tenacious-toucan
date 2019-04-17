@@ -4,6 +4,7 @@ Define helpful logging functions.
 
 # STD
 from collections import defaultdict
+from functools import wraps
 from genericpath import isfile
 from os import listdir
 from os.path import join
@@ -12,9 +13,139 @@ import os
 
 # EXT
 import numpy as np
+import torch
 
 # PROJECT
-from src.utils.types import LogDict, AggregatedLogs
+from src.utils.types import LogDict, AggregatedLogs, StepSize
+
+
+class StatsCollector:
+    """
+    Class that is used to retrieve some interesting information to plot deep from some class, modifying the least
+    amount of code from the class as possible. In order to achieve this, we decorate function with desirable arguments
+    and return values with class methods of this class. This way the information can stored easily in a static version
+    of this class.
+    """
+    _stats = {}
+
+    @classmethod
+    def collect_deltas(cls, func) -> Callable:
+        """
+        Decorate the compute_recoding_gradient() function of the recoding mechanism and collect information about the
+        error signals.
+        """
+        @wraps(func)
+        def wrapper(delta: torch.Tensor, *args) -> None:
+            if "delta" not in cls._stats.keys():
+                cls._stats["deltas"] = []
+
+            cls._stats["deltas"].append(delta)
+            func(delta, *args)
+
+        return wrapper
+
+    @classmethod
+    def collect_recoding_gradients(cls, func) -> Callable:
+        """
+        Decorate the recode() function of the recoding mechanism in order to collect data about the recoding gradients.
+        """
+        @wraps(func)
+        def wrapper(self, hidden: torch.Tensor, step_size: StepSize, name: Optional[str]) -> torch.Tensor:
+            grad = hidden.grad
+            grad[grad != grad] = 0  # Replace nans
+
+            if name is None:
+                if "recoding_grads" not in cls._stats.keys():
+                    cls._stats["recoding_grads"], cls._stats["step_sizes"] = [], []
+
+                cls._stats["recoding_grads"].append(grad)
+                cls._stats["step_sizes"].append(step_size)
+            else:
+                if "recoding_grads" not in cls._stats.keys():
+                    cls._stats["recoding_grads"], cls._stats["step_sizes"] = defaultdict(list), defaultdict(list)
+
+                cls._stats["recoding_grads"][name].append(grad)
+                cls._stats["step_sizes"][name].append(step_size)
+
+            return func(self, hidden, step_size, name)
+
+        return wrapper
+
+    @classmethod
+    def _reduce_deltas(cls, deltas: List[torch.Tensor]):
+        deltas = torch.stack(deltas)
+        mean_delta = torch.flatten(deltas).mean()
+
+        return mean_delta.item()
+
+    @classmethod
+    def _reduce_recoding_gradients(cls, recoding_gradients: List[torch.Tensor]):
+        recoding_gradients = torch.cat(recoding_gradients, dim=0)
+        mean_grad_norm = torch.norm(recoding_gradients, dim=0).mean()
+
+        return mean_grad_norm.item()
+
+    @classmethod
+    def _reduce_step_sizes(cls, step_sizes: List[StepSize]):
+        step_sizes = torch.stack(step_sizes)
+        mean_step_size = torch.flatten(step_sizes).mean()
+
+        return mean_step_size.item()
+
+    @classmethod
+    def reduce(cls) -> dict:
+        """
+        Reduce collected data in a way that it can be written easily into a log.
+        """
+        reduction_funcs = {
+            "deltas": cls._reduce_deltas,
+            "recoding_grads": cls._reduce_recoding_gradients,
+            "step_sizes": cls._reduce_step_sizes
+        }
+
+        reduced_stats = {}
+
+        for stat, data in cls._stats.items():
+            if type(data) in (dict, defaultdict):  # Nested stats
+                reduced_stats[stat] = {}
+                for name in data.keys():
+                    reduced_stats[stat][name] = reduction_funcs[stat](cls._stats[stat][name])
+            else:
+                reduced_stats[stat] = reduction_funcs[stat](cls._stats[stat])
+
+        return reduced_stats
+
+    @classmethod
+    def get_stats(cls) -> dict:
+        """
+        Return all the collected statistics in a way that is easy to write into a log.
+        """
+        reduced_stats = cls.reduce()
+
+        return reduced_stats
+
+    @classmethod
+    def wipe(cls) -> None:
+        """
+        Release all collected information.
+        """
+        cls._stats = {}
+
+    @staticmethod
+    def flatten_stats(stats: dict) -> dict:
+        """
+        Flatten a dictionary of stats by removing any nesting.
+        """
+        flattened_stats = {}
+
+        for key, value in stats.items():
+            if type(value) in (dict, defaultdict):
+                for value_name, val in value.items():
+                    flattened_stats[f"{key}_{value_name}"] = val
+            else:
+                flattened_stats[key] = value
+
+        return flattened_stats
 
 
 def remove_logs(log_dir: str, model_name: str) -> None:

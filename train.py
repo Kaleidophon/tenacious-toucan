@@ -26,7 +26,7 @@ from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
-from src.utils.log import remove_logs, log_to_file
+from src.utils.log import remove_logs, log_to_file, StatsCollector
 from src.utils.types import Device
 
 # GLOBALS
@@ -111,6 +111,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     total_batch_i = 0
     hidden = None
     best_validation_ppl = np.inf
+    stats_collector = StatsCollector()
 
     # Changing format to avoid redundant information
     bar_format = "{desc}{percentage:3.0f}% {bar} | {elapsed} < {remaining} | {rate_fmt}\n"
@@ -161,7 +162,11 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 # Log
                 batch_loss = float(batch_loss.cpu().detach())
-                log_to_file({"batch_num": total_batch_i, "batch_loss": batch_loss}, f"{log_dir}/{MODEL_NAME}_train.log")
+                batch_stats = stats_collector.get_stats()
+                batch_stats = stats_collector.flatten_stats(batch_stats)
+                log_stats = {"batch_num": total_batch_i, "batch_loss": batch_loss, **batch_stats}
+                log_to_file(log_stats, f"{log_dir}/{MODEL_NAME}_train.log")
+                stats_collector.wipe()
 
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:

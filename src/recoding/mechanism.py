@@ -6,7 +6,7 @@ be employed during training, not only testing time.
 
 # STD
 from abc import abstractmethod, ABC
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional
 
 # EXT
 import torch
@@ -16,6 +16,7 @@ from torch.autograd import backward
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.compatability import RNNCompatabilityMixin
+from src.utils.log import StatsCollector
 from src.recoding.step import FixedStepPredictor, AdaptiveStepPredictor
 from src.utils.types import Device, HiddenDict, StepSize
 
@@ -113,8 +114,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         new_hidden = {
             l: tuple([
                 # Use the step predictor for the corresponding state and layer
-                self.recode(h, step_size=predictor(h, device))
-                for h, predictor in zip(hid, self.predictors[l])])  # Be LSTM / GRU agnostic
+                self.recode(h, step_size=predictor(h, device), name=f"{name}_l{l}")
+                for h, predictor, name in zip(hid, self.predictors[l], ["hx", "cx"])])  # TODO: Be LSTM / GRU agnostic
             for l, hid in hidden.items()
         }
 
@@ -123,7 +124,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
 
         return new_out_dist, new_hidden
 
-    def recode(self, hidden: Tensor, step_size: StepSize) -> Tensor:
+    @StatsCollector.collect_recoding_gradients
+    def recode(self, hidden: Tensor, step_size: StepSize, name: Optional[str] = None) -> Tensor:
         """
         Perform a single recoding step on the current time step's hidden activations.
 
@@ -133,6 +135,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Current hidden state.
         step_size: StepSize
             Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
+        name: Optional[int]
+            Optional name for the kind of activations that might be accessed by decorators.
 
         Returns
         -------
@@ -155,6 +159,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         return new_hidden
 
     @staticmethod
+    @StatsCollector.collect_deltas
     def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
         """
         Compute the recoding gradient of the error signal delta w.r.t to all hidden activations of the network.
