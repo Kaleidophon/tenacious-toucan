@@ -4,21 +4,23 @@
   "num_layers": 2,
   "learning_rate": 20,
   "batch_size": 64,
-  "num_epochs": 40,
-  "corpus_dir": "data/corpora/wikitext2",
+  "num_epochs": 10,
   "clip": 0.25,
+  "weight_decay": 0,
+  "max_sentence_len": 35,
+  "dropout": 0.2,
+
+  "recoding_type": null,
+
+  "corpus_dir": "data/corpora/wikitext2",
+  "model_save_path": "data/models/uncertainty/test.pt",
   "print_every": 1,
   "eval_every": 200,
-  "model_save_path": "data/models/uncertainty/test.pt",
   "log_dir": "logs",
   "model_name": "test",
   "layout": null,
-  "max_sentence_len": 35,
   "multi_gpu": false,
   "device": "cuda",
   "evaluate": true,
-  "weight_decay": 0,
-  "ignore_unk": false,
-  "dropout": 0.2,
-  "recoding_type": null
+  "ignore_unk": false
 }

@@ -279,6 +279,7 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--mc_dropout", type=float, help="Dropout probability when estimating uncertainty.")
     from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
+    from_cmd.add_argument("--window_size", type=int, default=None, help="Window size for adaptive step predictor.")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")
