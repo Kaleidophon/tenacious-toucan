@@ -109,16 +109,13 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
 
     def train(self, mode=True):
         """ When model mode changes, erase buffer. """
-        super().train(mode)
         # Either use new, empty buffer or continue with buffer used before model was switched to testing mode
         self.hidden_buffer = self._buffer_copy
 
     def eval(self):
         """ When model mode changes, erase buffer. """
-        super().test()
         self._buffer_copy = self.hidden_buffer
         self.hidden_buffer = []
-        self.mc_dropout_layer.train()  # Don't switch dropout to eval
 
     def forward(self, hidden: Tensor, device: torch.device) -> StepSize:
         """

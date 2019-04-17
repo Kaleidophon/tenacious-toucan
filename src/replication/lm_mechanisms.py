@@ -11,8 +11,8 @@ from overrides import overrides
 from torch import Tensor
 from torch.nn import NLLLoss
 from torch.nn.modules.loss import _Loss
-from rnnalyse.interventions.weakly_supervised import WeaklySupervisedMechanism
-from rnnalyse.typedefs.activations import FullActivationDict
+from diagnnose.interventions.weakly_supervised import WeaklySupervisedMechanism
+from diagnnose.typedefs.activations import FullActivationDict
 
 
 class LanguageModelMechanism(WeaklySupervisedMechanism):

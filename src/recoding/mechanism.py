@@ -1,6 +1,6 @@
 """
 Define a recoding mechanism. This mechanism is based on the idea of an intervention mechanism (see
-rnnalyse.interventions.mechanism.InterventionMechanism), but works entirely supervised. Furthermore, it can already
+diagnnose.interventions.mechanism.InterventionMechanism), but works entirely supervised. Furthermore, it can already
 be employed during training, not only testing time.
 """
 

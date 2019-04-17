@@ -8,13 +8,13 @@ from collections import defaultdict
 
 # EXT
 import numpy as np
-from rnnalyse.classifiers.dc_trainer import DCTrainer
-from rnnalyse.corpora.import_corpus import convert_to_labeled_corpus
-from rnnalyse.activations.initial import InitStates
-from rnnalyse.models.intervention_lstm import InterventionLSTM
-from rnnalyse.models.import_model import import_model_from_json
-from rnnalyse.typedefs.corpus import LabeledCorpus
-from rnnalyse.config.setup import ConfigSetup
+from diagnnose.classifiers.dc_trainer import DCTrainer
+from diagnnose.corpora.import_corpus import convert_to_labeled_corpus
+from diagnnose.activations.initial import InitStates
+from diagnnose.models.intervention_lstm import InterventionLSTM
+from diagnnose.models.import_model import import_model_from_json
+from diagnnose.typedefs.corpus import LabeledCorpus
+from diagnnose.config.setup import ConfigSetup
 from scipy.stats import shapiro, ttest_ind, mannwhitneyu
 import torch
 from torch.nn.functional import log_softmax

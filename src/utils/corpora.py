@@ -7,12 +7,13 @@ import time
 from collections import defaultdict
 from typing import List, Optional, Tuple
 import os
+import math
 
 # EXT
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
-from rnnalyse.models.w2i import W2I
+from diagnnose.models.w2i import W2I
 
 # PROJECT
 from src.utils.types import Device
@@ -158,9 +159,9 @@ class WikiCorpus(Dataset):
         if num_batched_steps % self.seq_len > 0 and drop_last:
             num_batched_steps -= num_batched_steps % self.seq_len
 
-        self.num_batches = int(num_batched_steps / self.seq_len)
+        self.num_batches = math.ceil(num_batched_steps / self.seq_len)
 
-        self.batches = [raw_batches[n: n + self.seq_len].t() for n in range(self.num_batches)]
+        self.batches = [raw_batches[n * self.seq_len: (n + 1) * self.seq_len + 1, :] for n in range(self.num_batches)]
 
     def __iter__(self):
         if self.batches is None:
@@ -168,7 +169,7 @@ class WikiCorpus(Dataset):
 
         while True:
             for batch in self.batches:
-                yield batch
+                yield batch[:-1, :], batch[1:, :]  # Return batch and target indices
             if not self.repeat:
                 return
 

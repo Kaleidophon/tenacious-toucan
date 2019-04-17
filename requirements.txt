@@ -3,6 +3,6 @@ numpy==1.15.4
 scipy==1.1.0
 scikit-learn==0.20.2
 torch
--e git://github.com/dieuwkehupkes/diagnosing_lms.git#egg=rnnalyse
+git://github.com/i-machine-think/diagnnose.git#egg=diagnnose
 overrides
 tqdm

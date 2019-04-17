@@ -7,12 +7,12 @@ https://github.com/dieuwkehupkes/diagnosing_lms/tree/interventions.
 from argparse import ArgumentParser
 
 # EXT
-from rnnalyse.config.setup import ConfigSetup
-from rnnalyse.extractors.base_extractor import Extractor
-from rnnalyse.models.language_model import LanguageModel
-from rnnalyse.typedefs.corpus import LabeledCorpus, LabeledSentence
-from rnnalyse.models.import_model import import_model_from_json
-from rnnalyse.corpora.import_corpus import convert_to_labeled_corpus
+from diagnnose.config.setup import ConfigSetup
+from diagnnose.extractors.base_extractor import Extractor
+from diagnnose.models.language_model import LanguageModel
+from diagnnose.typedefs.corpus import LabeledCorpus, LabeledSentence
+from diagnnose.models.import_model import import_model_from_json
+from diagnnose.corpora.import_corpus import convert_to_labeled_corpus
 
 
 def init_argparser() -> ArgumentParser:

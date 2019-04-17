@@ -9,9 +9,9 @@ from typing import Optional
 
 # EXT
 import numpy as np
-from rnnalyse.config.setup import ConfigSetup
+from diagnnose.config.setup import ConfigSetup
 import torch
-from rnnalyse.models.w2i import W2I
+from diagnnose.models.w2i import W2I
 
 # PROJECT
 from src.utils.corpora import WikiCorpus, read_wiki_corpus, load_data
