@@ -30,7 +30,6 @@ from src.utils.log import remove_logs, log_to_file, StatsCollector
 from src.utils.types import Device
 
 # GLOBALS
-MODEL_NAME = None
 RECODING_TYPES = {
     # TODO: Add new recoding mechanisms here
     "perplexity": PerplexityRecoding,
@@ -58,7 +57,8 @@ def main():
 def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
                 weight_decay: float, clip: float, print_every: int, eval_every: int, device: Device,
                 valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None,
-                log_dir: Optional[str] = None, ignore_unk: bool = True, **unused: Any) -> None:
+                log_dir: Optional[str] = None, ignore_unk: bool = True, model_name: str = "model",
+                **unused: Any) -> None:
     """
     Training loop for model.
 
@@ -92,9 +92,10 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
         Path log data is being written to if given.
     ignore_unk: bool
         Determine whether <unk> tokens should be ignored as targets when evaluation.
+    model_name: str
+        Optional model name used for logging.
     """
-    global MODEL_NAME
-    remove_logs(log_dir, MODEL_NAME)
+    remove_logs(log_dir, model_name)
 
     train_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
     num_batches = len(train_set)
@@ -165,7 +166,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 batch_stats = stats_collector.get_stats()
                 batch_stats = stats_collector.flatten_stats(batch_stats)
                 log_stats = {"batch_num": total_batch_i, "batch_loss": batch_loss, **batch_stats}
-                log_to_file(log_stats, f"{log_dir}/{MODEL_NAME}_train.log")
+                log_to_file(log_stats, f"{log_dir}/{model_name}_train.log")
                 stats_collector.wipe()
 
                 # Calculate validation loss
@@ -182,7 +183,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                         scheduler.step(validation_ppl)  # Anneal learning rate
 
                     log_to_file(
-                        {"batch_num": total_batch_i, "val_ppl": validation_ppl}, f"{log_dir}/{MODEL_NAME}_val.log"
+                        {"batch_num": total_batch_i, "val_ppl": validation_ppl}, f"{log_dir}/{model_name}_val.log"
                     )
 
 
