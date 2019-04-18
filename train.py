@@ -148,11 +148,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 total_batch_i += 1
 
                 if total_batch_i % print_every == 0:
-                    try:
-                        ppl = math.exp(batch_loss)
-                    except OverflowError:
-                        ppl = 100000
-
+                    ppl = math.exp(batch_loss)
                     progress_bar.set_description(
                         f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | LR: {learning_rate:<2} | "
                         f"Train Loss: {batch_loss:>7.3f} | Train ppl: {ppl:>7.3f}",
