@@ -18,15 +18,22 @@ from src.utils.types import ColorDict, AggregatedLogs
 # Define some standard colors for models used in this project
 COLOR_DICT = {
     "curve": {
-        "vanilla": "firebrick",
-        "fixed_step": "navy",
-        "mlp_step": "forestgreen"
+        "Vanilla": "firebrick",
+        "Perplexity": "darkorange",
+        "MC Dropout": "darkmagenta"
     },
     "interval": {
-        "vanilla": "lightcoral",
-        "fixed_step": "lightsteelblue",
-        "mlp_step": "darkseagreen"
+        "Vanilla": "lightcoral",
+        "Perplexity": "orange",
+        "MC Dropout": "darkorchid"
     }
+}
+
+# TODO: Incorporate options to distinguish between fixed / mlp step
+NAME_DICT = {
+    "mcd": "MC Dropout",
+    "ppl": "Perplexity",
+    "vanilla": "Vanilla"
 }
 
 
@@ -152,7 +159,14 @@ def _get_intervals(data: np.array) -> Tuple[np.array, np.array, np.array]:
 
 if __name__ == "__main__":
     LOGDIR = "logs/"
-    name_function = lambda path: path[:path.rfind("_") - 1].replace(LOGDIR, "")
+
+    def name_function(path):
+        shortened = path[:path.rfind("_") - 1].replace(LOGDIR, "")
+        if shortened:
+            shortened = shortened.split("_")[0]
+
+        return NAME_DICT[shortened]
+
 
     # Plot training logs
     train_selection_func = lambda path: "train" in path
@@ -164,10 +178,27 @@ if __name__ == "__main__":
     )
 
     # Plot validation logs
-    val_selection_func = lambda path: "val" in path and "step" in path
+    val_selection_func = lambda path: "val" in path
     val_log_paths = get_logs_in_dir(LOGDIR, val_selection_func)
     val_logs = aggregate_logs(val_log_paths, name_function)
     plot_losses(
         val_logs, x_name="batch_num", y_name="val_ppl", intervals=False, save_path="img/val_ppls.png",
-        title="Validation perplexity (n=5)", colors=COLOR_DICT, selection=slice(0, 20)
+        title="Validation perplexity (n=5)", colors=COLOR_DICT #,selection=slice(0, 20)
+    )
+
+    # Plot recoding step sizes
+    ppl_recoding_selection_func = lambda path: "ppl" in path and "train" in path and "vanilla" not in path
+    ppl_recoding_log_paths = get_logs_in_dir(LOGDIR, ppl_recoding_selection_func)
+    ppl_recoding_logs = aggregate_logs(ppl_recoding_log_paths, name_function)
+    plot_losses(
+        ppl_recoding_logs, x_name="batch_num", y_name="deltas", intervals=False, save_path="img/deltas_ppl.png",
+        title="Uncertainty estimates (n=5)", colors=COLOR_DICT, selection=slice(0, 200)
+    )
+
+    mcd_recoding_selection_func = lambda path: "mcd" in path and "train" in path and "vanilla" not in path
+    mcd_recoding_log_paths = get_logs_in_dir(LOGDIR, mcd_recoding_selection_func)
+    mcd_recoding_logs = aggregate_logs(mcd_recoding_log_paths, name_function)
+    plot_losses(
+        mcd_recoding_logs, x_name="batch_num", y_name="deltas", intervals=False, save_path="img/deltas_mcd.png",
+        title="Uncertainty estimates (n=5)", colors=COLOR_DICT, selection=slice(0, 200)
     )
