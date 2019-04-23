@@ -222,7 +222,13 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
 
         out, hidden = super().forward(input_var, hidden, **additional)
 
-        return self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)
+        new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)
+
+        # During training, calculate loss based on the unrecoded output activations
+        if self.training:
+            return out, new_hidden
+        else:
+            return new_out, new_hidden
 
     def train(self, mode=True):
         super().train(mode)

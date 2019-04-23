@@ -181,7 +181,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
         # Important: Do NOT use create_graph=True here, it will cause a memory spill.
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(device))
+        backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
         """
