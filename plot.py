@@ -46,7 +46,7 @@ NAME_DICT = {
 def plot_column(logs: AggregatedLogs, x_name: str, y_names: Union[str, List[str]], intervals: bool = True,
                 title: Optional[str] = None, save_path: Optional[str] = None, color_func: Optional[Callable] = None,
                 selection: Optional[slice] = None, y_label: Optional[str] = None,
-                legend_func: Callable = lambda model_name, y_name: model_name) -> None:
+                legend_func: Callable = lambda model_name, y_name: model_name, safe_zoom: bool = False) -> None:
     """
     Plot data in an aggregated dict either as a series of curves or as curves with uncertainty intervals when given
     multiple data points and corresponding flag turned on.
@@ -67,12 +67,19 @@ def plot_column(logs: AggregatedLogs, x_name: str, y_names: Union[str, List[str]
         Optional title for the plot.
     save_path: Optional[str]
         Path to save the plot to. If not given, plot will be shown on screen.
-    colors: Optional[ColorDict]
-        Optional dictionary defining the colors of the curves for different models. Should contain sub-dicts with
-        corresponding keys "curves" and "interval". Otherwise matplotlib color choices are used, however, color use
-        is still consistent for curves belonging to the same model.
+    color_func: Optional[Callable]
+        Define a function that picks a curve color based on the model name and data column name. Otherwise matplotlib
+        color choices are used, however, color use is still consistent for curves belonging to the same model.
     selection: Optional[slice]
         Select a range of the data for plotting via a slice object.
+    y_label: Optional[str]
+        Explicitly define the y-axis label.
+    legend_func: Callable
+        Define an optional function that determines the curve label inside the legend based on the model name and the
+        data column name.
+    safe_zoom: bool
+        Zoom in on the y-axis section of the plot that contains most data points (avoids distortion of the plot by
+        outliers).
     """
     x = list(logs.values())[0][x_name]
     x = x.astype(np.int)
@@ -90,9 +97,11 @@ def plot_column(logs: AggregatedLogs, x_name: str, y_names: Union[str, List[str]
     if type(y_names) == str:
         y_names = [y_names]
 
+    all_y = []
     for model_name, log_dict in logs.items():
         for y_name in y_names:
             y = log_dict[y_name]
+            all_y.append(y)
 
             # Single curve data
             if y.shape[0] == 1 or len(y.shape) == 1:
@@ -127,6 +136,13 @@ def plot_column(logs: AggregatedLogs, x_name: str, y_names: Union[str, List[str]
     # Add additional information to plot
     plt.xlabel(x_name)
     plt.ylabel(y_label if y_label is not None else y_names[0])
+
+    # Zoom in to majority of points to avoid distortion by outliers
+    if safe_zoom:
+        all_y = np.concatenate(all_y, axis=1)
+        all_y = all_y.flatten()
+        all_std, all_mean = all_y.std(), all_y.mean()
+        plt.ylim(top=all_mean + 4 * all_std)
 
     # Avoid having the same labels multiple times in the legend
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -192,8 +208,8 @@ if __name__ == "__main__":
     train_log_paths = get_logs_in_dir(LOGDIR, train_selection_func)
     train_logs = aggregate_logs(train_log_paths, name_function)
     plot_column(
-        train_logs, x_name="batch_num", y_names="batch_loss", intervals=False, save_path="img/train_losses.png",
-        title="Train loss (n=5)", color_func=loss_color_function, selection=slice(0, 200)
+        train_logs, x_name="batch_num", y_names="batch_loss", intervals=True, save_path="img/train_losses.png",
+        title="Train loss (n=5)", color_func=loss_color_function, selection=slice(0, 800), safe_zoom=True
     )
 
     # Plot validation losses
@@ -213,7 +229,7 @@ if __name__ == "__main__":
     ppl_recoding_logs = aggregate_logs(ppl_recoding_log_paths, name_function)
     plot_column(
         ppl_recoding_logs, x_name="batch_num", y_names="deltas", intervals=False, save_path="img/deltas_ppl.png",
-        title="Uncertainty estimates (n=5)", color_func=loss_color_function, selection=slice(0, 200)
+        title="Uncertainty estimates (n=5)", color_func=loss_color_function, selection=slice(0, 400)
     )
 
     # Plot uncertainty estimates for MC Dropout-based recoding models
@@ -222,7 +238,7 @@ if __name__ == "__main__":
     mcd_recoding_logs = aggregate_logs(mcd_recoding_log_paths, name_function)
     plot_column(
         mcd_recoding_logs, x_name="batch_num", y_names="deltas", intervals=False, save_path="img/deltas_mcd.png",
-        title="Uncertainty estimates (n=5)", color_func=loss_color_function, selection=slice(0, 200)
+        title="Uncertainty estimates (n=5)", color_func=loss_color_function, selection=slice(0, 400)
     )
 
     # Plot norms of recoding gradients for perplexity-based recoding model
@@ -242,7 +258,7 @@ if __name__ == "__main__":
         ppl_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=False,
         save_path="img/gradient_norms_ppl.png", title="Perplexity recoding gradient norms (n=5)",
         color_func=recoding_grad_color_func, legend_func=recoding_grad_legend_func, y_label="Recoding grad norm",
-        selection=slice(0, 200)
+        selection=slice(0, 400)
     )
 
     # Plot norms of recoding gradients for MC Dropout-based recoding model
@@ -250,5 +266,5 @@ if __name__ == "__main__":
         mcd_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=False,
         save_path="img/gradient_norms_mcd.png", title="MC Dropout Recoding gradient norms (n=5)",
         color_func=recoding_grad_color_func, legend_func=recoding_grad_legend_func, y_label="Recoding grad norm",
-        selection=slice(0, 200)
+        selection=slice(0, 400)
     )
