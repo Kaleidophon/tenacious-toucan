@@ -139,6 +139,9 @@ class LSTMLanguageModel(AbstractRNN):
         # Forget gate
         f_g = torch.sigmoid(self.gates[layer]['if'](input_) + self.gates[layer]['hf'](hx))
 
+        # TODO: Debug
+        return f_g, f_g
+
         # Input gate
         i_g = torch.sigmoid(self.gates[layer]['ii'](input_) + self.gates[layer]['hi'](hx))
 
@@ -242,4 +245,5 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         """
         Track the (recoding) gradient of a non-leaf variable.
         """
-        return Variable(var, requires_grad=True)
+        var.retain_grad()
+        return var

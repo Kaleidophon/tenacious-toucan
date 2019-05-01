@@ -145,14 +145,14 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Layer sizes for MLP as some sort of iterable.
         """
         # Correct any corruptions
-        hidden.grad = self.replace_nans(hidden.grad)
+        recoding_grad = hidden.grad
+        recoding_grad = self.replace_nans(recoding_grad)
 
         # Perform recoding by doing a gradient decent step
         # Important: Detach hidden in-place here to avoid memory spill
-        recoding_grad = hidden.grad
-        hidden.detach_()
-        new_hidden = hidden - step_size * recoding_grad
 
+        #hidden.detach_()
+        new_hidden = hidden - step_size * recoding_grad
         # Another way could be also to detach new_hidden, but in this case gradients can't flow through step size,
         # which is necessary to train the parameters of models like AdaptiveStepPredictor
 
@@ -181,6 +181,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
         # Important: Do NOT use create_graph=True here, it will cause a memory spill.
+        # TODO: Debug
+        print("Backward")
         backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
@@ -219,9 +221,10 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         tensor: Tensor
             Tensor with nan values replaced.
         """
-        tensor[tensor != tensor] = 0  # Exploit the fact that nan != nan
-
-        return tensor
+        # Exploit the fact that nan != nan
+        # Read as: For every element of tensor that is nan (where element != element hold)
+        # return the corresponding element from a tensor of zeros, otherwise the original tensor's element
+        return torch.where(tensor != tensor, torch.ones(tensor.shape), tensor)
 
     @staticmethod
     def register_grad_hook(var: Tensor) -> None:
