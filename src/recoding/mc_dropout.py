@@ -123,7 +123,7 @@ class MCDropoutMechanism(RecodingMechanism):
         target_idx = target_idx.to(device)
 
         # Select predicted probabilities of target index
-        predictions = predictions.exp()  # Exponentiate for later softmax
+        predictions.exp_()  # Exponentiate for later softmax
         target_idx = target_idx.view(target_idx.shape[0], 1, 1)
         target_idx = target_idx.repeat(1, self.num_samples, 1)
         target_predictions = torch.gather(predictions, 2, target_idx)
