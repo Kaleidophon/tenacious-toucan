@@ -143,7 +143,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 # TODO: Debug
                 import torchviz
                 from collections import defaultdict
-                dot = torchviz.make_dot(batch_loss) #, params=dict(model.named_parameters()))
+                dot = torchviz.make_dot(batch_loss)#, params=dict(model.named_parameters()))
                 edges = len([entry for entry in dot.body if "->" in entry])
                 dot.view(filename=f"main_mcd_fix")
                 params = [node for node in dot.body if "lightblue" in node]

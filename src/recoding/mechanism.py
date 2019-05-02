@@ -103,12 +103,12 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             New re-decoded output distribution alongside all recoded hidden activations.
         """
         # Register gradient hooks
-        for l, hid in hidden.items():
-            for h in hid:
-                self.register_grad_hook(h)
+        #for l, hid in hidden.items():
+        #    for h in hid:
+        #        self.register_grad_hook(h)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        self.compute_recoding_gradient(delta, device)
+        self.compute_recoding_gradient(delta, device, hidden)
 
         # Do actual recoding step
         new_hidden = {
@@ -145,7 +145,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Layer sizes for MLP as some sort of iterable.
         """
         # Correct any corruptions
-        recoding_grad = hidden.grad
+        recoding_grad = hidden.recoding_grad
         recoding_grad = self.replace_nans(recoding_grad)
 
         # Perform recoding by doing a gradient decent step
@@ -160,7 +160,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
 
     @staticmethod
     @StatsCollector.collect_deltas
-    def compute_recoding_gradient(delta: Tensor, device: Device) -> None:
+    def compute_recoding_gradient(delta: Tensor, device: Device, hidden) -> None:
         """
         Compute the recoding gradient of the error signal delta w.r.t to all hidden activations of the network.
 
@@ -183,7 +183,14 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # Important: Do NOT use create_graph=True here, it will cause a memory spill.
         # TODO: Debug
         print("Backward")
-        backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
+        from torch.autograd import grad
+        for hiddens in hidden.values():
+            recoding_grads = grad(outputs=[delta], inputs=hiddens, grad_outputs=[torch.ones(delta.shape).to(device)] * len(hiddens))
+
+            for hid, grad in zip(hiddens, recoding_grads):
+                hid.recoding_grad = grad
+
+        #backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
         """
@@ -224,7 +231,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # Exploit the fact that nan != nan
         # Read as: For every element of tensor that is nan (where element != element hold)
         # return the corresponding element from a tensor of zeros, otherwise the original tensor's element
-        return torch.where(tensor != tensor, torch.ones(tensor.shape), tensor)
+        return torch.where(tensor != tensor, torch.ones(tensor.shape).to(tensor.device), tensor)
 
     @staticmethod
     def register_grad_hook(var: Tensor) -> None:

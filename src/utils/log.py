@@ -51,7 +51,7 @@ class StatsCollector:
         """
         @wraps(func)
         def wrapper(self, hidden: torch.Tensor, step_size: StepSize, name: Optional[str]) -> torch.Tensor:
-            grad_norm = torch.norm(hidden.grad)
+            grad_norm = torch.norm(hidden.recoding_grad)
 
             if name is None:
                 if "recoding_grads" not in cls._stats.keys():
