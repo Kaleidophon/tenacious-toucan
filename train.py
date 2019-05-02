@@ -129,28 +129,15 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 optimizer.zero_grad()
                 outputs = []
 
-                # TODO: Debug
-                for t in range(2):
+                for t in range(seq_len):
                     input_vars = batch[:, t]  # Make input vars batch_size x 1
                     output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :])
                     outputs.append(output_dist)
 
                 # Backward pass
                 outputs = torch.cat(outputs)
-                targets = torch.flatten(targets[:2, :])
+                targets = torch.flatten(targets)
                 batch_loss = loss(outputs, target=targets)
-
-                # TODO: Debug
-                import torchviz
-                from collections import defaultdict
-                dot = torchviz.make_dot(batch_loss)#, params=dict(model.named_parameters()))
-                edges = len([entry for entry in dot.body if "->" in entry])
-                dot.view(filename=f"main_mcd_fix")
-                params = [node for node in dot.body if "lightblue" in node]
-                print("Params: ", len([node for node in dot.body if "lightblue" in node]))
-                print(set(params))
-                dot.clear()
-                sys.exit(0)
 
                 batch_loss.backward()
 

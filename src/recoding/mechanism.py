@@ -11,7 +11,7 @@ from typing import Tuple, Dict, Optional
 # EXT
 import torch
 from torch import Tensor
-from torch.autograd import backward
+from torch.autograd import grad as compute_grads
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -102,11 +102,6 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         new_out_dist, new_hidden: Tuple[Tensor, HiddenDict]
             New re-decoded output distribution alongside all recoded hidden activations.
         """
-        # Register gradient hooks
-        #for l, hid in hidden.items():
-        #    for h in hid:
-        #        self.register_grad_hook(h)
-
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         self.compute_recoding_gradient(delta, device, hidden)
 
@@ -120,7 +115,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         }
 
         # Re-decode current output
-        new_out_dist = self.redecode_output_dist(new_hidden)
+        with torch.no_grad():
+            new_out_dist = self.redecode_output_dist(new_hidden)
 
         return new_out_dist, new_hidden
 
@@ -149,13 +145,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         recoding_grad = self.replace_nans(recoding_grad)
 
         # Perform recoding by doing a gradient decent step
-        # Important: Detach hidden in-place here to avoid memory spill
-
-        #hidden.detach_()
         hidden.data = hidden.data - step_size * recoding_grad
-        # Another way could be also to detach new_hidden, but in this case gradients can't flow through step size,
-        # which is necessary to train the parameters of models like AdaptiveStepPredictor
-        #del hidden.recoding_grad
 
         return hidden
 
@@ -182,16 +172,14 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
         # Important: Do NOT use create_graph=True here, it will cause a memory spill.
-        # TODO: Debug
-        print("Backward")
-        from torch.autograd import grad
         for hiddens in hidden.values():
-            recoding_grads = grad(outputs=[delta], inputs=hiddens, grad_outputs=[torch.ones(delta.shape).to(device)] * len(hiddens))
+            recoding_grads = compute_grads(
+                outputs=[delta], inputs=hiddens,
+                grad_outputs=[torch.ones(delta.shape).to(device)] * len(hiddens), retain_graph=True
+            )
 
             for hid, grad in zip(hiddens, recoding_grads):
                 hid.recoding_grad = grad
-
-        #backward(delta, grad_tensors=torch.ones(delta.shape).to(device), retain_graph=True)
 
     def redecode_output_dist(self, new_hidden: HiddenDict) -> Tensor:
         """
@@ -233,26 +221,6 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # Read as: For every element of tensor that is nan (where element != element hold)
         # return the corresponding element from a tensor of zeros, otherwise the original tensor's element
         return torch.where(tensor != tensor, torch.ones(tensor.shape).to(tensor.device), tensor)
-
-    @staticmethod
-    def register_grad_hook(var: Tensor) -> None:
-        """
-        Register a hook that assigns the (recoding) gradient to a special attribute of the variable.
-
-        Parameters
-        ----------
-        var: Tensor
-            Variable we register the hook for.
-        """
-        def hook(grad: Tensor):
-            # Important: Assign to .grad and not other custom attribute here or else PyTorch will allocate
-            # additional space for this tensor which won't properly be freed up after using backward(), eventually
-            # causing a memory spill
-            var.grad = grad
-        
-        var.register_hook(hook)
-
-        return var
 
     def train(self, mode=True):
         for predictors in self.predictors.values():
