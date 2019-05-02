@@ -152,11 +152,12 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # Important: Detach hidden in-place here to avoid memory spill
 
         #hidden.detach_()
-        new_hidden = hidden - step_size * recoding_grad
+        hidden.data = hidden.data - step_size * recoding_grad
         # Another way could be also to detach new_hidden, but in this case gradients can't flow through step size,
         # which is necessary to train the parameters of models like AdaptiveStepPredictor
+        #del hidden.recoding_grad
 
-        return new_hidden
+        return hidden
 
     @staticmethod
     @StatsCollector.collect_deltas
