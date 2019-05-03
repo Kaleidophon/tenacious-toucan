@@ -11,7 +11,7 @@
   "prior_scale": 1000,
   "learning_rate": 20,
   "batch_size": 64,
-  "num_epochs": 2,
+  "num_epochs": 6,
   "clip": 0.25,
   "step_size": 0.5,
   "max_sentence_len": 35,
