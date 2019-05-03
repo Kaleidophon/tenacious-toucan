@@ -13,7 +13,7 @@
   "batch_size": 64,
   "num_epochs": 2,
   "clip": 0.25,
-  "step_size": 0,
+  "step_size": 0.5,
   "max_sentence_len": 35,
 
   "step_type": "mlp",
