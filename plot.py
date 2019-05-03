@@ -84,7 +84,7 @@ def plot_column(logs: AggregatedLogs, x_name: str, y_names: Union[str, List[str]
     x = x.astype(np.int)
 
     # If data for x-axis has been aggregated, only select one data row
-    if x.shape[0] != 1 or len(x.shape) > 1:
+    if (x.shape[0] != 1 and len(x.shape) == 2) or len(x.shape) > 1:
         x = x[0]
 
     # If data is not truncated in any way, select everything

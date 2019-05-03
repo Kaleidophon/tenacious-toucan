@@ -103,7 +103,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             New re-decoded output distribution alongside all recoded hidden activations.
         """
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        self.compute_recoding_gradient(delta, device, hidden)
+        self.compute_recoding_gradient(delta, hidden, device)
 
         # Do actual recoding step
         new_hidden = {
@@ -145,13 +145,15 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         recoding_grad = self.replace_nans(recoding_grad)
 
         # Perform recoding by doing a gradient decent step
+        # Perform update directly on hidden.data which isn't really best practice here, on the other hand we guarantee
+        # this way that the normal RNN computational graph is left untouched
         hidden.data = hidden.data - step_size * recoding_grad
 
         return hidden
 
     @staticmethod
     @StatsCollector.collect_deltas
-    def compute_recoding_gradient(delta: Tensor, device: Device, hidden) -> None:
+    def compute_recoding_gradient(delta: Tensor, hidden: HiddenDict, device: Device) -> None:
         """
         Compute the recoding gradient of the error signal delta w.r.t to all hidden activations of the network.
 
@@ -159,6 +161,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         ----------
         delta: Tensor
             Current error signal that is used to calculate the gradient w.r.t. the current hidden state.
+        hidden: HiddenDict
+            Dictionary of all hidden (and cell states) of all network layers.
         device: torch.device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
