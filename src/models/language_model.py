@@ -131,11 +131,6 @@ class LSTMLanguageModel(AbstractRNN):
         """
         hx, cx = hidden
 
-        # Track gradients for these when doing recoding
-        if self.track_hidden_grad:
-            hx = self.track_grad(hx)
-            cx = self.track_grad(cx)
-
         # Forget gate
         f_g = torch.sigmoid(self.gates[layer]['if'](input_) + self.gates[layer]['hf'](hx))
 
@@ -178,12 +173,6 @@ class LSTMLanguageModel(AbstractRNN):
         output_dist = out_layer(output)
 
         return output_dist
-
-    def track_grad(self, var: Tensor) -> Tensor:
-        """
-        Track the (recoding) gradient of a non-leaf variable.
-        """
-        return var
 
 
 class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
@@ -237,9 +226,3 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     def eval(self):
         super().eval()
         self.mechanism.eval()
-
-    def track_grad(self, var: Tensor) -> Tensor:
-        """
-        Track the (recoding) gradient of a non-leaf variable.
-        """
-        return Variable(var, requires_grad=True)

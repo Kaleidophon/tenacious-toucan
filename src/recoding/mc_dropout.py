@@ -83,16 +83,17 @@ class MCDropoutMechanism(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        target_idx = additional.get("target_idx", None)
-        prediction = self._mc_dropout_predict(out, device, target_idx)
+        with torch.autograd.set_detect_anomaly(True):
+            target_idx = additional.get("target_idx", None)
+            prediction = self._mc_dropout_predict(out, device, target_idx)
 
-        # Estimate uncertainty of those same predictions
-        delta = self._calculate_predictive_uncertainty(prediction)
+            # Estimate uncertainty of those same predictions
+            delta = self._calculate_predictive_uncertainty(prediction)
 
-        # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
+            # Calculate gradient of uncertainty w.r.t. hidden states and make step
+            new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
 
-        return new_out_dist, new_hidden
+            return new_out_dist, new_hidden
 
     def _mc_dropout_predict(self, output: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
         """
@@ -113,6 +114,7 @@ class MCDropoutMechanism(RecodingMechanism):
         # Collect sample predictions
         output = output.unsqueeze(1)
         output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
+
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.mc_dropout_layer(output)
 
@@ -151,4 +153,4 @@ class MCDropoutMechanism(RecodingMechanism):
             Estimated predictive uncertainty per batch instance.
         """
         prior_info = 2 * self.mc_dropout * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
-        return predictions.var(dim=1).unsqueeze(1) * prior_info
+        return predictions.var(dim=1).unsqueeze(1) + prior_info

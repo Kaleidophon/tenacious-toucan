@@ -138,6 +138,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 outputs = torch.cat(outputs)
                 targets = torch.flatten(targets)
                 batch_loss = loss(outputs, target=targets)
+
                 batch_loss.backward()
 
                 clip_grad_norm_(model.parameters(), clip)
