@@ -206,7 +206,7 @@ if __name__ == "__main__":
     train_logs = aggregate_logs(train_log_paths, name_function)
     plot_column(
         train_logs, x_name="batch_num", y_names="batch_loss", intervals=False, save_path="img/train_losses.png",
-        title="Train loss (n=3)", color_func=loss_color_function, selection=slice(0, 200), y_top_lim=13
+        title="Train loss (n=3)", color_func=loss_color_function, selection=slice(0, 1000), y_top_lim=13
     )
 
     # Plot validation losses
@@ -226,10 +226,11 @@ if __name__ == "__main__":
     ppl_recoding_logs = aggregate_logs(ppl_recoding_log_paths, name_function)
     plot_column(
         ppl_recoding_logs, x_name="batch_num", y_names="deltas", intervals=False, save_path="img/deltas_ppl.png",
-        title="Uncertainty estimates (n=3)", color_func=loss_color_function, selection=slice(0, 200)
+        title="Uncertainty estimates (n=3)", color_func=loss_color_function, selection=slice(0, 200), y_top_lim=100
     )
 
     # Plot uncertainty estimates for MC Dropout-based recoding models
+    """
     mcd_recoding_selection_func = lambda path: "mcd" in path and "train" in path and "vanilla" not in path
     mcd_recoding_log_paths = get_logs_in_dir(LOGDIR, mcd_recoding_selection_func)
     mcd_recoding_logs = aggregate_logs(mcd_recoding_log_paths, name_function)
@@ -237,6 +238,7 @@ if __name__ == "__main__":
         mcd_recoding_logs, x_name="batch_num", y_names="deltas", intervals=False, save_path="img/deltas_mcd.png",
         title="Uncertainty estimates (n=3)", color_func=loss_color_function, selection=slice(0, 200)
     )
+    """
 
     # Plot norms of recoding gradients for perplexity-based recoding model
 
@@ -255,13 +257,15 @@ if __name__ == "__main__":
         ppl_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=False,
         save_path="img/gradient_norms_ppl.png", title="Perplexity recoding gradient norms (n=3)",
         color_func=recoding_grad_color_func, legend_func=recoding_grad_legend_func, y_label="Recoding grad norm",
-        selection=slice(0, 200)
+        selection=slice(0, 200), y_top_lim=200
     )
 
     # Plot norms of recoding gradients for MC Dropout-based recoding model
+    """
     plot_column(
         mcd_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=False,
         save_path="img/gradient_norms_mcd.png", title="MC Dropout Recoding gradient norms (n=3)",
         color_func=recoding_grad_color_func, legend_func=recoding_grad_legend_func, y_label="Recoding grad norm",
         selection=slice(0, 200), y_top_lim=0.5
     )
+    """

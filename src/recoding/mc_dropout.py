@@ -153,4 +153,4 @@ class MCDropoutMechanism(RecodingMechanism):
             Estimated predictive uncertainty per batch instance.
         """
         prior_info = 2 * self.mc_dropout * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
-        return predictions.var(dim=1).unsqueeze(1) * prior_info
+        return predictions.var(dim=1).unsqueeze(1) + prior_info
