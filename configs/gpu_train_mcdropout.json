@@ -18,6 +18,7 @@
 
   "step_type": "mlp",
   "recoding_type": "mc_dropout",
+  "recode_output": false,
 
   "corpus_dir": "data/corpora/wikitext2",
   "model_save_path": "data/models/uncertainty/test.pt",
