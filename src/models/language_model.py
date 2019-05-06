@@ -9,7 +9,6 @@ from typing import Optional, Dict, Tuple
 import torch
 from torch import nn, Tensor
 from overrides import overrides
-from torch.autograd import Variable
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN

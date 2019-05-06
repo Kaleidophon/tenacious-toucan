@@ -115,8 +115,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         }
 
         # Re-decode current output
-        with torch.no_grad():
-            new_out_dist = self.redecode_output_dist(new_hidden)
+        new_out_dist = self.redecode_output_dist(new_hidden)
 
         return new_out_dist, new_hidden
 
