@@ -18,8 +18,10 @@ from src.utils.types import HiddenDict
 
 class MCDropoutMechanism(RecodingMechanism):
     """
-    Intervention mechanism that bases its intervention on the predictive uncertainty of a model.
-    In this case the step size is constant during the recoding step.
+    Recoding mechanism that bases its recoding on the predictive uncertainty of the decoder, where the uncertainty
+    is estimate using MC Dropout [1].
+
+    [1] http://proceedings.mlr.press/v48/gal16.pdf
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, mc_dropout: float, weight_decay: float,
                  prior_scale: float, predictor_kwargs: Dict, step_type: str, data_length: Optional[int] = None,
@@ -83,17 +85,16 @@ class MCDropoutMechanism(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        with torch.autograd.set_detect_anomaly(True):
-            target_idx = additional.get("target_idx", None)
-            prediction = self._mc_dropout_predict(out, device, target_idx)
+        target_idx = additional.get("target_idx", None)
+        prediction = self._mc_dropout_predict(out, device, target_idx)
 
-            # Estimate uncertainty of those same predictions
-            delta = self._calculate_predictive_uncertainty(prediction)
+        # Estimate uncertainty of those same predictions
+        delta = self._calculate_predictive_uncertainty(prediction)
 
-            # Calculate gradient of uncertainty w.r.t. hidden states and make step
-            new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
+        # Calculate gradient of uncertainty w.r.t. hidden states and make step
+        new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
 
-            return new_out_dist, new_hidden
+        return new_out_dist, new_hidden
 
     def _mc_dropout_predict(self, output: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
         """

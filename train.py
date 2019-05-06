@@ -22,6 +22,7 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
+from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
@@ -31,7 +32,7 @@ from src.utils.types import Device
 
 # GLOBALS
 RECODING_TYPES = {
-    # TODO: Add new recoding mechanisms here
+    "ensemble": AnchoredEnsembleMechanism,
     "perplexity": PerplexityRecoding,
     "mc_dropout": MCDropoutMechanism
 }
@@ -138,6 +139,11 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 outputs = torch.cat(outputs)
                 targets = torch.flatten(targets)
                 batch_loss = loss(outputs, target=targets)
+
+                # Extra loss for recoding with Anchored Bayesian Ensembles
+                if hasattr(model, "mechanism"):
+                    if isinstance(model.mechanism, AnchoredEnsembleMechanism):
+                        batch_loss += model.mechanism.ensemble_loss
 
                 batch_loss.backward()
 
