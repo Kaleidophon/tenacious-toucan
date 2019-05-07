@@ -20,12 +20,14 @@ COLOR_DICT = {
     "curve": {
         "Vanilla": "firebrick",
         "Perplexity": "darkorange",
-        "MC Dropout": "darkmagenta"
+        "MC Dropout": "darkmagenta",
+        "Anc. Ensemble": "forestgreen",
     },
     "interval": {
         "Vanilla": "lightcoral",
         "Perplexity": "orange",
-        "MC Dropout": "darkorchid"
+        "MC Dropout": "darkorchid",
+        "Anc. Ensemble": "lightgreen"
     }
 }
 
@@ -37,6 +39,7 @@ RECODING_GRAD_COLOR_DICT = {
 
 # TODO: Incorporate options to distinguish between fixed / mlp step
 NAME_DICT = {
+    "ens": "Anc. Ensemble",
     "mcd": "MC Dropout",
     "ppl": "Perplexity",
     "vanilla": "Vanilla"

@@ -144,18 +144,18 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         loss = 0
 
         for decoder in self.model.decoder_ensemble:
-            loss += torch.flatten(torch.sqrt((decoder.weight - self.weight_anchor).pow(2))).sum()
-            loss += torch.flatten(torch.sqrt((decoder.bias - self.bias_anchor).pow(2))).sum()
+            loss += torch.norm(decoder.weight - self.weight_anchor)
+            loss += torch.norm(decoder.bias - self.bias_anchor)
 
         return self.lambda_ / self.data_length * loss
 
-    def _decode_ensemble(self, input: Tensor) -> Tensor:
+    def _decode_ensemble(self, hidden: Tensor) -> Tensor:
         """
         Decode hidden activations using an ensemble of decoders.
 
         Parameters
         ----------
-        input: Tensor
+        hidden: Tensor
             Hidden activations to be decoded.
 
         Returns
@@ -163,7 +163,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         out: Tensor
             Decoded hidden activations batch_size * vocab_size
         """
-        decoded_activations = [decoder(input) for decoder in self.model.decoder_ensemble]
+        decoded_activations = [decoder(hidden) for decoder in self.model.decoder_ensemble]
         decoded_activations = torch.stack(decoded_activations)
         out = decoded_activations.mean(dim=0)
 
