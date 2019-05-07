@@ -22,7 +22,7 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
-from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism
+from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, has_anchored_ensemble
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
@@ -141,10 +141,9 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 batch_loss = loss(outputs, target=targets)
 
                 # Extra loss component for recoding with Anchored Bayesian Ensembles
-                if hasattr(model, "mechanism"):
-                    if isinstance(model.mechanism, AnchoredEnsembleMechanism):
-                        ensemble_loss = model.mechanism.ensemble_loss
-                        batch_loss += ensemble_loss
+                if has_anchored_ensemble(model):
+                    ensemble_loss = model.mechanism.ensemble_loss
+                    batch_loss += ensemble_loss
 
                 batch_loss.backward()
 

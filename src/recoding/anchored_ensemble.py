@@ -19,6 +19,22 @@ from src.recoding.mechanism import RecodingMechanism
 from src.utils.types import HiddenDict, Device
 
 
+def has_anchored_ensemble(model: AbstractRNN) -> bool:
+    """
+    Check whether a model works with an anchored ensemble (and therefore requires an extra loss).
+
+    Parameters
+    ----------
+    model: AbstractRNN
+        Model to be checked.
+    """
+    if hasattr(model, "mechanism"):
+        if isinstance(model.mechanism, AnchoredEnsembleMechanism):
+            return True
+
+    return False
+
+
 class AnchoredEnsembleMechanism(RecodingMechanism):
     """
     Recoding mechanism that bases its recoding on the predictive uncertainty of the decoder, where the uncertainty
@@ -28,6 +44,24 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, data_noise: float, prior_scale: float,
                  predictor_kwargs: Dict, step_type: str, device: Device, data_length: Optional[int] = None, **unused: Any):
+        """
+        Initialize the mechanism.
+
+        Parameters
+        ----------
+        model: AbstractRNN
+            Model the mechanism is being applied to.
+        hidden_size: int
+            Dimensionality of hidden activations.
+        num_samples: int
+            Number of members in the ensemble used to estimate uncertainty.
+        data_noise: float
+            Estimate of inherent noise in data.
+        prior_scale: float
+            Parameter that determines the standard deviation initial weights and anchors are sampled from..
+        data_length: Optional[int]
+            Number of data points used.
+        """
         super().__init__(model, step_type, predictor_kwargs=predictor_kwargs)
 
         self.model = model
@@ -77,10 +111,22 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
 
         return new_out_dist, new_hidden
 
-    def _calculate_predictive_uncertainty(self, hidden: HiddenDict, target_idx: int) -> Tensor:
+    def _calculate_predictive_uncertainty(self, hidden: HiddenDict, target_idx: Tensor) -> Tensor:
         """
         Calculate the predictive uncertainty of the decoder ensemble by measuring the variance of the predictions
         w.r.t. to the target token.
+
+        Parameters
+        ----------
+        hidden: HiddenDict
+            Dictionary of all current hidden and cell states.
+        target_idx: Tensor
+            Indices of actual next tokens.
+
+        Returns
+        -------
+        delta: Tensor
+            Estimated predictive uncertainty per batch instance.
         """
         # Get topmost hidden activations
         num_layers = len(hidden.keys())
@@ -129,6 +175,11 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
     def _sample_anchors(self, device: Device) -> None:
         """
         Sample the anchor points for the Bayesian Anchored Ensemble.
+
+        Parameters
+        ----------
+        device: torch.device
+                Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
         self.weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size, device=device)
         self.weight_anchor.normal_(0, sqrt(self.prior_scale))
