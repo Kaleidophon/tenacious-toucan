@@ -7,7 +7,6 @@ import math
 from typing import Tuple
 
 # EXT
-import torch
 from torch.autograd import Variable
 from torch.nn import CrossEntropyLoss
 
