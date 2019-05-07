@@ -140,10 +140,11 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 targets = torch.flatten(targets)
                 batch_loss = loss(outputs, target=targets)
 
-                # Extra loss for recoding with Anchored Bayesian Ensembles
+                # Extra loss component for recoding with Anchored Bayesian Ensembles
                 if hasattr(model, "mechanism"):
                     if isinstance(model.mechanism, AnchoredEnsembleMechanism):
-                        batch_loss += model.mechanism.ensemble_loss
+                        ensemble_loss = model.mechanism.ensemble_loss
+                        batch_loss += ensemble_loss
 
                 batch_loss.backward()
 
@@ -252,7 +253,8 @@ def manage_config() -> dict:
                   "model_save_path", "device", "model_name", "multi_gpu"},
         "logging": {"log_dir"},
         "corpus": {"corpus_dir", "max_sentence_len"},
-        "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay"},
+        "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay",
+                     "data_noise"},
         "step": {"predictor_layers", "window_size", "step_size", "hidden_size"},
         "eval": {"ignore_unk"}
     }

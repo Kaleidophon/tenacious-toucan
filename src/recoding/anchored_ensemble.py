@@ -86,11 +86,21 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         num_layers = len(hidden.keys())
         topmost_hidden = self.select(hidden[num_layers - 1])  # Select topmost hidden activations
 
-        decoded_activations = [decoder(topmost_hidden) for decoder in self.model.decoder_ensemble]
-        decoded_activations = torch.stack(decoded_activations)
-        pred_var = decoded_activations.var(dim=0)
+        predictions = [decoder(topmost_hidden) for decoder in self.model.decoder_ensemble]
+        predictions = torch.stack(predictions)
 
-        delta = pred_var[:, target_idx]
+        # Select predicted probabilities of target index
+        predictions.exp_()  # Exponentiate for later softmax
+        target_idx = target_idx.view(1, target_idx.shape[0], 1)
+        target_idx = target_idx.repeat(self.num_samples, 1, 1)
+        target_predictions = torch.gather(predictions, 2, target_idx)
+        target_predictions = target_predictions.squeeze(2)
+
+        # Apply softmax (only apply it to actually relevant probabilities, save some computation)
+        norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
+        target_predictions = target_predictions / norm_factor
+
+        delta = target_predictions.var(dim=0)
 
         return delta
 
@@ -119,8 +129,10 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         """
         Sample the anchor points for the Bayesian Anchored Ensemble.
         """
-        self.weight_anchor = torch.random.normal(0, sqrt(self.prior_scale), size=[self.hidden_size, 1])
-        self.bias_anchor = torch.random.normal(0, sqrt(self.prior_scale), size=[self.hidden_size])
+        self.weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size)
+        self.weight_anchor.normal_(0, sqrt(self.prior_scale))
+        self.bias_anchor = torch.zeros(self.model.vocab_size)
+        self.bias_anchor.normal_(0, sqrt(self.prior_scale))
 
     @property
     def ensemble_loss(self) -> Tensor:
