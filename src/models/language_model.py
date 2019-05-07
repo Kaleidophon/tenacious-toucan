@@ -181,7 +181,7 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, recode_output, mechanism_class,
                  mechanism_kwargs, device: torch.device = "cpu"):
         super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
-        self.mechanism = mechanism_class(model=self, **mechanism_kwargs)
+        self.mechanism = mechanism_class(model=self, **mechanism_kwargs, device=device)
         self.recode_output = recode_output  # Use recoded output during training
 
     @overrides

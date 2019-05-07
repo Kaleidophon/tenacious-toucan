@@ -16,7 +16,7 @@ from overrides import overrides
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.mechanism import RecodingMechanism
-from src.utils.types import HiddenDict
+from src.utils.types import HiddenDict, Device
 
 
 class AnchoredEnsembleMechanism(RecodingMechanism):
@@ -27,7 +27,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
     [1] https://arxiv.org/pdf/1810.05546.pdf
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, data_noise: float, prior_scale: float,
-                 predictor_kwargs: Dict, step_type: str, data_length: Optional[int] = None, **unused: Any):
+                 predictor_kwargs: Dict, step_type: str, device: Device, data_length: Optional[int] = None, **unused: Any):
         super().__init__(model, step_type, predictor_kwargs=predictor_kwargs)
 
         self.model = model
@@ -37,7 +37,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         self.data_length = data_length
 
         # Prepare ensemble
-        self._sample_anchors()
+        self._sample_anchors(device)
         self._init_ensemble()
         self.lambda_ = data_noise / prior_scale
 
@@ -123,15 +123,16 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
             self.model.add_module(f"decoder{k}", decoder)  # Register as model params so all decoders get learned
             self.model.decoder_ensemble.append(decoder)
 
+        # Inject new decoding function into the model
         self.model.decoder = self._decode_ensemble
 
-    def _sample_anchors(self) -> None:
+    def _sample_anchors(self, device: Device) -> None:
         """
         Sample the anchor points for the Bayesian Anchored Ensemble.
         """
-        self.weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size)
+        self.weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size, device=device)
         self.weight_anchor.normal_(0, sqrt(self.prior_scale))
-        self.bias_anchor = torch.zeros(self.model.vocab_size)
+        self.bias_anchor = torch.zeros(self.model.vocab_size, device=device)
         self.bias_anchor.normal_(0, sqrt(self.prior_scale))
 
     @property
