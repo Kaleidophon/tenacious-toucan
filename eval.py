@@ -34,15 +34,19 @@ def main() -> None:
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
+    vanilla_models = [model for path, model in models.items() if "vanilla" in path]
+    recoding_models = [model for path, model in models.items() if "ppl" in path]
 
     # Evaluate
     print("Evaluating...\n")
     scores = defaultdict(lambda: np.array([]))
 
-    for i, (model_path, model) in enumerate(models.items()):
+    for i, (vanilla_model, recoding_model) in enumerate(zip(vanilla_models, recoding_models)):
         print(f"\rEvaluating model {i+1} / {len(models)}...", end="", flush=True)
+        model = recoding_model
+        model.load_state_dict(vanilla_model.state_dict())
         perplexity = evaluate_model(model, test_set, batch_size, device=device, perplexity=True)
-        scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
+        scores["Vanilla with recoding"] = np.append(scores["Vanilla with recoding"], perplexity)
 
     print("\nEvaluation results:")
     for model, perplexities in scores.items():
