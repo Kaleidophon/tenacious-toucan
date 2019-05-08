@@ -22,6 +22,7 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
+from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, has_anchored_ensemble
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
@@ -31,7 +32,7 @@ from src.utils.types import Device
 
 # GLOBALS
 RECODING_TYPES = {
-    # TODO: Add new recoding mechanisms here
+    "ensemble": AnchoredEnsembleMechanism,
     "perplexity": PerplexityRecoding,
     "mc_dropout": MCDropoutMechanism
 }
@@ -138,6 +139,11 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                 outputs = torch.cat(outputs)
                 targets = torch.flatten(targets)
                 batch_loss = loss(outputs, target=targets)
+
+                # Extra loss component for recoding with Anchored Bayesian Ensembles
+                if has_anchored_ensemble(model):
+                    ensemble_loss = model.mechanism.ensemble_loss
+                    batch_loss += ensemble_loss
 
                 batch_loss.backward()
 
@@ -246,7 +252,8 @@ def manage_config() -> dict:
                   "model_save_path", "device", "model_name", "multi_gpu"},
         "logging": {"log_dir"},
         "corpus": {"corpus_dir", "max_sentence_len"},
-        "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay"},
+        "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay",
+                     "data_noise"},
         "step": {"predictor_layers", "window_size", "step_size", "hidden_size"},
         "eval": {"ignore_unk"}
     }

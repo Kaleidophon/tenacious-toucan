@@ -80,6 +80,6 @@ class PerplexityRecoding(RecodingMechanism):
 
         target_probs = torch.gather(out, 1, target_idx)
         target_probs = torch.sigmoid(target_probs)
-        target_ppls = 2 ** (-target_probs.log2())
+        target_ppls = 2 ** (target_probs * -target_probs.log2())
 
         return target_ppls

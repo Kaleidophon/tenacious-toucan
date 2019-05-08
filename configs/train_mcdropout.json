@@ -4,7 +4,7 @@
   "num_layers": 2,
   "predictor_layers": [300, 100],
   "window_size": 4,
-  "num_samples": 100,
+  "num_samples": 10,
   "mc_dropout": 0.2,
   "dropout": 0.2,
   "weight_decay": 0.0001,

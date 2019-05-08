@@ -1,0 +1,6 @@
+{
+  "corpus_dir": "data/corpora/wikitext2",
+  "max_sentence_len": 35,
+  "batch_size": 128,
+  "device": "cpu"
+}
