@@ -7,7 +7,7 @@
   "num_samples": 10,
   "dropout": 0.2,
   "prior_scale": 0.8,
-  "data_noise": 0.001,
+  "data_noise": 4.602337110419279,
   "weight_decay": 0,
   "learning_rate": 20,
   "batch_size": 64,

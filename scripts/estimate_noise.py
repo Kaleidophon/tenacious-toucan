@@ -9,6 +9,7 @@ model on a held out validation set.
 from argparse import ArgumentParser
 
 # EXT
+from tqdm import tqdm
 from diagnnose.config.setup import ConfigSetup
 import torch
 from torch.autograd import Variable
@@ -43,14 +44,14 @@ def estimate_noise(validation_set: WikiCorpus, model: LSTMLanguageModel, config_
     batch_size = config_dict["general"]["batch_size"]
     device = config_dict["general"]["device"]
 
-    loss = torch.nn.MSELoss(reduction="sum").to(device)
+    loss = torch.nn.CrossEntropyLoss(reduction="sum").to(device)
     test_metric = 0
     global_norm = 0
     hidden = None
     validation_set.create_batches(batch_size, repeat=False, drop_last=False, device=device)
 
     model.eval()
-    for batch, targets in validation_set:
+    for batch, targets in tqdm(validation_set):
         # Batch and targets come out here with seq_len x batch_size
         # So invert batch here so batch dimension is first and flatten targets later
         batch.t_()
@@ -62,7 +63,7 @@ def estimate_noise(validation_set: WikiCorpus, model: LSTMLanguageModel, config_
 
             current_targets = targets[t, :].to(device)
 
-            current_loss = loss(output_dist[:, current_targets], torch.ones(current_targets.shape)).item()
+            current_loss = loss(output_dist, current_targets).item()
 
             global_norm += current_targets.shape[0]
             test_metric += current_loss
@@ -71,7 +72,9 @@ def estimate_noise(validation_set: WikiCorpus, model: LSTMLanguageModel, config_
 
     estimated_noise = test_metric / global_norm
 
-    return estimated_noise.item()
+    print(estimated_noise)
+
+    return estimated_noise
 
 
 def manage_config() -> dict:
