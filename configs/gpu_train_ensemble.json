@@ -18,7 +18,6 @@
 
   "step_type": "fixed",
   "recoding_type": "ensemble",
-  "recode_output": true,
 
   "corpus_dir": "data/corpora/wikitext2",
   "model_save_path": "data/models/uncertainty/test.pt",

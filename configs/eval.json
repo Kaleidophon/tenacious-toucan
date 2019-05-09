@@ -3,5 +3,6 @@
   "max_sentence_len": 35,
   "batch_size": 64,
   "device": "cpu",
-  "ignore_unk": true
+  "ignore_unk": false,
+  "give_gold": false
 }

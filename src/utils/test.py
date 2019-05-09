@@ -18,7 +18,7 @@ from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
-                   perplexity: bool = False, ignore_unk: bool = False) -> Tuple[float, float]:
+                   perplexity: bool = False, ignore_unk: bool = False, give_gold: bool = False) -> Tuple[float, float]:
     """
     Evaluate a model on a given test set.
 
@@ -36,6 +36,9 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         Indicate whether perplexity should be returned instead of the loss.
     ignore_unk: bool
         Determine whether target <unk> tokens should be ignored when computing the test metric.
+    give_gold: bool
+        Determine whether recoding models are given the next gold target to compute the recoding signal or have to take
+        their best guess.
 
     Returns
     -------
@@ -58,7 +61,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
         for t in range(seq_len):
             input_vars = batch[:, t].to(device)
-            output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :].to(device))
+            output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :].to(device) if give_gold else None)
 
             # Calculate loss where the target is not <unk>
             if ignore_unk:

@@ -71,7 +71,7 @@ plot_column(
 # -----------------------------------------------------------------
 
 # 3. Plot how using different recoding step sizes differs
-train_selection_func3 = lambda path: "train" in path and ("ppl_step" in path or "vanilla" in path)
+train_selection_func3 = lambda path: "train" in path and ("ppl_corr_step" in path or "vanilla" in path)
 train_log_paths3 = get_logs_in_dir(LOGDIR, train_selection_func3)
 train_logs3 = aggregate_logs(train_log_paths3, ppl_step_name_function)
 plot_column(
@@ -85,5 +85,5 @@ val_logs3 = aggregate_logs(val_log_paths3, ppl_step_name_function)
 plot_column(
     val_logs3, x_name="batch_num", y_names="val_ppl", intervals=False,
     save_path=f"{IMGDIR}val_losses_steps.png",
-    title="Validation loss (n=3)", selection=slice(0, 25)
+    title="Validation loss (n=3)", selection=slice(0, 28)
 )
