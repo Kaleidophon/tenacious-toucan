@@ -58,7 +58,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
         for t in range(seq_len):
             input_vars = batch[:, t].to(device)
-            output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :].to(device))
+            output_dist, hidden = model(input_vars, hidden, target_idx=None)
 
             # Calculate loss where the target is not <unk>
             if ignore_unk:
