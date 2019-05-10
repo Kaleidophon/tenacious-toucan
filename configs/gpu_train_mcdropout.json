@@ -8,7 +8,7 @@
   "mc_dropout": 0.2,
   "dropout": 0.2,
   "weight_decay": 0.0001,
-  "prior_scale": 1,
+  "prior_scale": 0.8,
   "learning_rate": 20,
   "batch_size": 64,
   "num_epochs": 6,
