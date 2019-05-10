@@ -18,7 +18,7 @@ from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
-                   perplexity: bool = False, ignore_unk: bool = False, give_gold: bool = False) -> Tuple[float, float]:
+                   perplexity: bool = False, ignore_unk: bool = False, give_gold: bool = True) -> Tuple[float, float]:
     """
     Evaluate a model on a given test set.
 
