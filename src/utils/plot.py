@@ -39,7 +39,7 @@ RECODING_GRAD_COLOR_DICT = {
 
 # TODO: Incorporate options to distinguish between fixed / mlp step
 NAME_DICT = {
-    "ens": "Anc. Ensemble",
+    "ensemble": "Anc. Ensemble",
     "mcd": "MC Dropout",
     "ppl": "Perplexity",
     "vanilla": "Vanilla"

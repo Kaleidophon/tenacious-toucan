@@ -212,7 +212,7 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
 
     elif recoding_type in RECODING_TYPES.keys():
         model = UncertaintyLSTMLanguageModel(
-            vocab_size, **config_dict["model"], recode_output=config_dict["general"]["recode_output"],
+            vocab_size, **config_dict["model"],
             mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
         )
 
@@ -246,7 +246,7 @@ def manage_config() -> dict:
     """
     required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir"}
     arg_groups = {
-        "general": {"recoding_type", "recode_output"},
+        "general": {"recoding_type"},
         "model": {"embedding_size", "hidden_size", "num_layers", "dropout"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
                   "model_save_path", "device", "model_name", "multi_gpu"},
@@ -302,10 +302,6 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--clip", type=float, help="Threshold for gradient clipping.")
     from_cmd.add_argument("--multi_gpu", action="store_true", default=None,
                           help="Flag to indicate whether multiple GPUs should be used for training (if available).")
-    from_cmd.add_argument("--recode_output", action="store_true", default=None,
-                          help="Determine whether recoded output activations should be used to calculate the loss "
-                               "during training.")
-
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
     from_cmd.add_argument("--max_sentence_len", type=int, help="Maximum sentence length when reading in the corpora.")

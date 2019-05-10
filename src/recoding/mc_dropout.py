@@ -3,6 +3,7 @@ Perform recoding steps based on Monte-Carlo Dropout.
 """
 
 # STD
+from math import sqrt
 from typing import Optional, Any, Dict, Tuple
 
 # EXT
@@ -58,6 +59,10 @@ class MCDropoutMechanism(RecodingMechanism):
 
         # Add dropout layer to estimate predictive uncertainty
         self.mc_dropout_layer = nn.Dropout(p=self.mc_dropout)
+
+        # Initialize weights and bias according to prior scale
+        self.model.decoder.weight.data.normal_(0, sqrt(self.prior_scale))
+        self.model.decoder.bias.data.normal_(0, sqrt(self.prior_scale))
 
     @overrides
     def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,

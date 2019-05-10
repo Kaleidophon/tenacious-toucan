@@ -178,11 +178,10 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
     the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, recode_output, mechanism_class,
+    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class,
                  mechanism_kwargs, device: torch.device = "cpu"):
         super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
         self.mechanism = mechanism_class(model=self, **mechanism_kwargs, device=device)
-        self.recode_output = recode_output  # Use recoded output during training
 
     @overrides
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
@@ -211,11 +210,11 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
 
         new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)
 
-        # During training, calculate loss based on the unrecoded output activations
-        if self.training and not self.recode_output:
-            return out, new_hidden
-        else:
+        # Only allow recomputing out when gold token is not given and model has to guess, otherwise task is trivialized
+        if "target_idx" not in additional:
             return new_out, new_hidden
+        else:
+            return out, new_hidden
 
     def train(self, mode=True):
         super().train(mode)
