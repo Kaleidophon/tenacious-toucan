@@ -4,17 +4,16 @@ This modules defines some function to test models.
 
 # STD
 import math
-from typing import Tuple
+from typing import Tuple, Optional
 
 # EXT
-from torch.autograd import Variable
+from diagnnose.models.w2i import W2I
 from torch.nn import CrossEntropyLoss
 
 # PROJECT
-from src.utils.corpora import WikiCorpus
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.types import Device
-from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
+from utils.corpora import WikiCorpus, read_wiki_corpus
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
@@ -76,8 +75,6 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
             global_norm += current_targets.shape[0]
             test_metric += current_loss
 
-        hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}
-
     model.train()
 
     if perplexity:
@@ -85,3 +82,13 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         test_metric = math.exp(test_metric)
 
     return test_metric
+
+
+def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None) -> WikiCorpus:
+    """
+    Load the test set.
+    """
+    # TODO: Debug
+    test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab, stop_after=10)
+
+    return test_set

@@ -1,0 +1,8 @@
+{
+  "corpus_dir": "data/corpora/wikitext2",
+  "max_sentence_len": 35,
+  "batch_size": 64,
+  "device": "cpu",
+  "num_plots": 20,
+  "pdf_path": "img/ppl_diffs.pdf"
+}

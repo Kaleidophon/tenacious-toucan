@@ -16,6 +16,9 @@ def name_function(path):
     if shortened:
         shortened = shortened.split("_")[0]
 
+    if shortened == "mcd0":
+        shortened = "vanilla"
+
     return NAME_DICT[shortened]
 
 # Define how to color different model losses
@@ -23,7 +26,7 @@ def loss_color_function(curve_type, model_name, y_name):
     return COLOR_DICT[curve_type][model_name]
 
 # Plot training losses
-train_selection_func = lambda path: "train" in path
+train_selection_func = lambda path: "train" in path and not "mcd0" in path
 train_log_paths = get_logs_in_dir(LOGDIR, train_selection_func)
 train_logs = aggregate_logs(train_log_paths, name_function)
 plot_column(
@@ -32,7 +35,7 @@ plot_column(
 )
 
 # Plot validation losses
-val_selection_func = lambda path: "val" in path
+val_selection_func = lambda path: "val" in path and not "mcd0" in path
 val_log_paths = get_logs_in_dir(LOGDIR, val_selection_func)
 val_logs = aggregate_logs(val_log_paths, name_function)
 plot_column(
@@ -58,20 +61,29 @@ def recoding_grad_legend_func(model_name, y_name):
 gradient_columns = ["recoding_grads_hx_l0",	"recoding_grads_cx_l0",	"recoding_grads_hx_l1",	"recoding_grads_cx_l1"]
 
 plot_column(
-    bae_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=False,
-    save_path=f"{IMGDIR}gradient_norms_bae.png", title="BAE recoding gradient norms (n=1)",
+    bae_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=True,
+    save_path=f"{IMGDIR}gradient_norms_bae.png", title="BAE recoding gradient norms (n=3)",
     color_func=recoding_grad_color_func, legend_func=recoding_grad_legend_func, y_label="Recoding grad norm",
-    selection=slice(0, 200)
 )
 
 # Plot recoding grad norms for fixed MCD
-mcd_recoding_selection_func = lambda path: "mcd" in path and "train" in path
+mcd_recoding_selection_func = lambda path: "mcd" in path and "train" in path and not "mcd0" in path
 mcd_recoding_log_paths = get_logs_in_dir(LOGDIR, mcd_recoding_selection_func)
 mcd_recoding_logs = aggregate_logs(mcd_recoding_log_paths, name_function)
 
 plot_column(
-    mcd_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=False,
+    mcd_recoding_logs, x_name="batch_num", y_names=gradient_columns, intervals=True,
     save_path=f"{IMGDIR}gradient_norms_mcd.png", title="MCD recoding gradient norms (n=3)",
     color_func=recoding_grad_color_func, legend_func=recoding_grad_legend_func, y_label="Recoding grad norm",
-    selection=slice(0, 200)
+    y_top_lim=2
+)
+
+# Plot deltas for mcd / ensemble / vanilla
+delta_selection_func = lambda path: "train" in path and "vanilla" not in path
+delta_log_paths = get_logs_in_dir(LOGDIR, delta_selection_func)
+delta_logs = aggregate_logs(delta_log_paths, name_function)
+
+plot_column(
+    delta_logs, x_name="batch_num", y_names="deltas", intervals=True, save_path=f"{IMGDIR}deltas.png",
+    title="Deltas (n=3)", color_func=loss_color_function, selection=slice(500, 550)
 )
