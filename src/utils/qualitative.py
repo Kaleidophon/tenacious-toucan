@@ -18,6 +18,7 @@ from src.models.language_model import LSTMLanguageModel
 from src.utils.corpora import load_data, WikiCorpus
 from src.utils.test import load_test_set
 from src.utils.types import Device
+from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 # CONSTANTS
 BASELINE_COLOR = "tab:blue"
@@ -41,14 +42,15 @@ def main():
 
     # Load data sets
     train_set, _ = load_data(corpus_dir, max_sentence_len)
-    test_set = load_test_set(corpus_dir, max_sentence_len, train_set.vocab)
+    test_set = load_test_set(corpus_dir, max_sentence_len, train_set.vocab, stop_after=100)
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
     sentence_scores = defaultdict(list)
 
     # Extract perplexity scores for every word of every sentence
-    for path, model in models.items():
+    for n, (path, model) in enumerate(models.items()):
+        print(f"\rEvaluating model {n+1}/{len(models)}...", end="", flush=True)
         sentence_ppls = extract_word_perplexities(model, test_set, device)
         # Aggregate perplexity scores by model
         sentence_scores[_grouping_function(path)].append(sentence_ppls)
@@ -73,8 +75,8 @@ def main():
 
         scored_sentences.append(
             ScoredSentence(
-                sentence=orig_sentence, first_scores=first_mean.numpy(), first_std=first_std.numpy(),
-                second_scores=second_mean.numpy(), second_std=second_std.numpy(), diff=diff.item()
+                sentence=orig_sentence, first_scores=first_mean.detach().numpy(), first_std=first_std.detach().numpy(),
+                second_scores=second_mean.detach().numpy(), second_std=second_std.detach().numpy(), diff=diff.item()
             )
         )
 
@@ -150,24 +152,26 @@ def extract_word_perplexities(model: LSTMLanguageModel, test_set: WikiCorpus, de
     all_sentence_ppls = []
 
     model.eval()
-    with torch.no_grad():
-        for sentence in test_set:
-            # Batch and targets come out here with seq_len x batch_size
-            # So invert batch here so batch dimension is first and flatten targets later
-            word_ppls = []
 
-            for t in range(sentence.shape[0] - 1):
-                input_vars = sentence[t].unsqueeze(0).to(device)
-                output_dist, hidden = model(input_vars, hidden, target_idx=sentence[t + 1].unsqueeze(0).to(device))
+    for sentence in test_set:
+        # Batch and targets come out here with seq_len x batch_size
+        # So invert batch here so batch dimension is first and flatten targets later
+        word_ppls = []
 
-                # Calculate loss where the target is not <unk>
-                current_word_ppls = torch.sigmoid(output_dist[:, sentence[t + 1]])
-                word_ppls.append(current_word_ppls)
+        for t in range(sentence.shape[0] - 1):
+            input_vars = sentence[t].unsqueeze(0).to(device)
+            output_dist, hidden = model(input_vars, hidden, target_idx=sentence[t + 1].unsqueeze(0).to(device))
 
-            # Concat and so that we have tensors containing all the target word perplexities of all batch sentences
-            sentence_word_ppls = torch.cat(word_ppls, dim=0)
-            sentence_word_ppls = perplexity(sentence_word_ppls)
-            all_sentence_ppls.append(sentence_word_ppls)
+            # Calculate loss where the target is not <unk>
+            current_word_ppls = torch.sigmoid(output_dist[:, sentence[t + 1]])
+            word_ppls.append(current_word_ppls)
+
+        # Concat and so that we have tensors containing all the target word perplexities of all batch sentences
+        sentence_word_ppls = torch.cat(word_ppls, dim=0)
+        sentence_word_ppls = perplexity(sentence_word_ppls)
+        all_sentence_ppls.append(sentence_word_ppls)
+
+        hidden = {l: CompatibleRNN.map(h, func=lambda h: h.detach()) for l, h in hidden.items()}
 
     return all_sentence_ppls
 

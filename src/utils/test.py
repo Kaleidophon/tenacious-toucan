@@ -13,7 +13,7 @@ from torch.nn import CrossEntropyLoss
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.types import Device
-from utils.corpora import WikiCorpus, read_wiki_corpus
+from src.utils.corpora import WikiCorpus, read_wiki_corpus
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
@@ -84,11 +84,12 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     return test_metric
 
 
-def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None) -> WikiCorpus:
+def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None,
+                  stop_after: Optional[int] = None) -> WikiCorpus:
     """
     Load the test set.
     """
-    # TODO: Debug
-    test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab, stop_after=10)
+    test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab,
+                                stop_after=stop_after)
 
     return test_set

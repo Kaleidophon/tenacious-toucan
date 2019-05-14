@@ -84,6 +84,6 @@ delta_log_paths = get_logs_in_dir(LOGDIR, delta_selection_func)
 delta_logs = aggregate_logs(delta_log_paths, name_function)
 
 plot_column(
-    delta_logs, x_name="batch_num", y_names="deltas", intervals=True, save_path=f"{IMGDIR}deltas.png",
-    title="Deltas (n=3)", color_func=loss_color_function, selection=slice(500, 550)
+    delta_logs, x_name="batch_num", y_names="deltas", intervals=False, save_path=f"{IMGDIR}deltas.png",
+    title="Deltas (n=3)", color_func=loss_color_function, selection=slice(2550, 2600)
 )
