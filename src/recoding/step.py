@@ -108,9 +108,9 @@ class PerplexityStepPredictor(AbstractStepPredictor):
         target_probs = torch.gather(out, 1, target_idx)
         target_probs = torch.sigmoid(target_probs)
         # If model is "unsurprised", ppl is 1, therefore anchor values at 0
-        target_ppls = 2 ** (target_probs * -target_probs.log2()) - 1
+        step_size = 2 ** (target_probs * -target_probs.log2()) - 1
 
-        return target_ppls.to(device)
+        return step_size.data.to(device)  # Detach from graph
 
 
 class AdaptiveStepPredictor(AbstractStepPredictor):
