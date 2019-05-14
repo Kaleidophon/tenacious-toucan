@@ -87,3 +87,14 @@ plot_column(
     delta_logs, x_name="batch_num", y_names="deltas", intervals=False, save_path=f"{IMGDIR}deltas.png",
     title="Deltas (n=3)", color_func=loss_color_function, selection=slice(2550, 2600)
 )
+
+# Quantify difference in deltas
+mean_abe_delta = delta_logs["Anc. Ensemble"]["deltas"].mean(axis=0)
+mean_mcd_delta = delta_logs["MC Dropout"]["deltas"].mean(axis=0)
+vanilla_delta = delta_logs["Vanilla"]["deltas"]
+
+mse = lambda x, y: ((x - y)**2).mean()
+
+print("MSE Vanilla - MCD: ", mse(vanilla_delta, mean_mcd_delta))
+print("MSE Vanilla - ABE: ", mse(vanilla_delta, mean_abe_delta))
+print("MSE MCD - ABE: ", mse(mean_mcd_delta, mean_abe_delta))

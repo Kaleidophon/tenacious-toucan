@@ -9,11 +9,13 @@ from typing import Tuple, Optional
 # EXT
 from diagnnose.models.w2i import W2I
 from torch.nn import CrossEntropyLoss
+from torch.autograd import Variable
 
 # PROJECT
+from src.utils.corpora import WikiCorpus, read_wiki_corpus
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.types import Device
-from src.utils.corpora import WikiCorpus, read_wiki_corpus
+from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
@@ -74,6 +76,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
 
             global_norm += current_targets.shape[0]
             test_metric += current_loss
+
+        hidden = CompatibleRNN.map(hidden, func=lambda h: Variable(h.data))
 
     model.train()
 
