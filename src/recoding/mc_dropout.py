@@ -97,7 +97,7 @@ class MCDropoutMechanism(RecodingMechanism):
         delta = self._calculate_predictive_uncertainty(prediction)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
+        new_out_dist, new_hidden = self.recode_activations(hidden, out, delta, device, **additional)
 
         return new_out_dist, new_hidden
 

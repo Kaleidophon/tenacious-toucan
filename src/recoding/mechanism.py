@@ -6,7 +6,7 @@ be employed during training, not only testing time.
 
 # STD
 from abc import abstractmethod, ABC
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict, Optional, Any
 
 # EXT
 import torch
@@ -17,13 +17,14 @@ from torch.autograd import grad as compute_grads
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import StatsCollector
-from src.recoding.step import FixedStepPredictor, AdaptiveStepPredictor
+from src.recoding.step import FixedStepPredictor, AdaptiveStepPredictor, PerplexityStepPredictor
 from src.utils.types import Device, HiddenDict, StepSize
 
 # CONSTANTS
 STEP_TYPES = {
     "fixed": FixedStepPredictor,
-    "mlp": AdaptiveStepPredictor
+    "mlp": AdaptiveStepPredictor,
+    "ppl": PerplexityStepPredictor
 }
 
 
@@ -84,7 +85,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         """
         ...
 
-    def recode_activations(self, hidden: HiddenDict, delta: Tensor, device: Device) -> Tuple[Tensor, HiddenDict]:
+    def recode_activations(self, hidden: HiddenDict, out: Tensor, delta: Tensor, device: Device,
+                           **additional: Any) -> Tuple[Tensor, HiddenDict]:
         """
         Recode all activations stored in a HiddenDict based on an error signal delta.
 
@@ -92,6 +94,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         ----------
         hidden: HiddenDict
             Dictionary of all hidden (and cell states) of all network layers.
+         out: Tensor
+            Output Tensor of current time step.
         delta: Tensor
             Current error signal that is used to calculate the gradients w.r.t. the hidden states.
         device: torch.device
@@ -109,7 +113,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         new_hidden = {
             l: tuple([
                 # Use the step predictor for the corresponding state and layer
-                self.recode(h, step_size=predictor(h, device), name=f"{name}_l{l}")
+                self.recode(h, step_size=predictor(h, out, device, **additional), name=f"{name}_l{l}")
                 for h, predictor, name in zip(hid, self.predictors[l], ["hx", "cx"])])  # TODO: Be LSTM / GRU agnostic
             for l, hid in hidden.items()
         }

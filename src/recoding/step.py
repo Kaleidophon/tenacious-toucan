@@ -4,7 +4,7 @@ Define a model with an intervention mechanism that bases its interventions on th
 
 # STD
 from abc import abstractmethod, ABC
-from typing import Iterable
+from typing import Iterable, Any
 
 # EXT
 import torch
@@ -21,7 +21,7 @@ class AbstractStepPredictor(nn.Module, ABC):
     Abstract class for any kind of model that tries to determine the step size inside the encoding framework.
     """
     @abstractmethod
-    def forward(self, hidden: Tensor, device: torch.device) -> StepSize:
+    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
         """
         Prediction step.
 
@@ -29,6 +29,8 @@ class AbstractStepPredictor(nn.Module, ABC):
         ----------
         hidden: Tensor
             Current hidden state used to determine step size.
+        out: Tensor
+            Output Tensor of current time step.
         device: torch.device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
@@ -48,7 +50,7 @@ class FixedStepPredictor(AbstractStepPredictor):
         super().__init__()
         self.step_size = step_size
 
-    def forward(self, hidden: Tensor, device: torch.device) -> StepSize:
+    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
         """
         Prediction step.
 
@@ -56,6 +58,8 @@ class FixedStepPredictor(AbstractStepPredictor):
         ----------
         hidden: Tensor
             Current hidden state used to determine step size.
+        out: Tensor
+            Output Tensor of current time step.
         device: torch.device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
@@ -65,6 +69,48 @@ class FixedStepPredictor(AbstractStepPredictor):
             Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
         """
         return torch.Tensor([self.step_size]).to(device)
+
+
+class PerplexityStepPredictor(AbstractStepPredictor):
+    """
+    Determine the current step size based on the perplexity of the current target token.
+    """
+    def __init__(self, **unused):
+        super().__init__()
+
+    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
+        """
+        Prediction step.
+
+        Parameters
+        ----------
+        hidden: Tensor
+            Current hidden state used to determine step size.
+        out: Tensor
+            Output Tensor of current time step.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
+
+        Returns
+        -------
+        step_size: StepSize
+            Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
+        """
+        out = out.squeeze(1)
+        target_idx = additional.get("target_idx", None)
+
+        # If target indices are not given, just use most likely token
+        if target_idx is None:
+            target_idx = torch.argmax(out, dim=1, keepdim=True)
+        else:
+            target_idx = target_idx.unsqueeze(1)
+
+        target_probs = torch.gather(out, 1, target_idx)
+        target_probs = torch.sigmoid(target_probs)
+        # If model is "unsurprised", ppl is 1, therefore anchor values at 0
+        target_ppls = 2 ** (target_probs * -target_probs.log2()) - 1
+
+        return target_ppls.to(device)
 
 
 class AdaptiveStepPredictor(AbstractStepPredictor):
@@ -117,7 +163,7 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         self._buffer_copy = self.hidden_buffer
         self.hidden_buffer = []
 
-    def forward(self, hidden: Tensor, device: torch.device) -> StepSize:
+    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
         """
         Prediction step.
 
@@ -125,6 +171,8 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         ----------
         hidden: Tensor
             Current hidden state used to determine step size.
+        out: Tensor
+            Output Tensor of current time step.
         device: torch.device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
 

@@ -279,7 +279,7 @@ def init_argparser() -> ArgumentParser:
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
-    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp"],
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp", "ppl"],
                           help="Specifies the way the step size is determined when using a recoding model.")
     from_cmd.add_argument("--step_size", type=float,
                           help="Step size for recoding in case the fixed step predictor is used.")
