@@ -57,7 +57,7 @@ class Decoder(nn.Module):
             self.layers.append(current_layer)
             last_layer_size = layer_size
 
-        out = nn.Linear(last_layer_size, vocab_size)
+        out = nn.Linear(last_layer_size, vocab_size).to(device)
         self.layers.append(out)
 
         # Re-initialize weights with prior scale if given
