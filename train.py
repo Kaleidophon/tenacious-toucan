@@ -247,7 +247,7 @@ def manage_config() -> dict:
     required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir"}
     arg_groups = {
         "general": {"recoding_type"},
-        "model": {"embedding_size", "hidden_size", "num_layers", "dropout"},
+        "model": {"embedding_size", "hidden_size", "num_layers", "dropout", "decoder_layer_sizes"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
                   "model_save_path", "device", "model_name", "multi_gpu"},
         "logging": {"log_dir"},
@@ -290,6 +290,8 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
     from_cmd.add_argument("--window_size", type=int, default=None, help="Window size for adaptive step predictor.")
+    from_cmd.add_argument("--decoder_layer_sizes", type=int, nargs="+", default=None,
+                          help="Sizes of intermediate decoder layers.")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")

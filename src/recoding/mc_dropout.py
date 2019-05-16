@@ -57,13 +57,6 @@ class MCDropoutMechanism(RecodingMechanism):
         self.prior_scale = prior_scale
         self.data_length = data_length
 
-        # Add dropout layer to estimate predictive uncertainty
-        self.mc_dropout_layer = nn.Dropout(p=self.mc_dropout)
-
-        # Initialize weights and bias according to prior scale
-        self.model.decoder.weight.data.normal_(0, sqrt(self.prior_scale))
-        self.model.decoder.bias.data.normal_(0, sqrt(self.prior_scale))
-
     @overrides
     def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,
                       **additional: Dict) -> Tuple[Tensor, HiddenDict]:
@@ -91,7 +84,7 @@ class MCDropoutMechanism(RecodingMechanism):
             Hidden state of current time step after recoding.
         """
         target_idx = additional.get("target_idx", None)
-        prediction = self._mc_dropout_predict(out, device, target_idx)
+        prediction = self._mc_dropout_predict(hidden, device, target_idx)
 
         # Estimate uncertainty of those same predictions
         delta = self._calculate_predictive_uncertainty(prediction)
@@ -101,14 +94,14 @@ class MCDropoutMechanism(RecodingMechanism):
 
         return new_out_dist, new_hidden
 
-    def _mc_dropout_predict(self, output: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
+    def _mc_dropout_predict(self, hidden: HiddenDict, device: torch.device, target_idx: Optional[Tensor] = None):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
         Parameters
         ----------
-        output: Tensor
-            Current output distributions.
+        hidden: HiddenDict
+            Dictionary of all hidden (and cell states) of all network layers.
         target_idx: Optional[Tensor]
             Indices of actual next tokens (if given). Otherwise the most likely tokens are used.
 
@@ -117,12 +110,16 @@ class MCDropoutMechanism(RecodingMechanism):
         target_predictions: Tensor
             Predicted probabilities for target token.
         """
-        # Collect sample predictions
-        output = output.unsqueeze(1)
-        output = output.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
+        topmost_hidden = self.select(hidden[self.model.num_layers - 1])
 
-        # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
-        predictions = self.mc_dropout_layer(output)
+        model_mode = self.model.training
+        self.model.train()
+        predictions = [
+            self.model.decoder(topmost_hidden, dropout_prob=self.mc_dropout).unsqueeze(1)
+            for _ in range(self.num_samples)
+        ]
+        self.model.training = model_mode
+        predictions = torch.cat(predictions, dim=1)
 
         # If no target is given, compute uncertainty of most likely token
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)

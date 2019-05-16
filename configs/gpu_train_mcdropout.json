@@ -15,6 +15,7 @@
   "clip": 0.25,
   "step_size": 0.5,
   "max_sentence_len": 35,
+  "decoder_layer_sizes": [1300],
 
   "step_type": "fixed",
   "recoding_type": "mc_dropout",
