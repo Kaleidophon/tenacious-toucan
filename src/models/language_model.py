@@ -87,7 +87,7 @@ class Decoder(nn.Module):
 
         out = hidden
         for layer in self.layers:
-            out = relu(layer(dropout(out, p=dropout_prob)))
+            out = layer(dropout(relu(out), p=dropout_prob))
 
         return out
 
