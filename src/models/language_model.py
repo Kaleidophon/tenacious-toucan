@@ -54,7 +54,7 @@ class Decoder(nn.Module):
         # Initialize layers
         last_layer_size = hidden_size
         for n, layer_size in enumerate(layer_sizes + [vocab_size]):
-            self.batch_norms.append(nn.BatchNorm1d(num_features=last_layer_size))
+            self.batch_norms.append(nn.BatchNorm1d(num_features=last_layer_size).to(device))
             current_layer = nn.Linear(last_layer_size, layer_size).to(device)
             self.layers.append(current_layer)
             last_layer_size = layer_size
