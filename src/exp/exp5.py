@@ -94,7 +94,12 @@ mean_mcd_delta = delta_logs["MC Dropout"]["deltas"].mean(axis=0)
 vanilla_delta = delta_logs["Vanilla"]["deltas"]
 
 mse = lambda x, y: ((x - y)**2).mean()
+diff = lambda x, y: (x-y).mean()
 
 print("MSE Vanilla - MCD: ", mse(vanilla_delta, mean_mcd_delta))
 print("MSE Vanilla - ABE: ", mse(vanilla_delta, mean_abe_delta))
 print("MSE MCD - ABE: ", mse(mean_mcd_delta, mean_abe_delta))
+print("Diff Vanilla MCD: ", diff(vanilla_delta, mean_mcd_delta))
+print("Diff Vanilla ABE: ", diff(vanilla_delta, mean_abe_delta))
+
+

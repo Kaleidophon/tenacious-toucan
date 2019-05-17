@@ -9,7 +9,7 @@
   "max_sentence_len": 35,
   "weight_decay": 0,
   "dropout": 0.2,
-  "decoder_layer_sizes": [1300],
+  "decoder_layer_sizes": [],
 
   "corpus_dir": "data/corpora/wikitext2",
   "print_every": 1,

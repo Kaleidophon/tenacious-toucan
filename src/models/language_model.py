@@ -10,7 +10,7 @@ from typing import Optional, Dict, Tuple
 import torch
 from torch import nn, Tensor
 from overrides import overrides
-from torch.nn.functional import dropout, relu
+from torch.nn.functional import dropout, leaky_relu
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -49,16 +49,15 @@ class Decoder(nn.Module):
         self.prior_scale = prior_scale
         self.layer_sizes = layer_sizes
         self.layers = []
+        self.batch_norms = []
 
         # Initialize layers
         last_layer_size = hidden_size
-        for n, layer_size in enumerate(layer_sizes):
+        for n, layer_size in enumerate(layer_sizes + [vocab_size]):
+            self.batch_norms.append(nn.BatchNorm1d(num_features=last_layer_size))
             current_layer = nn.Linear(last_layer_size, layer_size).to(device)
             self.layers.append(current_layer)
             last_layer_size = layer_size
-
-        out = nn.Linear(last_layer_size, vocab_size).to(device)
-        self.layers.append(out)
 
         # Re-initialize weights with prior scale if given
         if self.prior_scale is not None:
@@ -86,8 +85,11 @@ class Decoder(nn.Module):
         dropout_prob = dropout_prob if dropout_prob is not None else self.dropout_prob
 
         out = hidden
-        for layer in self.layers:
-            out = layer(dropout(relu(out), p=dropout_prob))
+        for n, (layer, batch_norm) in enumerate(zip(self.layers, self.batch_norms)):
+            out = layer(batch_norm(out))
+
+            if n != len(self.layers):
+                out = leaky_relu(out)
 
         return out
 
