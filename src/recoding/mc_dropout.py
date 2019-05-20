@@ -125,16 +125,18 @@ class MCDropoutMechanism(RecodingMechanism):
 
         # Select predicted probabilities of target index
         predictions.exp_()  # Exponentiate for later softmax
-        target_idx = target_idx.view(target_idx.shape[0], 1, 1)
-        target_idx = target_idx.repeat(1, self.num_samples, 1)
-        target_predictions = torch.gather(predictions, 2, target_idx)
-        target_predictions = target_predictions.squeeze(2)
+        norm = predictions.sum(dim=2).unsqueeze(2)
+        predictions = predictions / norm
+        #target_idx = target_idx.view(target_idx.shape[0], 1, 1)
+        #target_idx = target_idx.repeat(1, self.num_samples, 1)
+        #target_predictions = torch.gather(predictions, 2, target_idx)
+        #target_predictions = target_predictions.squeeze(2)
 
         # Apply softmax (only apply it to actually relevant probabilities, save some computation)
-        norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
-        target_predictions = target_predictions / norm_factor
+        #norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
+        #target_predictions = target_predictions / norm_factor
 
-        return target_predictions
+        return predictions
 
     def _calculate_predictive_uncertainty(self, predictions: Tensor):
         """
