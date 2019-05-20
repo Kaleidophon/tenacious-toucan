@@ -132,7 +132,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 for t in range(seq_len):
                     input_vars = batch[:, t]  # Make input vars batch_size x 1
-                    output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :])
+                    output_dist, hidden = model(input_vars, hidden)
                     outputs.append(output_dist)
 
                 # Backward pass

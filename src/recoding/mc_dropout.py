@@ -85,8 +85,7 @@ class MCDropoutMechanism(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        target_idx = additional.get("target_idx", None)
-        prediction = self._mc_dropout_predict(out, device, target_idx)
+        prediction = self._mc_dropout_predict(out, device)
 
         # Estimate uncertainty of those same predictions
         delta = self._calculate_predictive_uncertainty(prediction)
@@ -96,7 +95,7 @@ class MCDropoutMechanism(RecodingMechanism):
 
         return new_out_dist, new_hidden
 
-    def _mc_dropout_predict(self, output: Tensor, device: torch.device, target_idx: Optional[Tensor] = None):
+    def _mc_dropout_predict(self, output: Tensor, device: torch.device):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -104,8 +103,6 @@ class MCDropoutMechanism(RecodingMechanism):
         ----------
         output: Tensor
             Current output distributions.
-        target_idx: Optional[Tensor]
-            Indices of actual next tokens (if given). Otherwise the most likely tokens are used.
 
         Returns
         -------
@@ -119,22 +116,10 @@ class MCDropoutMechanism(RecodingMechanism):
         # Because different dropout masks are used in DataParallel, this will yield different results per batch instance
         predictions = self.mc_dropout_layer(output)
 
-        # If no target is given, compute uncertainty of most likely token
-        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
-        target_idx = target_idx.to(device)
-
         # Select predicted probabilities of target index
         predictions.exp_()  # Exponentiate for later softmax
         norm = predictions.sum(dim=2).unsqueeze(2)
         predictions = predictions / norm
-        #target_idx = target_idx.view(target_idx.shape[0], 1, 1)
-        #target_idx = target_idx.repeat(1, self.num_samples, 1)
-        #target_predictions = torch.gather(predictions, 2, target_idx)
-        #target_predictions = target_predictions.squeeze(2)
-
-        # Apply softmax (only apply it to actually relevant probabilities, save some computation)
-        #norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
-        #target_predictions = target_predictions / norm_factor
 
         return predictions
 
