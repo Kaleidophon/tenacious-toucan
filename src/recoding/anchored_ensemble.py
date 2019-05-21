@@ -5,7 +5,7 @@ Module concerning the recoding based on an anchored ensemble, following the pape
 
 # STD
 from math import sqrt
-from typing import Optional, Any, Dict, Tuple
+from typing import Optional, Any, Dict, Tuple, List
 
 # EXT
 import torch
@@ -181,24 +181,32 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         device: torch.device
                 Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
-        self.weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size, device=device)
-        self.weight_anchor.normal_(0, sqrt(self.prior_scale))
-        self.bias_anchor = torch.zeros(self.model.vocab_size, device=device)
-        self.bias_anchor.normal_(0, sqrt(self.prior_scale))
+        self.weight_anchors, self.bias_anchors = [], []
+
+        # Sample one anchor point per ensemble member
+        for _ in range(self.num_samples):
+            weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size, device=device)
+            weight_anchor.normal_(0, sqrt(self.prior_scale))
+            bias_anchor = torch.zeros(self.model.vocab_size, device=device)
+            bias_anchor.normal_(0, sqrt(self.prior_scale))
+
+            self.weight_anchors.append(weight_anchor)
+            self.bias_anchors.append(bias_anchor)
 
     @property
-    def ensemble_loss(self) -> Tensor:
+    def ensemble_losses(self) -> List[Tensor]:
         """
         Return the current loss of the Bayesian anchored ensemble based on the current parameters of the ensemble's
         members. This basically corresponds to the second term of eq. 9.
         """
-        loss = 0
+        ensemble_losses = torch.ones(self.num_samples)
+        members_and_anchors = zip(self.model.decoder_ensemble, self.weight_anchors, self.bias_anchors)
 
-        for decoder in self.model.decoder_ensemble:
-            loss += torch.norm(decoder.weight - self.weight_anchor)
-            loss += torch.norm(decoder.bias - self.bias_anchor)
+        for k, (decoder, weight_anchor, bias_anchor) in enumerate(members_and_anchors):
+            ensemble_losses[k] += torch.norm(decoder.weight - weight_anchor)
+            ensemble_losses[k] += torch.norm(decoder.bias - bias_anchor)
 
-        return self.lambda_ / self.data_length * loss
+        return self.lambda_ / self.data_length * ensemble_losses
 
     def _decode_ensemble(self, hidden: Tensor) -> Tensor:
         """
@@ -215,7 +223,12 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
             Decoded hidden activations batch_size * vocab_size
         """
         decoded_activations = [decoder(hidden) for decoder in self.model.decoder_ensemble]
-        decoded_activations = torch.stack(decoded_activations)
-        out = decoded_activations.mean(dim=0)
+        out = torch.stack(decoded_activations)
+
+        # During training, leave the predictions of the ensemble members separate s.t. we can compute the loss per
+        # member
+        # During testing, we just ensemble all predictions by taking the mean
+        if not self.model.training:
+            out = out.mean(dim=0)
 
         return out

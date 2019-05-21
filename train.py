@@ -135,17 +135,27 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :])
                     outputs.append(output_dist)
 
-                # Backward pass
-                outputs = torch.cat(outputs)
+                # Backward
                 targets = torch.flatten(targets)
-                batch_loss = loss(outputs, target=targets)
 
-                # Extra loss component for recoding with Anchored Bayesian Ensembles
+                # When using bayesian anchored ensembles
                 if has_anchored_ensemble(model):
-                    ensemble_loss = model.mechanism.ensemble_loss
-                    batch_loss += ensemble_loss
+                    outputs = torch.cat(outputs, dim=1)  # K x (batch_size * seq_len) x vocab_size
+                    # Extra loss component for recoding with Anchored Bayesian Ensembles
+                    ensemble_losses = model.mechanism.ensemble_losses
 
-                batch_loss.backward()
+                    # Compute loss for every member of the ensemble separately
+                    for k in range(model.mechanism.num_samples):
+                        member_outputs = outputs[k, :, :]
+                        batch_loss = loss(member_outputs, target=targets)
+                        member_loss = batch_loss + ensemble_losses[k]
+                        member_loss.backward(retain_graph=True)
+
+                # All other models
+                else:
+                    outputs = torch.cat(outputs)
+                    batch_loss = loss(outputs, target=targets)
+                    batch_loss.backward()
 
                 clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
