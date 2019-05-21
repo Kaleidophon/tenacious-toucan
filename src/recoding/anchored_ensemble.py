@@ -69,6 +69,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         self.num_samples = num_samples
         self.prior_scale = prior_scale
         self.data_length = data_length
+        self.device = device
 
         # Prepare ensemble
         self._sample_anchors(device)
@@ -199,7 +200,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         Return the current loss of the Bayesian anchored ensemble based on the current parameters of the ensemble's
         members. This basically corresponds to the second term of eq. 9.
         """
-        ensemble_losses = torch.ones(self.num_samples)
+        ensemble_losses = torch.ones(self.num_samples).to(self.device)
         members_and_anchors = zip(self.model.decoder_ensemble, self.weight_anchors, self.bias_anchors)
 
         for k, (decoder, weight_anchor, bias_anchor) in enumerate(members_and_anchors):
