@@ -15,6 +15,7 @@ from overrides import overrides
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
+from src.models.language_model import Decoder
 from src.recoding.mechanism import RecodingMechanism
 from src.utils.types import HiddenDict, Device
 
@@ -69,6 +70,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         self.num_samples = num_samples
         self.prior_scale = prior_scale
         self.data_length = data_length
+        self.device = device
 
         # Prepare ensemble
         self._sample_anchors(device)
@@ -107,7 +109,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         delta = self._calculate_predictive_uncertainty(hidden, target_idx)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        new_out_dist, new_hidden = self.recode_activations(hidden, delta, device)
+        new_out_dist, new_hidden = self.recode_activations(hidden, out, delta, device, **additional)
 
         return new_out_dist, new_hidden
 
@@ -155,15 +157,15 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         Initialize a decoder ensemble.
         """
         # Delete decoder and replace with ensemble
-        del self.model.decoder
         self.model.decoder_ensemble = []
+        decoder_args = (
+            self.model.decoder.vocab_size, self.hidden_size, self.model.decoder.dropout_prob, self.device,
+            self.model.decoder.layer_sizes, self.prior_scale
+        )
+        del self.model.decoder
 
         for k in range(self.num_samples):
-            decoder = nn.Linear(self.hidden_size, self.model.vocab_size)
-
-            # Initialize weights and bias according to prior scale
-            decoder.weight.data.normal_(0, sqrt(self.prior_scale))
-            decoder.bias.data.normal_(0, sqrt(self.prior_scale))
+            decoder = Decoder(*decoder_args)
 
             # Integrate into model
             self.model.add_module(f"decoder{k}", decoder)  # Register as model params so all decoders get learned
@@ -181,10 +183,16 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         device: torch.device
                 Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
-        self.weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size, device=device)
-        self.weight_anchor.normal_(0, sqrt(self.prior_scale))
-        self.bias_anchor = torch.zeros(self.model.vocab_size, device=device)
-        self.bias_anchor.normal_(0, sqrt(self.prior_scale))
+        self.weight_anchors = []
+        self.bias_anchors = []
+
+        for layer in self.model.decoder.layers:
+            weight_anchor = torch.zeros(layer.out_features, layer.in_features, device=device)
+            weight_anchor.normal_(0, sqrt(self.prior_scale))
+            bias_anchor = torch.zeros(layer.out_features, device=device)
+            bias_anchor.normal_(0, sqrt(self.prior_scale))
+            self.weight_anchors.append(weight_anchor)
+            self.bias_anchors.append(bias_anchor)
 
     @property
     def ensemble_loss(self) -> Tensor:
@@ -195,8 +203,9 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         loss = 0
 
         for decoder in self.model.decoder_ensemble:
-            loss += torch.norm(decoder.weight - self.weight_anchor)
-            loss += torch.norm(decoder.bias - self.bias_anchor)
+            for layer, weight_anchor, bias_anchor in zip(decoder.layers, self.weight_anchors, self.bias_anchors):
+                loss += torch.norm(layer.weight - weight_anchor)
+                loss += torch.norm(layer.bias - bias_anchor)
 
         return self.lambda_ / self.data_length * loss
 

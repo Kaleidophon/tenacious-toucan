@@ -136,7 +136,8 @@ class WikiCorpus(Dataset):
         vocab: W2I
             Vocabulary as W2I object.
         """
-        self.indexed_sentences = torch.cat(indexed_sentences, dim=0)
+        self.indexed_sentences = indexed_sentences
+        self.indexed_corpus = torch.cat(indexed_sentences, dim=0)
         self.seq_len = max_sentence_len
         self.vocab = vocab
         self.batches = None
@@ -147,13 +148,13 @@ class WikiCorpus(Dataset):
         self.repeat = repeat
 
         # Work out how cleanly we can divide the dataset into batch-sized parts
-        num_batched_steps = self.indexed_sentences.shape[0] // batch_size
+        num_batched_steps = self.indexed_corpus.shape[0] // batch_size
 
         # Trim off any extra elements that wouldn't cleanly fit (remainders)
-        self.indexed_sentences = self.indexed_sentences.narrow(0, 0, num_batched_steps * batch_size)
+        self.indexed_corpus = self.indexed_corpus.narrow(0, 0, num_batched_steps * batch_size)
 
         # Evenly divide the data across the bsz batches.
-        raw_batches = self.indexed_sentences.view(batch_size, -1).t().contiguous().to(device)
+        raw_batches = self.indexed_corpus.view(batch_size, -1).t().contiguous().to(device)
 
         # If the last batch would be too short and drop_last is true, remove it
         if num_batched_steps % self.seq_len > 0 and drop_last:
@@ -164,12 +165,14 @@ class WikiCorpus(Dataset):
         self.batches = [raw_batches[n * self.seq_len: (n + 1) * self.seq_len + 1, :] for n in range(self.num_batches)]
 
     def __iter__(self):
-        if self.batches is None:
-            raise ValueError("Batches have not initialized yet. Call create_batches() first.")
-
         while True:
-            for batch in self.batches:
-                yield batch[:-1, :], batch[1:, :]  # Return batch and target indices
+            if self.batches is None:
+                for indexed_sentence in self.indexed_sentences:
+                    yield indexed_sentence
+            else:
+                for batch in self.batches:
+                    yield batch[:-1, :], batch[1:, :]  # Return batch and target indices
+
             if not self.repeat:
                 return
 

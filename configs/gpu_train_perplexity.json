@@ -11,6 +11,7 @@
   "num_epochs": 6,
   "clip": 0.25,
   "max_sentence_len": 35,
+  "decoder_layer_sizes": [1300],
 
   "step_type": "fixed",
   "recoding_type": "perplexity",

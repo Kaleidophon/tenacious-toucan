@@ -5,17 +5,16 @@ Script to evaluate a model.
 # STD
 from argparse import ArgumentParser
 from collections import defaultdict
-from typing import Optional
 
 # EXT
 import numpy as np
 from diagnnose.config.setup import ConfigSetup
 import torch
-from diagnnose.models.w2i import W2I
 
 # PROJECT
-from src.utils.corpora import WikiCorpus, read_wiki_corpus, load_data
+from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
+from utils.test import load_test_set
 
 
 def main() -> None:
@@ -58,15 +57,6 @@ def _grouping_function(path: str):
     model_type = path[path.rfind("/") + 1:-1]
 
     return model_type
-
-
-def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None) -> WikiCorpus:
-    """
-    Load the test set.
-    """
-    test_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=vocab)
-
-    return test_set
 
 
 def manage_config() -> dict:

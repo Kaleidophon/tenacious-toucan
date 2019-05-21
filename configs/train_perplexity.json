@@ -9,12 +9,14 @@
   "num_epochs": 10,
   "clip": 0.25,
   "max_sentence_len": 35,
+  "decoder_layer_sizes": [1300],
 
   "predictor_layers": [300, 100],
   "window_size": 4,
   "step_size": 0.5,
   "recoding_type": "mc_dropout",
   "step_type": "fixed",
+
 
   "corpus_dir": "data/corpora/wikitext2",
   "model_save_path": "data/models/uncertainty/test.pt",
