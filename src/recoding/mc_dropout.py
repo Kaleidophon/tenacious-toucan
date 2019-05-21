@@ -110,16 +110,15 @@ class MCDropoutMechanism(RecodingMechanism):
         target_predictions: Tensor
             Predicted probabilities for target token.
         """
-        topmost_hidden = self.select(hidden[self.model.num_layers - 1])
+        # Get topmost hidden activations
+        num_layers = len(hidden.keys())
+        topmost_hidden = self.select(hidden[num_layers - 1])  # Select topmost hidden activations
 
-        model_mode = self.model.training
-        self.model.train()
-        predictions = [
-            self.model.decoder(topmost_hidden, dropout_prob=self.mc_dropout).unsqueeze(1)
-            for _ in range(self.num_samples)
-        ]
-        self.model.training = model_mode
-        predictions = torch.cat(predictions, dim=1)
+        # Collect sample predictions
+        topmost_hidden = topmost_hidden.unsqueeze(1)
+        topmost_hidden = topmost_hidden.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
+        topmost_hidden = self.mc_dropout_layer(topmost_hidden)
+        predictions = self.model.predict_distribution(topmost_hidden)
 
         # If no target is given, compute uncertainty of most likely token
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
