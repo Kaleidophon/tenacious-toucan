@@ -4,7 +4,7 @@
   "num_layers": 2,
   "predictor_layers": [300, 100],
   "window_size": 4,
-  "num_samples": 10,
+  "num_samples": 7,
   "dropout": 0.2,
   "prior_scale": 0.3,
   "data_noise": 4.602337110419279,
