@@ -247,7 +247,7 @@ def manage_config() -> dict:
     required_args = {"embedding_size", "hidden_size", "num_layers", "corpus_dir"}
     arg_groups = {
         "general": {"recoding_type"},
-        "model": {"embedding_size", "hidden_size", "num_layers", "dropout", "decoder_layer_sizes"},
+        "model": {"embedding_size", "hidden_size", "num_layers", "dropout"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
                   "model_save_path", "device", "model_name", "multi_gpu"},
         "logging": {"log_dir"},
@@ -279,7 +279,7 @@ def init_argparser() -> ArgumentParser:
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
-    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp", "ppl"],
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp"],
                           help="Specifies the way the step size is determined when using a recoding model.")
     from_cmd.add_argument("--step_size", type=float,
                           help="Step size for recoding in case the fixed step predictor is used.")
@@ -290,8 +290,6 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
     from_cmd.add_argument("--window_size", type=int, default=None, help="Window size for adaptive step predictor.")
-    from_cmd.add_argument("--decoder_layer_sizes", type=int, nargs="+", default=None,
-                          help="Sizes of intermediate decoder layers.")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")

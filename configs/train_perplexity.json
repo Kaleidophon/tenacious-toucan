@@ -9,7 +9,6 @@
   "num_epochs": 10,
   "clip": 0.25,
   "max_sentence_len": 35,
-  "decoder_layer_sizes": [1300],
 
   "predictor_layers": [300, 100],
   "window_size": 4,

@@ -3,101 +3,23 @@ Implementation of a simple RNN language model.
 """
 
 # STD
-from math import sqrt
 from typing import Optional, Dict, Tuple
 
 # EXT
 import torch
 from torch import nn, Tensor
 from overrides import overrides
-from torch.nn.functional import dropout, relu
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
-from src.utils.types import HiddenDict, AmbiguousHidden, Device
-
-
-class Decoder(nn.Module):
-    """
-    Implementation of the language model decoder that allows for an easy extension to multiple layers.
-    """
-    def __init__(self, vocab_size: int, hidden_size: int, dropout_prob: float, device: Device, layer_sizes: Tuple[int],
-                 prior_scale: Optional[float] = None):
-        """
-        Initialize the decoder.
-
-        Parameters
-        ----------
-        vocab_size: int
-            Size of input vocabulary.
-        hidden_size: int
-            Dimensionality of hidden activations.
-        dropout_prob: float
-            Dropout probability.
-        device: torch.device
-            Torch device the model is being trained on (e.g. "cpu" or "cuda").
-        layer_sizes: Tuple[int]
-            Tuple of integers specifying the sizes of intermediate decoder layers.
-        prior_scale: Optional[float]
-            Prior scale that is used to initializes layer weights and biases if given.
-        """
-        super().__init__()
-        self.vocab_size = vocab_size
-        self.hidden_size = hidden_size
-        self.dropout_prob = dropout_prob
-        self.device = device
-        self.prior_scale = prior_scale
-        self.layer_sizes = layer_sizes
-        self.layers = []
-
-        # Initialize layers
-        last_layer_size = hidden_size
-        for n, layer_size in enumerate(layer_sizes):
-            current_layer = nn.Linear(last_layer_size, layer_size).to(device)
-            self.layers.append(current_layer)
-            last_layer_size = layer_size
-
-        out = nn.Linear(last_layer_size, vocab_size).to(device)
-        self.layers.append(out)
-
-        # Re-initialize weights with prior scale if given
-        if self.prior_scale is not None:
-            for layer in self.layers:
-                layer.weight.data.normal_(0, sqrt(self.prior_scale))
-                layer.bias.data.normal_(0, sqrt(self.prior_scale))
-
-    def forward(self, hidden: Tensor, dropout_prob: Optional[float] = None) -> Tensor:
-        """
-        Run the topmost hidden activations of the network through (potentially) multiple layers and output
-        the unnormalized output activations.
-
-        Parameters
-        ----------
-        hidden: Tensor
-            Current topmost hidden state.
-        dropout_prob: Optional[float]
-            Optional dropout probability. If none is specified, the one specified during init will be used.
-
-        Returns
-        -------
-        out: Tensor
-            Unnormalized output activations.
-        """
-        dropout_prob = dropout_prob if dropout_prob is not None else self.dropout_prob
-
-        out = hidden
-        for layer in self.layers:
-            out = layer(dropout(relu(out), p=dropout_prob))
-
-        return out
+from src.utils.types import HiddenDict, AmbiguousHidden
 
 
 class LSTMLanguageModel(AbstractRNN):
     """
     Implementation of a LSTM language model that can process inputs token-wise or in sequences.
     """
-    def __init__(self, vocab_size: int, hidden_size: int, embedding_size: int, num_layers: int, dropout: float,
-                 decoder_layer_sizes: Tuple[int], prior_scale: Optional[float] = None, device: torch.device = "cpu"):
+    def __init__(self, vocab_size, hidden_size, embedding_size, num_layers, dropout, device: torch.device = "cpu"):
         """
         Parameters
         ----------
@@ -109,12 +31,6 @@ class LSTMLanguageModel(AbstractRNN):
             Dimensionality of word embeddings.
         num_layers: int
             Number of RNN layers.
-        dropout: float
-            Dropout probability.
-        decoder_layer_sizes: Tuple[int]
-            Tuple indicating the sizes of intermediate decoder layers.
-        prior_scale: Optional[float]
-            Prior scale that is used to initializes decoder layer weights and biases if given.
         device: torch.device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
@@ -122,11 +38,10 @@ class LSTMLanguageModel(AbstractRNN):
         self.embeddings = nn.Embedding(vocab_size, embedding_size)
         self.vocab_size = vocab_size
         self.dropout_layer = nn.Dropout(dropout)
-        self.num_layers = num_layers
 
         # Define parameters
         self.gates = {}
-        self.decoder = Decoder(vocab_size, hidden_size, dropout, device, decoder_layer_sizes, prior_scale=prior_scale)
+        self.decoder = nn.Linear(hidden_size, vocab_size)
 
         for l in range(num_layers):
             # Input to first layer is embedding, for others it's the hidden state of the previous layer
@@ -263,12 +178,9 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
     A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
     the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class, mechanism_kwargs,
-                 decoder_layer_sizes: Tuple[int], device: torch.device = "cpu"):
-        super().__init__(
-            vocab_size, embedding_size, hidden_size, num_layers, dropout, decoder_layer_sizes,
-            prior_scale=mechanism_kwargs.get("prior_scale", None), device=device
-        )
+    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class,
+                 mechanism_kwargs, device: torch.device = "cpu"):
+        super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
         self.mechanism = mechanism_class(model=self, **mechanism_kwargs, device=device)
 
     @overrides
