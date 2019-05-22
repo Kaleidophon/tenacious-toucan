@@ -25,7 +25,8 @@ from src.models.abstract_rnn import AbstractRNN
 from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, has_anchored_ensemble
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
-from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
+from src.recoding.variational import VariationalMechanism
+from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel, VariationalLSTM, is_variational
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.log import remove_logs, log_to_file, StatsCollector
 from src.utils.types import Device
@@ -34,7 +35,8 @@ from src.utils.types import Device
 RECODING_TYPES = {
     "ensemble": AnchoredEnsembleMechanism,
     "perplexity": PerplexityRecoding,
-    "mc_dropout": MCDropoutMechanism
+    "mc_dropout": MCDropoutMechanism,
+    "variational": VariationalMechanism
 }
 
 
@@ -145,6 +147,10 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     ensemble_loss = model.mechanism.ensemble_loss
                     batch_loss += ensemble_loss
 
+                # For the variational RNN, sample a new set of dropout masks after every batch
+                if is_variational(model):
+                    model.sample_masks()
+
                 batch_loss.backward()
 
                 clip_grad_norm_(model.parameters(), clip)
@@ -211,10 +217,16 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
         model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
 
     elif recoding_type in RECODING_TYPES.keys():
-        model = UncertaintyLSTMLanguageModel(
-            vocab_size, **config_dict["model"],
-            mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
-        )
+        if recoding_type == "variational":
+            model = VariationalLSTM(
+                vocab_size, **config_dict["model"],
+                mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
+            )
+        else:
+            model = UncertaintyLSTMLanguageModel(
+                vocab_size, **config_dict["model"],
+                mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
+            )
 
     else:
         raise Exception("Invalid model type chosen!")
