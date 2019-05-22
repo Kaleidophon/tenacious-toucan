@@ -245,6 +245,7 @@ class VariationalLSTM(UncertaintyLSTMLanguageModel):
         self.num_samples = mechanism_kwargs["num_samples"]
         self.dropout = dropout
         self.current_batch_size = None
+        self.device = device
 
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict):
         """
@@ -309,7 +310,7 @@ class VariationalLSTM(UncertaintyLSTMLanguageModel):
         """
         def sample_mask(shape) -> torch.Tensor:
             dist = Bernoulli(probs=torch.Tensor([1 - self.dropout]))
-            return dist.sample(shape).squeeze(-1)
+            return dist.sample(shape).squeeze(-1).to(self.device)
 
         # Sample masks for input embeddings
         self.dropout_masks["input"] = sample_mask([self.current_batch_size * self.num_samples, self.embedding_size])
