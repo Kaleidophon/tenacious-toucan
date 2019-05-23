@@ -107,19 +107,25 @@ class VariationalMechanism(MCDropoutMechanism):
         predictions = output.view(self.model.current_batch_size, self.num_samples, self.model.vocab_size)
 
         # If no target is given, compute uncertainty of most likely token
-        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
-        target_idx = target_idx.to(device)
+        #target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
+        #target_idx = target_idx.to(device)
+
 
         # Select predicted probabilities of target index
         predictions.exp_()  # Exponentiate for later softmax
-        target_idx = target_idx.view(target_idx.shape[0], 1, 1)
-        target_idx = target_idx.repeat(1, self.num_samples, 1)
-        target_predictions = torch.gather(predictions, 2, target_idx)
-        target_predictions = target_predictions.squeeze(2)
+        norm = predictions.sum(dim=2).unsqueeze(2)
+        target_predictions = predictions / norm
+
+        # Select predicted probabilities of target index
+        #predictions.exp_()  # Exponentiate for later softmax
+        #target_idx = target_idx.view(target_idx.shape[0], 1, 1)
+        #target_idx = target_idx.repeat(1, self.num_samples, 1)
+        #target_predictions = torch.gather(predictions, 2, target_idx)
+        #target_predictions = target_predictions.squeeze(2)
 
         # Apply softmax (only apply it to actually relevant probabilities, save some computation)
-        norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
-        target_predictions = target_predictions / norm_factor
+        #norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
+        #target_predictions = target_predictions / norm_factor
 
         return target_predictions
 
