@@ -25,6 +25,7 @@ from src.models.abstract_rnn import AbstractRNN
 from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, has_anchored_ensemble
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
+from src.recoding.cross_entropy import CrossEntropyRecoding
 from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.log import remove_logs, log_to_file, StatsCollector
@@ -34,7 +35,8 @@ from src.utils.types import Device
 RECODING_TYPES = {
     "ensemble": AnchoredEnsembleMechanism,
     "perplexity": PerplexityRecoding,
-    "mc_dropout": MCDropoutMechanism
+    "mc_dropout": MCDropoutMechanism,
+    "cross_entropy": CrossEntropyRecoding
 }
 
 

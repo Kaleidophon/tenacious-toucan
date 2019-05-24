@@ -1,0 +1,29 @@
+{
+  "embedding_size": 650,
+  "hidden_size": 650,
+  "num_layers": 2,
+  "dropout": 0.2,
+  "weight_decay": 0,
+  "learning_rate": 4,
+  "batch_size": 64,
+  "num_epochs": 10,
+  "clip": 0.25,
+  "max_sentence_len": 35,
+
+  "predictor_layers": [300, 100],
+  "window_size": 4,
+  "step_size": 0.5,
+  "recoding_type": "cross_entropy",
+  "step_type": "fixed",
+
+
+  "corpus_dir": "data/corpora/wikitext2",
+  "model_save_path": "data/models/uncertainty/test.pt",
+  "print_every": 1,
+  "eval_every": 30,
+  "log_dir": "logs",
+  "model_name": "test",
+  "multi_gpu": false,
+  "evaluate": true,
+  "ignore_unk": true
+}
