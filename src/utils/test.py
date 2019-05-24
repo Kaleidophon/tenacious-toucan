@@ -4,6 +4,7 @@ This modules defines some function to test models.
 
 # STD
 import math
+import time
 from typing import Tuple, Optional
 
 # EXT
@@ -19,7 +20,8 @@ from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
 def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, device: Device,
-                   perplexity: bool = False, ignore_unk: bool = False, give_gold: bool = True) -> Tuple[float, float]:
+                   perplexity: bool = False, ignore_unk: bool = False, give_gold: bool = True,
+                   return_speed: bool = False) -> Tuple[float, float]:
     """
     Evaluate a model on a given test set.
 
@@ -40,6 +42,8 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     give_gold: bool
         Determine whether recoding models are given the next gold target to compute the recoding signal or have to take
         their best guess.
+    return_speed: bool
+        Flag that indicates whether the processing speed should be returned as well.
 
     Returns
     -------
@@ -52,6 +56,7 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
     global_norm = 0
     hidden = None
     test_set.create_batches(batch_size, repeat=False, drop_last=False, device=device)
+    start = time.time()
 
     model.eval()
     for batch, targets in test_set:
@@ -80,12 +85,19 @@ def evaluate_model(model: AbstractRNN, test_set: WikiCorpus, batch_size: int, de
         hidden = {l: CompatibleRNN.map(h, func=lambda h: Variable(h.data)) for l, h in hidden.items()}
 
     model.train()
+    end = time.time()
+    duration = end - start
+    speed = len(test_set) / duration
 
     if perplexity:
         test_metric /= global_norm
         test_metric = math.exp(test_metric)
 
-    return test_metric
+    if return_speed:
+        return test_metric, speed
+
+    else:
+        return test_metric
 
 
 def load_test_set(corpus_dir: str, max_sentence_len: int, vocab: Optional[W2I] = None,

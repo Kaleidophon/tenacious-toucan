@@ -37,17 +37,23 @@ def main() -> None:
 
     # Evaluate
     print("Evaluating...\n")
-    scores = defaultdict(lambda: np.array([]))
+    scores, speeds = defaultdict(lambda: np.array([])), defaultdict(lambda: np.array([]))
 
     for i, (model_path, model) in enumerate(models.items()):
         print(f"\rEvaluating model {i+1} / {len(models)}...", end="", flush=True)
-        perplexity = evaluate_model(model, test_set, batch_size, device=device, perplexity=True, give_gold=give_gold)
+        perplexity, speed = evaluate_model(
+            model, test_set, batch_size, device=device, perplexity=True, give_gold=give_gold, return_speed=True
+        )
         scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
+        speeds[_grouping_function(model_path)] = np.append(speeds[_grouping_function(model_path)], speed)
 
     print("\nEvaluation results:")
     for model, perplexities in scores.items():
         mean_perpl, std_perpl = perplexities.mean(), perplexities.std()
-        print(f"{model} test perplexity: {mean_perpl:.4f} | Std. dev {std_perpl:.4f}")
+        mean_speed = speeds[model].mean()
+
+        print(f"{model} test perplexity: {mean_perpl:.4f} | Std. dev {std_perpl:.4f} | Avg. Speed {mean_speed:.2f} "
+              f"samples / sec.")
 
 
 def _grouping_function(path: str):
