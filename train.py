@@ -196,7 +196,7 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
     """
     # Set device for training
     device = config_dict['train']['device']
-    if not (device == "cuda" and torch.cuda.is_available()):
+    if not ("cuda" in device and torch.cuda.is_available()):
         config_dict["train"]["device"] = "cpu"
 
     print(f"Using {device} for training...")
