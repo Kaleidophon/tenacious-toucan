@@ -14,7 +14,7 @@ import torch
 # PROJECT
 from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
-from utils.test import load_test_set
+from src.utils.test import load_test_set
 
 
 def main() -> None:
