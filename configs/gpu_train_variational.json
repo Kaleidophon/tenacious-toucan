@@ -23,5 +23,5 @@
   "log_dir": "logs",
   "model_name": "test",
   "device": "cuda",
-  "evaluate": true,
+  "evaluate": true
 }

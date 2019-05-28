@@ -83,7 +83,8 @@ def train_model(model: AbstractRNN,
     * LSTM LM with Bayesian Anchored Ensemble recoding
       (with optional sharing of anchors and losses for all members of the ensemble)
 
-    Disclaimer 
+    Disclaimer: Because all these models have slightly different requirements for the way they are trained, the
+    training loop became a bit spaghetti in some places. Sorry!
 
     Parameters
     ----------
