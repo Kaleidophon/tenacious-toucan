@@ -13,14 +13,14 @@ import numpy as np
 from diagnnose.config.setup import ConfigSetup
 import torch
 import torch.optim as optim
-from torch.nn import CrossEntropyLoss, DataParallel
+from torch.nn import CrossEntropyLoss
 from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
 
 # PROJECT
 from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
-from src.utils.corpora import WikiCorpus
+from src.utils.corpora import Corpus
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, has_anchored_ensemble
 from src.recoding.mc_dropout import MCDropoutMechanism
@@ -43,23 +43,21 @@ def main():
 
     # Load data
     corpus_dir = config_dict["corpus"]["corpus_dir"]
-    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
-    train_set, valid_set = load_data(corpus_dir, max_sentence_len)
+    max_seq_len = config_dict["corpus"]["max_seq_len"]
+    train_set, valid_set = load_data(corpus_dir, max_seq_len)
 
     # Initialize model
     model = init_model(config_dict, vocab_size=len(train_set.vocab), corpus_size=len(train_set))
 
     # Train
     log_dir = config_dict["logging"]["log_dir"]
-    ignore_unk = config_dict["eval"]["ignore_unk"]
-    train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir, ignore_unk=ignore_unk)
+    train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
 
 
-def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
+def train_model(model: AbstractRNN, train_set: Corpus, learning_rate: float, num_epochs: int, batch_size: int,
                 weight_decay: float, clip: float, print_every: int, eval_every: int, device: Device,
-                valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None,
-                log_dir: Optional[str] = None, ignore_unk: bool = True, model_name: str = "model",
-                **unused: Any) -> None:
+                valid_set: Optional[Corpus] = None, model_save_path: Optional[str] = None,
+                log_dir: Optional[str] = None, model_name: str = "model", **unused: Any) -> None:
     """
     Training loop for model.
 
@@ -67,7 +65,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
     ----------
     model: AbstractRNN
         Model to be trained.
-    train_set: WikiCorpus
+    train_set: Corpus
         Training set.
     learning_rate: float
         Learning rate used for optimizer.
@@ -91,8 +89,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
         Path the best model is being saved to if given.
     log_dir: Optional[str]
         Path log data is being written to if given.
-    ignore_unk: bool
-        Determine whether <unk> tokens should be ignored as targets when evaluation.
     model_name: str
         Optional model name used for logging.
     """
@@ -165,7 +161,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     learning_rate = optimizer.param_groups[0]["lr"]  # This is only for printing
 
                 # Log
-                batch_loss = float(batch_loss.cpu().detach())
+                batch_loss = batch_loss.item()
                 batch_stats = stats_collector.get_stats()
                 batch_stats = stats_collector.flatten_stats(batch_stats)
                 log_stats = {"batch_num": total_batch_i, "batch_loss": batch_loss, **batch_stats}
@@ -174,9 +170,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
-                    validation_ppl = evaluate_model(
-                        model, valid_set, batch_size, device, perplexity=True, ignore_unk=ignore_unk
-                    )
+                    validation_ppl = evaluate_model(model, valid_set, batch_size, device, perplexity=True)
                     progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Perplexity: {validation_ppl:.4f}")
 
                     if validation_ppl < best_validation_ppl and model_save_path is not None:
@@ -219,21 +213,6 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
     else:
         raise Exception("Invalid model type chosen!")
 
-    # Distribute model over GPUs
-    multi_gpu = config_dict["train"]["multi_gpu"]
-    num_gpus = torch.cuda.device_count()
-
-    if device != "cpu" and multi_gpu and num_gpus > 1:
-        print(f"Using {num_gpus} GPUs for training...")
-        model = DataParallel(model)
-
-        batch_size = config_dict["train"]["batch_size"]
-
-        if batch_size % num_gpus > 0:
-            raise ValueError(
-                f"Batch size {batch_size} should be divisible by number of GPUs ({num_gpus}) to avoid problems!"
-            )
-
     model.to(device)
 
     return model
@@ -249,13 +228,12 @@ def manage_config() -> dict:
         "general": {"recoding_type"},
         "model": {"embedding_size", "hidden_size", "num_layers", "dropout"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
-                  "model_save_path", "device", "model_name", "multi_gpu"},
+                  "model_save_path", "device", "model_name"},
         "logging": {"log_dir"},
-        "corpus": {"corpus_dir", "max_sentence_len"},
+        "corpus": {"corpus_dir", "max_seq_len"},
         "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay",
                      "data_noise"},
-        "step": {"predictor_layers", "window_size", "step_size", "hidden_size"},
-        "eval": {"ignore_unk"}
+        "step": {"step_size"}
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -279,7 +257,7 @@ def init_argparser() -> ArgumentParser:
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
-    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp"],
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl"],
                           help="Specifies the way the step size is determined when using a recoding model.")
     from_cmd.add_argument("--step_size", type=float,
                           help="Step size for recoding in case the fixed step predictor is used.")
@@ -300,11 +278,10 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--batch_size", type=int, help="Batch size during training.")
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
     from_cmd.add_argument("--clip", type=float, help="Threshold for gradient clipping.")
-    from_cmd.add_argument("--multi_gpu", action="store_true", default=None,
-                          help="Flag to indicate whether multiple GPUs should be used for training (if available).")
+
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
-    from_cmd.add_argument("--max_sentence_len", type=int, help="Maximum sentence length when reading in the corpora.")
+    from_cmd.add_argument("--max_seq_len", type=int, help="Maximum sentence length when reading in the corpora.")
 
     # Screen output optins
     from_cmd.add_argument("--print_every", type=int, help="Batch interval at which training info should be printed.")
@@ -317,10 +294,6 @@ def init_argparser() -> ArgumentParser:
                           help="Directory to which current best model should be saved to.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--log_dir", type=str, help="Directory to write (tensorboard) logs to.")
-
-    # Eval options
-    from_cmd.add_argument("--ignore_unk", action="store_true", default=None,
-                          help="Whether to ignore the <unk> token during evaluation.")
 
     return parser
 

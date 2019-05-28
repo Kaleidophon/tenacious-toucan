@@ -118,8 +118,7 @@ class MCDropoutMechanism(RecodingMechanism):
             Predicted probabilities for target token.
         """
         # Get topmost hidden activations
-        num_layers = len(hidden.keys())
-        topmost_hidden = self.select(hidden[num_layers - 1])  # Select topmost hidden activations
+        topmost_hidden = self.select(hidden[self.model.num_layers - 1])  # Select topmost hidden activations
 
         # Collect sample predictions
         topmost_hidden = topmost_hidden.unsqueeze(1)

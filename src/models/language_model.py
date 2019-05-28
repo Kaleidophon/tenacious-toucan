@@ -84,16 +84,15 @@ class LSTMLanguageModel(AbstractRNN):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        device = self.current_device(reference=input_var)
 
         if hidden is None:
             batch_size = input_var.shape[0]
-            hidden = {l: self.init_hidden(batch_size, device) for l in range(self.num_layers)}
+            hidden = {l: self.init_hidden(batch_size, self.device) for l in range(self.num_layers)}
 
         # This is necessary when training on multiple GPUs - the batch of hidden states is moved back to main GPU
         # after every step
         else:
-            hidden = {l: (h[0].to(device), h[1].to(device)) for l, h in hidden.items()}
+            hidden = {l: (h[0].to(self.device), h[1].to(self.device)) for l, h in hidden.items()}
 
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim+
         embed = self.dropout_layer(embed)
@@ -204,11 +203,9 @@ class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        device = self.current_device(reference=input_var)
-
         out, hidden = super().forward(input_var, hidden, **additional)
 
-        new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=device, **additional)
+        new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=self.device, **additional)
 
         # Only allow recomputing out when gold token is not given and model has to guess, otherwise task is trivialized
         if "target_idx" not in additional:

@@ -14,7 +14,7 @@
   "num_epochs": 10,
   "clip": 0.25,
   "step_size": 0.5,
-  "max_sentence_len": 35,
+  "max_seq_len": 35,
 
   "step_type": "fixed",
   "recoding_type": "ensemble",
@@ -25,8 +25,6 @@
   "eval_every": 200,
   "log_dir": "logs",
   "model_name": "test",
-  "multi_gpu": false,
   "device": "cpu",
-  "evaluate": true,
-  "ignore_unk": false
+  "evaluate": true
 }

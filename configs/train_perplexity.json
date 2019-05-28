@@ -8,7 +8,7 @@
   "batch_size": 128,
   "num_epochs": 10,
   "clip": 0.25,
-  "max_sentence_len": 35,
+  "max_seq_len": 35,
 
   "predictor_layers": [300, 100],
   "window_size": 4,
@@ -23,7 +23,5 @@
   "eval_every": 30,
   "log_dir": "logs",
   "model_name": "test",
-  "multi_gpu": false,
-  "evaluate": true,
-  "ignore_unk": true
+  "evaluate": true
 }

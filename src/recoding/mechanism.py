@@ -17,13 +17,12 @@ from torch.autograd import grad as compute_grads
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import StatsCollector
-from src.recoding.step import FixedStepPredictor, AdaptiveStepPredictor, PerplexityStepPredictor
+from src.recoding.step import FixedStepPredictor, PerplexityStepPredictor
 from src.utils.types import Device, HiddenDict, StepSize
 
 # CONSTANTS
 STEP_TYPES = {
     "fixed": FixedStepPredictor,
-    "mlp": AdaptiveStepPredictor,
     "ppl": PerplexityStepPredictor
 }
 
@@ -38,12 +37,10 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             f"Invalid step type {step_type} found! Choose one of {', '.join(STEP_TYPES.keys())}"
 
         self.model = model
-        self.device = model.current_device()
         self.device = model.device
         self.step_type = step_type
 
         # Initialize one predictor per state per layer
-        #  TODO: Make GRU compatible
         self.predictors = {
             l: [
                 STEP_TYPES[step_type](**predictor_kwargs).to(self.device),
@@ -114,7 +111,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             l: tuple([
                 # Use the step predictor for the corresponding state and layer
                 self.recode(h, step_size=predictor(h, out, device, **additional), name=f"{name}_l{l}")
-                for h, predictor, name in zip(hid, self.predictors[l], ["hx", "cx"])])  # TODO: Be LSTM / GRU agnostic
+                for h, predictor, name in zip(hid, self.predictors[l], ["hx", "cx"])])
             for l, hid in hidden.items()
         }
 

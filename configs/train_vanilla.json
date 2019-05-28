@@ -6,7 +6,7 @@
   "batch_size": 64,
   "num_epochs": 10,
   "clip": 0.25,
-  "max_sentence_len": 35,
+  "max_seq_len": 35,
   "weight_decay": 0,
   "dropout": 0.2,
 
@@ -16,9 +16,7 @@
   "model_save_path": "data/models/uncertainty/test.pt",
   "log_dir": "logs",
   "model_name": "test",
-  "multi_gpu": false,
   "device": "cpu",
   "evaluate": true,
-  "ignore_unk": false,
   "recoding_type": null
 }
