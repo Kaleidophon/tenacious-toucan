@@ -1,5 +1,5 @@
 """
-Implementation of a simple RNN language model.
+Implementation of a simple LSTM language model.
 """
 
 # STD
@@ -89,11 +89,6 @@ class LSTMLanguageModel(AbstractRNN):
             batch_size = input_var.shape[0]
             hidden = {l: self.init_hidden(batch_size, self.device) for l in range(self.num_layers)}
 
-        # This is necessary when training on multiple GPUs - the batch of hidden states is moved back to main GPU
-        # after every step
-        else:
-            hidden = {l: (h[0].to(self.device), h[1].to(self.device)) for l, h in hidden.items()}
-
         embed = self.embeddings(input_var)  # batch_size x seq_len x embedding_dim+
         embed = self.dropout_layer(embed)
 
@@ -110,7 +105,8 @@ class LSTMLanguageModel(AbstractRNN):
 
     def forward_step(self, layer: int, hidden: AmbiguousHidden, input_: Tensor) -> AmbiguousHidden:
         """
-        Do a single step for a ingle layer inside an LSTM.
+        Do a single step for a single layer inside an LSTM. Intuitively, this can be seen as an upward-step inside the
+        network, going from a lower layer to the one above.
 
         Parameters
         ----------
@@ -170,53 +166,3 @@ class LSTMLanguageModel(AbstractRNN):
         output_dist = out_layer(output)
 
         return output_dist
-
-
-class UncertaintyLSTMLanguageModel(LSTMLanguageModel):
-    """
-    A LSTM Language model with an uncertainty recoding mechanism applied to it. This class is defined explicitly because
-    the usual decorator functionality of the uncertainty mechanism prevents pickling of the model.
-    """
-    def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class,
-                 mechanism_kwargs, device: torch.device = "cpu"):
-        super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
-        self.mechanism = mechanism_class(model=self, **mechanism_kwargs, device=device)
-
-    @overrides
-    def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
-        """
-        Process a sequence of input variables.
-
-        Parameters
-        ----------
-        input_var: Tensor
-            Current input variable.
-        hidden: Tensor
-            Current hidden state.
-        additional: dict
-            Dictionary of additional information delivered via keyword arguments.
-
-        Returns
-        -------
-        out: Tensor
-            Decoded output Tensor of current time step.
-        hidden: Tensor
-            Hidden state of current time step after recoding.
-        """
-        out, hidden = super().forward(input_var, hidden, **additional)
-
-        new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=self.device, **additional)
-
-        # Only allow recomputing out when gold token is not given and model has to guess, otherwise task is trivialized
-        if "target_idx" not in additional:
-            return new_out, new_hidden
-        else:
-            return out, new_hidden
-
-    def train(self, mode=True):
-        super().train(mode)
-        self.mechanism.train(mode)
-
-    def eval(self):
-        super().eval()
-        self.mechanism.eval()

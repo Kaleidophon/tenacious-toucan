@@ -1,0 +1,27 @@
+{
+  "embedding_size": 650,
+  "hidden_size": 650,
+  "num_layers": 2,
+  "num_samples": 10,
+  "dropout": 0.2,
+  "weight_decay": 0.0001,
+  "prior_scale": 0.3,
+  "learning_rate": 20,
+  "batch_size": 64,
+  "num_epochs": 10,
+  "clip": 0.25,
+  "step_size": 0.5,
+  "max_seq_len": 35,
+
+  "step_type": "fixed",
+  "recoding_type": "variational",
+
+  "corpus_dir": "data/corpora/wikitext2",
+  "model_save_path": "data/models/uncertainty/test.pt",
+  "print_every": 10,
+  "eval_every": 200,
+  "log_dir": "logs",
+  "model_name": "test",
+  "device": "cpu",
+  "evaluate": true
+}
