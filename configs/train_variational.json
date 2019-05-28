@@ -13,6 +13,7 @@
   "step_size": 0.5,
   "max_seq_len": 35,
 
+  "share_anchor": true,
   "step_type": "fixed",
   "recoding_type": "variational",
 

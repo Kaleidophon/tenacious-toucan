@@ -19,9 +19,9 @@ from src.recoding.mechanism import RecodingMechanism
 from src.utils.types import HiddenDict, Device
 
 
-def has_anchored_ensemble(model: AbstractRNN) -> bool:
+def shares_anchors(model: AbstractRNN) -> bool:
     """
-    Check whether a model works with an anchored ensemble (and therefore requires an extra loss).
+    Check whether a model uses an anchored bayesian ensemble and also shares anchors and losses.
 
     Parameters
     ----------
@@ -30,7 +30,8 @@ def has_anchored_ensemble(model: AbstractRNN) -> bool:
     """
     if hasattr(model, "mechanism"):
         if isinstance(model.mechanism, AnchoredEnsembleMechanism):
-            return True
+            if model.mechanism.share_anchor:
+                return True
 
     return False
 
@@ -43,7 +44,8 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
     [1] https://arxiv.org/pdf/1810.05546.pdf
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, data_noise: float, prior_scale: float,
-                 predictor_kwargs: Dict, step_type: str, device: Device, data_length: Optional[int] = None, **unused: Any):
+                 predictor_kwargs: Dict, step_type: str, device: Device, data_length: Optional[int] = None,
+                 share_anchor: bool = True, **unused: Any):
         """
         Initialize the mechanism.
 
@@ -61,6 +63,9 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
             Parameter that determines the standard deviation initial weights and anchors are sampled from..
         data_length: Optional[int]
             Number of data points used.
+        share_anchor: bool
+            Determine whether anchors (and losses) should be shared across ensemble members. Trades off speed and
+            theoretical guarantees of Anchored Bayesian ensembling.
         """
         super().__init__(model, step_type, predictor_kwargs=predictor_kwargs)
 
@@ -69,6 +74,8 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         self.num_samples = num_samples
         self.prior_scale = prior_scale
         self.data_length = data_length
+        self.device = device
+        self.share_anchor = share_anchor
 
         # Prepare ensemble
         self._sample_anchors(device)
@@ -181,24 +188,44 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         device: torch.device
                 Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
-        self.weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size, device=device)
-        self.weight_anchor.normal_(0, sqrt(self.prior_scale))
-        self.bias_anchor = torch.zeros(self.model.vocab_size, device=device)
-        self.bias_anchor.normal_(0, sqrt(self.prior_scale))
+        self.weight_anchors, self.bias_anchors = [], []
+
+        # Sample one anchor point per ensemble member
+        for _ in range(self.num_samples):
+            weight_anchor = torch.zeros(self.model.vocab_size, self.hidden_size, device=device)
+            weight_anchor.normal_(0, sqrt(self.prior_scale))
+            bias_anchor = torch.zeros(self.model.vocab_size, device=device)
+            bias_anchor.normal_(0, sqrt(self.prior_scale))
+
+            # Stop adding new anchors if one has been sampled already and they are shared
+            if not self.share_anchor or not len(self.weight_anchors) == 1:
+                self.weight_anchors.append(weight_anchor)
+                self.bias_anchors.append(bias_anchor)
 
     @property
-    def ensemble_loss(self) -> Tensor:
+    def ensemble_losses(self) -> Tensor:
         """
         Return the current loss of the Bayesian anchored ensemble based on the current parameters of the ensemble's
         members. This basically corresponds to the second term of eq. 9.
         """
-        loss = 0
+        ensemble_losses = torch.ones(self.num_samples).to(self.device)
+        members_and_anchors = zip(
+            self.model.decoder_ensemble,
+            # Reuse the same anchors if argument is given
+            self.weight_anchors * self.num_samples if self.share_anchor else self.weight_anchors,
+            self.bias_anchors * self.num_samples if self.share_anchor else self.bias_anchors
+        )
 
-        for decoder in self.model.decoder_ensemble:
-            loss += torch.norm(decoder.weight - self.weight_anchor)
-            loss += torch.norm(decoder.bias - self.bias_anchor)
+        for k, (decoder, weight_anchor, bias_anchor) in enumerate(members_and_anchors):
+            ensemble_losses[k] += torch.norm(decoder.weight - weight_anchor)
+            ensemble_losses[k] += torch.norm(decoder.bias - bias_anchor)
 
-        return self.lambda_ / self.data_length * loss
+        # Keep individual losses for individual ensemble member backprop, if we share losses just sum everything
+        # and do a single backprop for all ensemble members (is faster)
+        if self.share_anchor:
+            ensemble_losses = ensemble_losses.sum()
+
+        return self.lambda_ / self.data_length * ensemble_losses
 
     def _decode_ensemble(self, hidden: Tensor) -> Tensor:
         """
@@ -215,7 +242,13 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
             Decoded hidden activations batch_size * vocab_size
         """
         decoded_activations = [decoder(hidden) for decoder in self.model.decoder_ensemble]
-        decoded_activations = torch.stack(decoded_activations)
-        out = decoded_activations.mean(dim=0)
+        out = torch.stack(decoded_activations)
+
+        # During training, leave the predictions of the ensemble members separate s.t. we can compute the loss per
+        # member if anchors are not shared
+        # During testing, we just ensemble all predictions by taking the mean
+        # If we share anchors and losses, it is always averaged
+        if not self.model.training or self.share_anchor:
+            out = out.mean(dim=0)
 
         return out

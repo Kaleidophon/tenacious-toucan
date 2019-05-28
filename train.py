@@ -22,7 +22,7 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import Corpus
 from src.models.abstract_rnn import AbstractRNN
-from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, has_anchored_ensemble
+from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, shares_anchors
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
 from src.recoding.variational import VariationalMechanism
@@ -58,12 +58,32 @@ def main():
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
 
 
-def train_model(model: AbstractRNN, train_set: Corpus, learning_rate: float, num_epochs: int, batch_size: int,
-                weight_decay: float, clip: float, print_every: int, eval_every: int, device: Device,
-                valid_set: Optional[Corpus] = None, model_save_path: Optional[str] = None,
-                log_dir: Optional[str] = None, model_name: str = "model", **unused: Any) -> None:
+def train_model(model: AbstractRNN,
+                train_set: Corpus,
+                learning_rate: float,
+                num_epochs: int,
+                batch_size: int,
+                weight_decay: float,
+                clip: float,
+                print_every: int,
+                eval_every: int,
+                device: Device,
+                valid_set: Optional[Corpus] = None,
+                model_save_path: Optional[str] = None,
+                log_dir: Optional[str] = None,
+                model_name: str = "model",
+                **unused: Any) -> None:
     """
-    Training loop for model.
+    Training loop for several models, including:
+
+    * Vanilla LSTM Language Model
+    * LSTM LM with perplexity recoding
+    * LSTM LM with MC Dropout recoding
+    * LSTM LM with variational recoding
+    * LSTM LM with Bayesian Anchored Ensemble recoding
+      (with optional sharing of anchors and losses for all members of the ensemble)
+
+    Disclaimer 
 
     Parameters
     ----------
@@ -136,20 +156,35 @@ def train_model(model: AbstractRNN, train_set: Corpus, learning_rate: float, num
                     outputs.append(output_dist)
 
                 # Backward pass
-                outputs = torch.cat(outputs)
                 targets = torch.flatten(targets)
-                batch_loss = loss(outputs, target=targets)
 
-                # Extra loss component for recoding with Anchored Bayesian Ensembles
-                if has_anchored_ensemble(model):
-                    ensemble_loss = model.mechanism.ensemble_loss
-                    batch_loss += ensemble_loss
+                # When using bayesian anchored ensembles that do not share losses
+                if not shares_anchors(model):
+                    outputs = torch.cat(outputs, dim=1)  # K x (batch_size * seq_len) x vocab_size
+                    # Extra loss component for recoding with Anchored Bayesian Ensembles
+                    ensemble_losses = model.mechanism.ensemble_losses
+
+                    # Compute loss for every member of the ensemble separately
+                    for k in range(model.mechanism.num_samples):
+                        member_outputs = outputs[k, :, :]
+                        batch_loss = loss(member_outputs, target=targets)
+                        member_loss = batch_loss + ensemble_losses[k]
+                        member_loss.backward(retain_graph=True)
+
+                # All other models
+                else:
+                    outputs = torch.cat(outputs)
+                    batch_loss = loss(outputs, target=targets)
+
+                    # When losses in an anchored ensemble are shared, just add a global ensemble weight decay loss
+                    if shares_anchors(model):
+                        batch_loss += model.mechanism.ensemble_losses
+
+                    batch_loss.backward()
 
                 # For the variational RNN, sample a new set of dropout masks after every batch
                 if is_variational(model):
                     model.sample_masks()
-
-                batch_loss.backward()
 
                 clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
@@ -246,7 +281,7 @@ def manage_config() -> dict:
         "logging": {"log_dir"},
         "corpus": {"corpus_dir", "max_seq_len"},
         "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay",
-                     "data_noise"},
+                     "data_noise", "share_anchor"},
         "step": {"step_size"}
     }
     argparser = init_argparser()
@@ -267,7 +302,8 @@ def init_argparser() -> ArgumentParser:
     from_cmd = parser.add_argument_group('From commandline', 'Specify experiment setup via commandline arguments')
 
     # Model options
-    from_cmd.add_argument("--recoding_type", type=str, default=None, choices=["mc_dropout", "perplexity", "ensemble"],
+    from_cmd.add_argument("--recoding_type", type=str, default=None,
+                          choices=["mc_dropout", "perplexity", "ensemble", "variational"],
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
@@ -282,6 +318,10 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
     from_cmd.add_argument("--window_size", type=int, default=None, help="Window size for adaptive step predictor.")
+    from_cmd.add_argument("--share_anchor", action="store_true", default=None,
+                          help="Determine whether anchor and losses should be shared for all member of the anchored"
+                               "bayesian ensemble (increases speed but looses some theoretical guarantees. Only "
+                               "applicable if recoding_type=ensemble")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")
