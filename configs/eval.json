@@ -1,8 +1,7 @@
 {
   "corpus_dir": "data/corpora/wikitext2",
-  "max_sentence_len": 35,
+  "max_seq_len": 35,
   "batch_size": 64,
   "device": "cpu",
-  "ignore_unk": false,
   "give_gold": false
 }

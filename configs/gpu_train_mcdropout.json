@@ -2,8 +2,6 @@
   "embedding_size": 650,
   "hidden_size": 650,
   "num_layers": 2,
-  "predictor_layers": [300, 100],
-  "window_size": 4,
   "num_samples": 10,
   "mc_dropout": 0.2,
   "dropout": 0.2,
@@ -14,7 +12,7 @@
   "num_epochs": 6,
   "clip": 0.25,
   "step_size": 0.5,
-  "max_sentence_len": 35,
+  "max_seq_len": 35,
 
   "step_type": "fixed",
   "recoding_type": "mc_dropout",
@@ -25,8 +23,6 @@
   "eval_every": 200,
   "log_dir": "logs",
   "model_name": "test",
-  "multi_gpu": false,
   "device": "cuda",
-  "evaluate": true,
-  "ignore_unk": false
+  "evaluate": true
 }

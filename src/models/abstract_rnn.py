@@ -62,40 +62,7 @@ class AbstractRNN(ABC, nn.Module):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        # Do this in subclasses to ensure right device even when running on multiple GPUs
-        device = self.current_device(reference=input_var)
         ...
-
-    def current_device(self, reference: Optional[torch.Tensor] = None) -> torch.device:
-        """
-        Make sure that tensors are moved to right GPU when training with torch.nn.DataParallel. The problem is that
-        models are initialized on the default GPU, but during the forward pass the model is copied to all available
-        (or specified) GPUs and tensors that are created during the forward pass on-the-fly will still be moved to the
-        GPU specified during model initialization.
-
-        The current device cannot be stored in a model attribute because attributes are shared across all model copies
-        living on different GPUs, therefore setting the value on one GPU sets it on all others as well. Therefore
-        the right device is determined and returned here (optionally using the device of a reference tensor) and then
-        handed down to other functions as an argument within the local function scope.
-
-        Parameters
-        ----------
-        reference: Optional[Tensor]
-           Reference tensor which overrides the default device choice if necessary.
-
-        Returns
-        -------
-        device: torch.device
-            Currently relevant device.
-        """
-        if reference is not None:
-            # The GPU of the current forward pass doesn't correspond to the initially specified one
-            # -> Return the relevant GPU
-            if self.device != reference.device:
-                return reference.device
-
-        # Training is done on single GPU or CPU, no problem here.
-        return self.device
 
     def init_hidden(self, batch_size: int, device: torch.device) -> AmbiguousHidden:
         """

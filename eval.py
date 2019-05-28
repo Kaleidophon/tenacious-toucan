@@ -24,13 +24,13 @@ def main() -> None:
     model_paths = config_dict["general"]["models"]
     batch_size = config_dict["general"]["batch_size"]
     corpus_dir = config_dict["general"]["corpus_dir"]
-    max_sentence_len = config_dict["general"]["max_sentence_len"]
+    max_seq_len = config_dict["general"]["max_seq_len"]
     device = config_dict["general"]["device"]
     give_gold = config_dict["general"]["give_gold"]
 
     # Load data sets
-    train_set, _ = load_data(corpus_dir, max_sentence_len)
-    test_set = load_test_set(corpus_dir, max_sentence_len, train_set.vocab)
+    train_set, _ = load_data(corpus_dir, max_seq_len)
+    test_set = load_test_set(corpus_dir, max_seq_len, train_set.vocab)
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
@@ -70,7 +70,7 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_sentence_len", "batch_size", "models", "device", "give_gold"}
+    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold"}
     arg_groups = {"general": required_args}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -92,13 +92,11 @@ def init_argparser() -> ArgumentParser:
 
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
-    from_cmd.add_argument("--max_sentence_len", type=int, help="Maximum sentence length when reading in the corpora.")
+    from_cmd.add_argument("--max_seq_len", type=int, help="Maximum sentence length when reading in the corpora.")
 
     # Evaluation options
     from_cmd.add_argument("--batch_size", type=int, help="Batch size while evaluating on the test set.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for evaluation.")
-    from_cmd.add_argument("--ignore_unk", action="store_true", default=None,
-                          help="Whether to ignore the <unk> token during evaluation.")
     from_cmd.add_argument("--give_gold", action="store_true", default=None,
                           help="Whether recoding models are allowed access to the next gold token in order to "
                           "calculate the recoding signal.")

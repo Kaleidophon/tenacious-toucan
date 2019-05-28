@@ -11,7 +11,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # PROJECT
-from src.utils.log import get_logs_in_dir, aggregate_logs
 from src.utils.types import ColorDict, AggregatedLogs
 
 # CONSTANTS
@@ -37,7 +36,6 @@ RECODING_GRAD_COLOR_DICT = {
     "cx": ["darkslategrey", "forestgreen", "darkseagreen"],
 }
 
-# TODO: Incorporate options to distinguish between fixed / mlp step
 NAME_DICT = {
     "ensemble": "Anc. Ensemble",
     "mcd": "MC Dropout",
@@ -46,10 +44,17 @@ NAME_DICT = {
 }
 
 
-def plot_column(logs: AggregatedLogs, x_name: str, y_names: Union[str, List[str]], intervals: bool = True,
-                title: Optional[str] = None, save_path: Optional[str] = None, color_func: Optional[Callable] = None,
-                selection: Optional[slice] = None, y_label: Optional[str] = None,
-                legend_func: Callable = lambda model_name, y_name: model_name, y_top_lim: Optional[float] = None) -> None:
+def plot_column(logs: AggregatedLogs,
+                x_name: str,
+                y_names: Union[str, List[str]],
+                intervals: bool = True,
+                title: Optional[str] = None,
+                save_path: Optional[str] = None,
+                color_func: Optional[Callable] = None,
+                selection: Optional[slice] = None,
+                y_label: Optional[str] = None,
+                legend_func: Callable = lambda model_name, y_name: model_name,
+                y_top_lim: Optional[float] = None) -> None:
     """
     Plot data in an aggregated dict either as a series of curves or as curves with uncertainty intervals when given
     multiple data points and corresponding flag turned on.

@@ -35,6 +35,9 @@ AmbiguousHidden = Union[Tensor, Iterable[Tensor]]
 # Dictionary of layer -> hidden state
 HiddenDict = Dict[int, AmbiguousHidden]
 
+# Dictionary of layer / connection type -> dropout mask
+DropoutDict = Dict[str, AmbiguousHidden]
+
 # Step size used for recoding: Either a single float applied to all batch instances or tensor of one individual step
 # size per instance
 StepSize = Union[float, Tensor]

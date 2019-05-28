@@ -4,9 +4,8 @@
   "num_layers": 2,
   "num_samples": 10,
   "dropout": 0.2,
-  "data_noise": 0.1,
-  "prior_scale": 0.1,
-  "weight_decay": 0,
+  "weight_decay": 0.0001,
+  "prior_scale": 0.3,
   "learning_rate": 20,
   "batch_size": 64,
   "num_epochs": 10,
@@ -14,9 +13,8 @@
   "step_size": 0.5,
   "max_seq_len": 35,
 
-  "share_anchor": false,
   "step_type": "fixed",
-  "recoding_type": "ensemble",
+  "recoding_type": "variational",
 
   "corpus_dir": "data/corpora/wikitext2",
   "model_save_path": "data/models/uncertainty/test.pt",

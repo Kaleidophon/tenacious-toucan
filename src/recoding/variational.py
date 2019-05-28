@@ -1,30 +1,25 @@
 """
-Perform recoding steps based on Monte-Carlo Dropout.
+Do MC Dropout recoding based on the Variational RNNs of [1].
+
+[1] https://papers.nips.cc/paper/6241-a-theoretically-grounded-application-of-dropout-in-recurrent-neural-networks.pdf
 """
 
 # STD
-from math import sqrt
 from typing import Optional, Any, Dict, Tuple
 
 # EXT
 import torch
 from overrides import overrides
-from torch import nn, Tensor
+from torch import Tensor
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
-from src.recoding.mechanism import RecodingMechanism
+from src.recoding.mc_dropout import MCDropoutMechanism
 from src.utils.types import HiddenDict
 
 
-class MCDropoutMechanism(RecodingMechanism):
-    """
-    Recoding mechanism that bases its recoding on the predictive uncertainty of the decoder, where the uncertainty
-    is estimate using MC Dropout [1].
-
-    [1] http://proceedings.mlr.press/v48/gal16.pdf
-    """
-    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, mc_dropout: float, weight_decay: float,
+class VariationalMechanism(MCDropoutMechanism):
+    def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, weight_decay: float,
                  prior_scale: float, predictor_kwargs: Dict, step_type: str, data_length: Optional[int] = None,
                  **unused: Any):
         """
@@ -38,8 +33,6 @@ class MCDropoutMechanism(RecodingMechanism):
             Dimensionality of hidden activations.
         num_samples: int
             Number of samples used to estimate uncertainty.
-        mc_dropout: float
-            Dropout probability used to estimate uncertainty.
         weight_decay: float
             L2-regularization parameter.
         prior_scale: float
@@ -47,22 +40,10 @@ class MCDropoutMechanism(RecodingMechanism):
         data_length: Optional[int]
             Number of data points used.
         """
-        super().__init__(model, step_type, predictor_kwargs=predictor_kwargs)
-
-        self.model = model
-        self.hidden_size = hidden_size
-        self.num_samples = num_samples
-        self.mc_dropout = mc_dropout
-        self.weight_decay = weight_decay
-        self.prior_scale = prior_scale
-        self.data_length = data_length
-
-        # Add dropout layer to estimate predictive uncertainty
-        self.mc_dropout_layer = nn.Dropout(p=self.mc_dropout)
-
-        # Initialize weights and bias according to prior scale
-        self.model.decoder.weight.data.normal_(0, sqrt(self.prior_scale))
-        self.model.decoder.bias.data.normal_(0, sqrt(self.prior_scale))
+        super().__init__(
+            model, hidden_size, num_samples, 0, weight_decay, prior_scale, predictor_kwargs, step_type, data_length,
+            **unused
+        )
 
     @overrides
     def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,
@@ -91,7 +72,7 @@ class MCDropoutMechanism(RecodingMechanism):
             Hidden state of current time step after recoding.
         """
         target_idx = additional.get("target_idx", None)
-        prediction = self._mc_dropout_predict(hidden, device, target_idx)
+        prediction = self.predict_variational(hidden, device, target_idx)
 
         # Estimate uncertainty of those same predictions
         delta = self._calculate_predictive_uncertainty(prediction)
@@ -101,9 +82,9 @@ class MCDropoutMechanism(RecodingMechanism):
 
         return new_out_dist, new_hidden
 
-    def _mc_dropout_predict(self, hidden: HiddenDict, device: torch.device, target_idx: Optional[Tensor] = None):
+    def predict_variational(self, hidden: HiddenDict, device: torch.device, target_idx: Optional[Tensor] = None):
         """
-        Make several predictions about the probability of a token using different dropout masks.
+        Generate the output distributions generated using different dropout masks with an affine transformation.
 
         Parameters
         ----------
@@ -121,10 +102,9 @@ class MCDropoutMechanism(RecodingMechanism):
         topmost_hidden = self.select(hidden[self.model.num_layers - 1])  # Select topmost hidden activations
 
         # Collect sample predictions
-        topmost_hidden = topmost_hidden.unsqueeze(1)
-        topmost_hidden = topmost_hidden.repeat(1, self.num_samples, 1)  # Create identical copies for pseudo-batch
-        topmost_hidden = self.mc_dropout_layer(topmost_hidden)
-        predictions = self.model.predict_distribution(topmost_hidden)
+        output = self.model.decoder(topmost_hidden)
+
+        predictions = output.view(self.model.current_batch_size, self.num_samples, self.model.vocab_size)
 
         # If no target is given, compute uncertainty of most likely token
         target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
@@ -143,22 +123,3 @@ class MCDropoutMechanism(RecodingMechanism):
 
         return target_predictions
 
-    def _calculate_predictive_uncertainty(self, predictions: Tensor):
-        """
-        Calculate the predictive uncertainty based on the predictions made with different dropout masks.
-        This corresponds to the equation of the predicted variance given in §4 of [1].
-
-        [1] http://proceedings.mlr.press/v48/gal16.pdf
-
-        Parameters
-        ----------
-        predictions: Tensor
-            Tensor of num_sample predictions per batch instance.
-
-        Returns
-        -------
-        uncertainty: Tensor
-            Estimated predictive uncertainty per batch instance.
-        """
-        prior_info = 2 * self.mc_dropout * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
-        return predictions.var(dim=1).unsqueeze(1) + prior_info

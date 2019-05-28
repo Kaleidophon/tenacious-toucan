@@ -13,19 +13,22 @@ import numpy as np
 from diagnnose.config.setup import ConfigSetup
 import torch
 import torch.optim as optim
-from torch.nn import CrossEntropyLoss, DataParallel
+from torch.nn import CrossEntropyLoss
 from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
 
 # PROJECT
 from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
-from src.utils.corpora import WikiCorpus
+from src.utils.corpora import Corpus
 from src.models.abstract_rnn import AbstractRNN
-from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, has_anchored_ensemble
+from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, shares_anchors, has_anchored_ensemble
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
-from src.models.language_model import LSTMLanguageModel, UncertaintyLSTMLanguageModel
+from src.recoding.variational import VariationalMechanism
+from src.models.language_model import LSTMLanguageModel
+from src.models.variational_lm import is_variational, VariationalLSTM
+from src.models.recoding_lm import RecodingLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.log import remove_logs, log_to_file, StatsCollector
 from src.utils.types import Device
@@ -34,7 +37,8 @@ from src.utils.types import Device
 RECODING_TYPES = {
     "ensemble": AnchoredEnsembleMechanism,
     "perplexity": PerplexityRecoding,
-    "mc_dropout": MCDropoutMechanism
+    "mc_dropout": MCDropoutMechanism,
+    "variational": VariationalMechanism
 }
 
 
@@ -43,31 +47,50 @@ def main():
 
     # Load data
     corpus_dir = config_dict["corpus"]["corpus_dir"]
-    max_sentence_len = config_dict["corpus"]["max_sentence_len"]
-    train_set, valid_set = load_data(corpus_dir, max_sentence_len)
+    max_seq_len = config_dict["corpus"]["max_seq_len"]
+    train_set, valid_set = load_data(corpus_dir, max_seq_len)
 
     # Initialize model
     model = init_model(config_dict, vocab_size=len(train_set.vocab), corpus_size=len(train_set))
 
     # Train
     log_dir = config_dict["logging"]["log_dir"]
-    ignore_unk = config_dict["eval"]["ignore_unk"]
-    train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir, ignore_unk=ignore_unk)
+    train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
 
 
-def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float, num_epochs: int, batch_size: int,
-                weight_decay: float, clip: float, print_every: int, eval_every: int, device: Device,
-                valid_set: Optional[WikiCorpus] = None, model_save_path: Optional[str] = None,
-                log_dir: Optional[str] = None, ignore_unk: bool = True, model_name: str = "model",
+def train_model(model: AbstractRNN,
+                train_set: Corpus,
+                learning_rate: float,
+                num_epochs: int,
+                batch_size: int,
+                weight_decay: float,
+                clip: float,
+                print_every: int,
+                eval_every: int,
+                device: Device,
+                valid_set: Optional[Corpus] = None,
+                model_save_path: Optional[str] = None,
+                log_dir: Optional[str] = None,
+                model_name: str = "model",
                 **unused: Any) -> None:
     """
-    Training loop for model.
+    Training loop for several models, including:
+
+    * Vanilla LSTM Language Model
+    * LSTM LM with perplexity recoding
+    * LSTM LM with MC Dropout recoding
+    * LSTM LM with variational recoding
+    * LSTM LM with Bayesian Anchored Ensemble recoding
+      (with optional sharing of anchors and losses for all members of the ensemble)
+
+    Disclaimer: Because all these models have slightly different requirements for the way they are trained, the
+    training loop became a bit spaghetti in some places. Sorry!
 
     Parameters
     ----------
     model: AbstractRNN
         Model to be trained.
-    train_set: WikiCorpus
+    train_set: Corpus
         Training set.
     learning_rate: float
         Learning rate used for optimizer.
@@ -91,8 +114,6 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
         Path the best model is being saved to if given.
     log_dir: Optional[str]
         Path log data is being written to if given.
-    ignore_unk: bool
-        Determine whether <unk> tokens should be ignored as targets when evaluation.
     model_name: str
         Optional model name used for logging.
     """
@@ -136,16 +157,35 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     outputs.append(output_dist)
 
                 # Backward pass
-                outputs = torch.cat(outputs)
                 targets = torch.flatten(targets)
-                batch_loss = loss(outputs, target=targets)
 
-                # Extra loss component for recoding with Anchored Bayesian Ensembles
-                if has_anchored_ensemble(model):
-                    ensemble_loss = model.mechanism.ensemble_loss
-                    batch_loss += ensemble_loss
+                # When using bayesian anchored ensembles that do not share losses
+                if has_anchored_ensemble(model) and not shares_anchors(model):
+                    outputs = torch.cat(outputs, dim=1)  # K x (batch_size * seq_len) x vocab_size
+                    # Extra loss component for recoding with Anchored Bayesian Ensembles
+                    ensemble_losses = model.mechanism.ensemble_losses
 
-                batch_loss.backward()
+                    # Compute loss for every member of the ensemble separately
+                    for k in range(model.mechanism.num_samples):
+                        member_outputs = outputs[k, :, :]
+                        batch_loss = loss(member_outputs, target=targets)
+                        member_loss = batch_loss + ensemble_losses[k]
+                        member_loss.backward(retain_graph=True)
+
+                # All other models
+                else:
+                    outputs = torch.cat(outputs)
+                    batch_loss = loss(outputs, target=targets)
+
+                    # When losses in an anchored ensemble are shared, just add a global ensemble weight decay loss
+                    if shares_anchors(model):
+                        batch_loss += model.mechanism.ensemble_losses
+
+                    batch_loss.backward()
+
+                # For the variational RNN, sample a new set of dropout masks after every batch
+                if is_variational(model):
+                    model.sample_masks()
 
                 clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
@@ -165,7 +205,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
                     learning_rate = optimizer.param_groups[0]["lr"]  # This is only for printing
 
                 # Log
-                batch_loss = float(batch_loss.cpu().detach())
+                batch_loss = batch_loss.item()
                 batch_stats = stats_collector.get_stats()
                 batch_stats = stats_collector.flatten_stats(batch_stats)
                 log_stats = {"batch_num": total_batch_i, "batch_loss": batch_loss, **batch_stats}
@@ -174,9 +214,7 @@ def train_model(model: AbstractRNN, train_set: WikiCorpus, learning_rate: float,
 
                 # Calculate validation loss
                 if (total_batch_i + 1) % eval_every == 0 and valid_set is not None:
-                    validation_ppl = evaluate_model(
-                        model, valid_set, batch_size, device, perplexity=True, ignore_unk=ignore_unk
-                    )
+                    validation_ppl = evaluate_model(model, valid_set, batch_size, device, perplexity=True)
                     progress_bar.set_description(f"Epoch {epoch+1:>3} | Val Perplexity: {validation_ppl:.4f}")
 
                     if validation_ppl < best_validation_ppl and model_save_path is not None:
@@ -211,28 +249,19 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
         model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
 
     elif recoding_type in RECODING_TYPES.keys():
-        model = UncertaintyLSTMLanguageModel(
-            vocab_size, **config_dict["model"],
-            mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
-        )
+        if recoding_type == "variational":
+            model = VariationalLSTM(
+                vocab_size, **config_dict["model"],
+                mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
+            )
+        else:
+            model = RecodingLanguageModel(
+                vocab_size, **config_dict["model"],
+                mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
+            )
 
     else:
         raise Exception("Invalid model type chosen!")
-
-    # Distribute model over GPUs
-    multi_gpu = config_dict["train"]["multi_gpu"]
-    num_gpus = torch.cuda.device_count()
-
-    if device != "cpu" and multi_gpu and num_gpus > 1:
-        print(f"Using {num_gpus} GPUs for training...")
-        model = DataParallel(model)
-
-        batch_size = config_dict["train"]["batch_size"]
-
-        if batch_size % num_gpus > 0:
-            raise ValueError(
-                f"Batch size {batch_size} should be divisible by number of GPUs ({num_gpus}) to avoid problems!"
-            )
 
     model.to(device)
 
@@ -249,13 +278,12 @@ def manage_config() -> dict:
         "general": {"recoding_type"},
         "model": {"embedding_size", "hidden_size", "num_layers", "dropout"},
         "train": {"weight_decay", "learning_rate", "batch_size", "num_epochs", "clip", "print_every", "eval_every",
-                  "model_save_path", "device", "model_name", "multi_gpu"},
+                  "model_save_path", "device", "model_name"},
         "logging": {"log_dir"},
-        "corpus": {"corpus_dir", "max_sentence_len"},
+        "corpus": {"corpus_dir", "max_seq_len"},
         "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay",
-                     "data_noise"},
-        "step": {"predictor_layers", "window_size", "step_size", "hidden_size"},
-        "eval": {"ignore_unk"}
+                     "data_noise", "share_anchor"},
+        "step": {"step_size"}
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -275,11 +303,12 @@ def init_argparser() -> ArgumentParser:
     from_cmd = parser.add_argument_group('From commandline', 'Specify experiment setup via commandline arguments')
 
     # Model options
-    from_cmd.add_argument("--recoding_type", type=str, default=None, choices=["mc_dropout", "perplexity", "ensemble"],
+    from_cmd.add_argument("--recoding_type", type=str, default=None,
+                          choices=["mc_dropout", "perplexity", "ensemble", "variational"],
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
-    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp"],
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl"],
                           help="Specifies the way the step size is determined when using a recoding model.")
     from_cmd.add_argument("--step_size", type=float,
                           help="Step size for recoding in case the fixed step predictor is used.")
@@ -290,6 +319,10 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
     from_cmd.add_argument("--window_size", type=int, default=None, help="Window size for adaptive step predictor.")
+    from_cmd.add_argument("--share_anchor", action="store_true", default=None,
+                          help="Determine whether anchor and losses should be shared for all member of the anchored"
+                               "bayesian ensemble (increases speed but looses some theoretical guarantees. Only "
+                               "applicable if recoding_type=ensemble")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")
@@ -300,11 +333,10 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--batch_size", type=int, help="Batch size during training.")
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
     from_cmd.add_argument("--clip", type=float, help="Threshold for gradient clipping.")
-    from_cmd.add_argument("--multi_gpu", action="store_true", default=None,
-                          help="Flag to indicate whether multiple GPUs should be used for training (if available).")
+
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
-    from_cmd.add_argument("--max_sentence_len", type=int, help="Maximum sentence length when reading in the corpora.")
+    from_cmd.add_argument("--max_seq_len", type=int, help="Maximum sentence length when reading in the corpora.")
 
     # Screen output optins
     from_cmd.add_argument("--print_every", type=int, help="Batch interval at which training info should be printed.")
@@ -317,10 +349,6 @@ def init_argparser() -> ArgumentParser:
                           help="Directory to which current best model should be saved to.")
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--log_dir", type=str, help="Directory to write (tensorboard) logs to.")
-
-    # Eval options
-    from_cmd.add_argument("--ignore_unk", action="store_true", default=None,
-                          help="Whether to ignore the <unk> token during evaluation.")
 
     return parser
 

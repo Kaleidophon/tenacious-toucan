@@ -2,15 +2,13 @@
   "embedding_size": 650,
   "hidden_size": 650,
   "num_layers": 2,
-  "predictor_layers": [300, 100],
-  "window_size": 4,
   "dropout": 0.2,
   "weight_decay": 0,
   "learning_rate": 20,
   "batch_size": 64,
   "num_epochs": 6,
   "clip": 0.25,
-  "max_sentence_len": 35,
+  "max_seq_len": 35,
 
   "step_type": "fixed",
   "recoding_type": "perplexity",
@@ -22,8 +20,6 @@
   "eval_every": 200,
   "log_dir": "logs",
   "model_name": "test",
-  "multi_gpu": false,
   "device": "cuda",
-  "evaluate": true,
-  "ignore_unk": false
+  "evaluate": true
 }

@@ -11,11 +11,11 @@ from typing import List
 from diagnnose.config.setup import ConfigSetup
 import matplotlib.pyplot as plt
 import torch
-import matplotlib.backends.backend_pdf
+from matplotlib.backends.backend_pdf import PdfPages
 
 # PROJECT
 from src.models.language_model import LSTMLanguageModel
-from src.utils.corpora import load_data, WikiCorpus
+from src.utils.corpora import load_data, Corpus
 from src.utils.test import load_test_set
 from src.utils.types import Device
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
@@ -30,19 +30,20 @@ ScoredSentence = namedtuple(
 )
 
 
-def main():
+def main() -> None:
     config_dict = manage_config()
 
     corpus_dir = config_dict["general"]["corpus_dir"]
-    max_sentence_len = config_dict["general"]["max_sentence_len"]
+    max_seq_len = config_dict["general"]["max_seq_len"]
     device = config_dict["general"]["device"]
     model_paths = config_dict["general"]["models"]
     pdf_path = config_dict["general"]["pdf_path"]
     num_plots = config_dict["general"]["num_plots"]
+    stop_after = config_dict["optional"]["stop_after"]
 
     # Load data sets
-    train_set, _ = load_data(corpus_dir, max_sentence_len)
-    test_set = load_test_set(corpus_dir, max_sentence_len, train_set.vocab, stop_after=100)
+    train_set, _ = load_data(corpus_dir, max_seq_len)
+    test_set = load_test_set(corpus_dir, max_seq_len, train_set.vocab, stop_after=stop_after)
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
@@ -84,7 +85,7 @@ def main():
     sorted_scored_sentences = sorted(scored_sentences, key=lambda sen: sen.diff, reverse=True)
     name_func = lambda name: "Vanilla" if "vanilla" in name else "Recoding"
 
-    pdf = matplotlib.backends.backend_pdf.PdfPages(pdf_path)
+    pdf = PdfPages(pdf_path)
 
     if num_plots is None or num_plots > len(sorted_scored_sentences):
         num_plots = len(sorted_scored_sentences)
@@ -95,7 +96,19 @@ def main():
     pdf.close()
 
 
-def plot_perplexities(scored_sentence,  model_names, pdf=None):
+def plot_perplexities(scored_sentence,  model_names, pdf=None) -> None:
+    """
+    Plot the word perplexity scores of two models for the same sentence and potentially add it to a pdf.
+
+    Parameters
+    ----------
+    scored_sentence: namedtuple
+        Named tuple with data about how multiple runs of the same model behaved w.r.t. to a single sentence.
+    model_names: list
+        List of length two with the names of the models for the plot legend.
+    pdf: Optional[PdfPages]
+        PDF the plot is written to if given. Otherwise the plot is shown on screen.
+    """
     tokens = scored_sentence.sentence[:-1]  # Exclude <eos>
     x = range(len(tokens))
     fig, ax = plt.subplots()
@@ -128,22 +141,38 @@ def plot_perplexities(scored_sentence,  model_names, pdf=None):
 
     if pdf:
         pdf.savefig(fig)
+    else:
+        plt.show()
 
     plt.close()
 
 
-def _grouping_function(path: str):
+def _grouping_function(path: str) -> str:
     """
     Defines how model scores are grouped by their path.
+
+    Parameters
+    ----------
+    path: str
+        Path to model file.
     """
     model_type = path[path.rfind("/") + 1:-1]
 
     return model_type
 
 
-def extract_word_perplexities(model: LSTMLanguageModel, test_set: WikiCorpus, device: Device) -> List[torch.Tensor]:
+def extract_word_perplexities(model: LSTMLanguageModel, test_set: Corpus, device: Device) -> List[torch.Tensor]:
     """
     Collect the perplexities of a model for all the words in a corpus.
+
+    Parameters
+    ----------
+    model: LSTMLanguageModel
+        Model for which the perplexities are being recorded.
+    test_set: Corpus
+        Test corpus the model is being tested on.
+    device: Device
+        The device the evaluation is being performed on.
     """
     def perplexity(tensor: torch.Tensor) -> torch.Tensor:
         return 2 ** (-tensor * tensor.log2())
@@ -181,8 +210,8 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_sentence_len", "batch_size", "models", "device", "pdf_path", "num_plots"}
-    arg_groups = {"general": required_args}
+    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "pdf_path", "num_plots"}
+    arg_groups = {"general": required_args, "optional": {"stop_after"}}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
     config_dict = config_object.config_dict
@@ -203,7 +232,8 @@ def init_argparser() -> ArgumentParser:
 
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
-    from_cmd.add_argument("--max_sentence_len", type=int, help="Maximum sentence length when reading in the corpora.")
+    from_cmd.add_argument("--max_seq_len", type=int, help="Maximum sentence length when reading in the corpora.")
+    from_cmd.add_argument("--stop_after", type=int, help="Read corpus up to a certain number of lines.")
 
     # Evaluation options
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for evaluation.")

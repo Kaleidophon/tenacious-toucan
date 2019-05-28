@@ -15,7 +15,7 @@ import torch
 from torch.autograd import Variable
 
 # PROJECT
-from src.utils.corpora import load_data, read_wiki_corpus, WikiCorpus
+from src.utils.corpora import load_data, read_wiki_corpus, Corpus
 from src.models.language_model import LSTMLanguageModel
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
@@ -26,12 +26,12 @@ def main():
     # Get config options
     model_paths = config_dict["general"]["models"]
     corpus_dir = config_dict["general"]["corpus_dir"]
-    max_sentence_len = config_dict["general"]["max_sentence_len"]
+    max_seq_len = config_dict["general"]["max_seq_len"]
     device = config_dict["general"]["device"]
 
     # Load data sets
-    train_set, _ = load_data(corpus_dir, max_sentence_len)
-    validation_set = read_wiki_corpus(corpus_dir, "test", max_sentence_len=max_sentence_len, vocab=train_set.vocab)
+    train_set, _ = load_data(corpus_dir, max_seq_len)
+    validation_set = read_wiki_corpus(corpus_dir, "test", max_seq_len=max_seq_len, vocab=train_set.vocab)
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
@@ -40,7 +40,7 @@ def main():
     print(f"Estimated noise across {len(models)}: ", sum(estimations) / len(models))
 
 
-def estimate_noise(validation_set: WikiCorpus, model: LSTMLanguageModel, config_dict: dict) -> float:
+def estimate_noise(validation_set: Corpus, model: LSTMLanguageModel, config_dict: dict) -> float:
     batch_size = config_dict["general"]["batch_size"]
     device = config_dict["general"]["device"]
 
@@ -82,7 +82,7 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_sentence_len", "batch_size", "models", "device"}
+    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device"}
     arg_groups = {"general": required_args}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -104,7 +104,7 @@ def init_argparser() -> ArgumentParser:
 
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
-    from_cmd.add_argument("--max_sentence_len", type=int, help="Maximum sentence length when reading in the corpora.")
+    from_cmd.add_argument("--max_seq_len", type=int, help="Maximum sentence length when reading in the corpora.")
 
     # Evaluation options
     from_cmd.add_argument("--batch_size", type=int, help="Batch size while evaluating on the test set.")
