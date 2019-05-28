@@ -2,8 +2,6 @@
   "embedding_size": 650,
   "hidden_size": 650,
   "num_layers": 2,
-  "predictor_layers": [300, 100],
-  "window_size": 4,
   "dropout": 0.2,
   "weight_decay": 0,
   "learning_rate": 20,
