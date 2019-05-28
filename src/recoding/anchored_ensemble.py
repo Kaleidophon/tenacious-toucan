@@ -19,6 +19,22 @@ from src.recoding.mechanism import RecodingMechanism
 from src.utils.types import HiddenDict, Device
 
 
+def has_anchored_ensemble(model: AbstractRNN) -> bool:
+    """
+    Check whether a model works with an anchored ensemble (and therefore requires an extra loss).
+
+    Parameters
+    ----------
+    model: AbstractRNN
+        Model to be checked.
+    """
+    if hasattr(model, "mechanism"):
+        if isinstance(model.mechanism, AnchoredEnsembleMechanism):
+            return True
+
+    return False
+
+
 def shares_anchors(model: AbstractRNN) -> bool:
     """
     Check whether a model uses an anchored bayesian ensemble and also shares anchors and losses.
@@ -43,6 +59,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
 
     [1] https://arxiv.org/pdf/1810.05546.pdf
     """
+
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, data_noise: float, prior_scale: float,
                  predictor_kwargs: Dict, step_type: str, device: Device, data_length: Optional[int] = None,
                  share_anchor: bool = True, **unused: Any):

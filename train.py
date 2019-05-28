@@ -22,7 +22,7 @@ from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.corpora import Corpus
 from src.models.abstract_rnn import AbstractRNN
-from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, shares_anchors
+from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism, shares_anchors, has_anchored_ensemble
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
 from src.recoding.variational import VariationalMechanism
@@ -160,7 +160,7 @@ def train_model(model: AbstractRNN,
                 targets = torch.flatten(targets)
 
                 # When using bayesian anchored ensembles that do not share losses
-                if not shares_anchors(model):
+                if has_anchored_ensemble(model) and not shares_anchors(model):
                     outputs = torch.cat(outputs, dim=1)  # K x (batch_size * seq_len) x vocab_size
                     # Extra loss component for recoding with Anchored Bayesian Ensembles
                     ensemble_losses = model.mechanism.ensemble_losses
