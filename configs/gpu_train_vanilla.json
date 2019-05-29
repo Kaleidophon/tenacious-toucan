@@ -4,7 +4,7 @@
   "num_layers": 2,
   "learning_rate": 20,
   "batch_size": 64,
-  "num_epochs": 4,
+  "num_epochs": 8,
   "clip": 0.25,
   "weight_decay": 0,
   "max_seq_len": 35,

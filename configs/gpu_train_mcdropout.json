@@ -9,7 +9,7 @@
   "prior_scale": 0.3,
   "learning_rate": 20,
   "batch_size": 64,
-  "num_epochs": 6,
+  "num_epochs": 8,
   "clip": 0.25,
   "step_size": 0.5,
   "max_seq_len": 35,

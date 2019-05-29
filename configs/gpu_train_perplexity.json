@@ -6,7 +6,7 @@
   "weight_decay": 0,
   "learning_rate": 20,
   "batch_size": 64,
-  "num_epochs": 6,
+  "num_epochs": 8,
   "clip": 0.25,
   "max_seq_len": 35,
 
