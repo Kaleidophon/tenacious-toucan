@@ -10,7 +10,7 @@
   "weight_decay": 0,
   "dropout": 0.2,
 
-  "corpus_dir": "data/corpora/wikitext2",
+  "corpus_dir": "data/corpora/ptb",
   "print_every": 1,
   "eval_every": 200,
   "model_save_path": "data/models/uncertainty/test.pt",
