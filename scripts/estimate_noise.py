@@ -35,6 +35,8 @@ def main():
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
+    for model in models.values():
+        model.device = device
 
     estimations = [estimate_noise(validation_set, model, config_dict) for model in models.values()]
     print(f"Estimated noise across {len(models)}: ", sum(estimations) / len(models))
