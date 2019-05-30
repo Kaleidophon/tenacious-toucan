@@ -34,6 +34,8 @@ def main() -> None:
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
+    for model in models.values():
+        model.device = device
 
     # Evaluate
     print("Evaluating...\n")
