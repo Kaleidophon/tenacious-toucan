@@ -240,7 +240,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         # Keep individual losses for individual ensemble member backprop, if we share losses just sum everything
         # and do a single backprop for all ensemble members (is faster)
         if self.share_anchor:
-            ensemble_losses = ensemble_losses.sum()
+            ensemble_losses = ensemble_losses.mean()
 
         return self.lambda_ / self.data_length * ensemble_losses
 
