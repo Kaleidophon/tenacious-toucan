@@ -4,6 +4,7 @@ Plot results of experiment 5.
 
 # PROJECT
 from src.utils.plot import *
+from src.utils.log import *
 
 LOGDIR = "logs/exp6/"
 IMGDIR = "img/exp6/"

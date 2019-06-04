@@ -31,14 +31,13 @@ def main():
 
     # Load data sets
     train_set, _ = load_data(corpus_dir, max_seq_len)
-    validation_set = read_wiki_corpus(corpus_dir, "test", max_seq_len=max_seq_len, vocab=train_set.vocab)
 
     # Load models
     models = {path: torch.load(path, map_location=device) for path in model_paths}
     for model in models.values():
         model.device = device
 
-    estimations = [estimate_noise(validation_set, model, config_dict) for model in models.values()]
+    estimations = [estimate_noise(train_set, model, config_dict) for model in models.values()]
     print(f"Estimated noise across {len(models)}: ", sum(estimations) / len(models))
 
 
