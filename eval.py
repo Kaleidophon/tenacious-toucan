@@ -64,7 +64,7 @@ def main() -> None:
 
         postfix = ""
         if do_ttest and model != baseline_model:
-            _, p_value = ttest_ind(baseline_scores, perplexities)
+            _, p_value = ttest_ind(baseline_scores, perplexities, equal_var=False)
             postfix = f" | p-value: {p_value:.2f}"
 
         print(f"{model} test perplexity: {mean_perpl:.4f} | Std. dev {std_perpl:.4f} | Avg. Speed {mean_speed:.2f} "
