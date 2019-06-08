@@ -85,7 +85,7 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold"}
+    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold", "ttest"}
     arg_groups = {"general": required_args}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
