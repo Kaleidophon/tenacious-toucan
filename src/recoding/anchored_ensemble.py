@@ -160,7 +160,7 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         predictions = torch.stack(predictions)
 
         # If no target is given, compute uncertainty of most likely token
-        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
+        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
 
         # Select predicted probabilities of target index
         predictions.exp_()  # Exponentiate for later softmax
