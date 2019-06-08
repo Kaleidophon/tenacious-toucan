@@ -16,7 +16,7 @@ STEPSIZE_IMGDIR = "img/exp9/step_sizes/"
 SAMPLES_IMGDIR = "img/exp9/num_samples/"
 STEPSIZES_TO_IDX = {0.1: 1, 0.5: 2, 1: 3, 2: 4, 5: 5}
 SAMPLES_TO_IDX = {1: 1, 2: 2, 5: 3, 10: 4, 25: 5, 50: 6}
-MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Perplexity"}
+MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Surprisal"}
 MODEL_TYPE_TO_CMAP = {"ensemble": "Greens", "mcd": "Purples", "perplexity": "Oranges"}
 
 # ##### STEP SIZE EXPERIMENTS #####
@@ -58,8 +58,10 @@ for model_type_short, model_type in MODEL_TYPES.items():
     plot_column(
         step_size_train_logs, x_name="batch_num", y_names="batch_loss", intervals=True,
         save_path=f"{STEPSIZE_IMGDIR}{model_type_short}_train_losses.png",
-        title=f"Train loss | {model_type} recoding (n=4)", color_func=step_size_color_func,
-        legend_func=step_size_legend_func, selection=slice(0, 400), y_label="Training Loss"
+        #title=f"Train loss | {model_type} recoding (n=4)",
+        color_func=step_size_color_func,
+        legend_func=step_size_legend_func, selection=slice(0, 400),
+        y_label="Training Loss", x_label="# Batches"
     )
 
     # Plot validation losses
@@ -69,8 +71,10 @@ for model_type_short, model_type in MODEL_TYPES.items():
     plot_column(
         step_size_val_logs, x_name="batch_num", y_names="val_ppl", intervals=True,
         save_path=f"{STEPSIZE_IMGDIR}{model_type_short}_val_ppls.png",
-        title=f"Validation perplexity | {model_type} recoding (n=4)", color_func=step_size_color_func,
-        legend_func=step_size_legend_func, selection=slice(0, 50), y_label="Validation Loss"
+        #title=f"Validation perplexity | {model_type} recoding (n=4)",
+        color_func=step_size_color_func,
+        legend_func=step_size_legend_func, selection=slice(0, 50),
+        y_label="Validation Perplexity", x_label="# Batches"
     )
 
 
@@ -114,8 +118,10 @@ for model_type_short, model_type in MODEL_TYPES.items():
     plot_column(
         samples_train_logs, x_name="batch_num", y_names="batch_loss", intervals=True,
         save_path=f"{SAMPLES_IMGDIR}{model_type_short}_train_losses.png",
-        title=f"Train loss | {model_type} recoding (n=4)", color_func=samples_color_func,
-        legend_func=samples_legend_func, selection=slice(0, 400), y_label="Training Loss"
+        #title=f"Train loss | {model_type} recoding (n=4)",
+        color_func=samples_color_func,
+        legend_func=samples_legend_func, selection=slice(0, 400),
+        y_label="Training Loss", x_label="# Batches"
     )
 
     # Plot validation losses
@@ -125,6 +131,8 @@ for model_type_short, model_type in MODEL_TYPES.items():
     plot_column(
         samples_val_logs, x_name="batch_num", y_names="val_ppl", intervals=True,
         save_path=f"{SAMPLES_IMGDIR}{model_type_short}_val_ppls.png",
-        title=f"Validation perplexity | {model_type} recoding (n=4)", color_func=samples_color_func,
-        legend_func=samples_legend_func, selection=slice(0, 50), y_label="Validation Loss"
+        #title=f"Validation perplexity | {model_type} recoding (n=4)",
+        color_func=samples_color_func,
+        legend_func=samples_legend_func, selection=slice(0, 50),
+        y_label="Validation Perplexity", x_label="# Batches"
     )

@@ -52,6 +52,7 @@ def plot_column(logs: AggregatedLogs,
                 save_path: Optional[str] = None,
                 color_func: Optional[Callable] = None,
                 selection: Optional[slice] = None,
+                x_label: Optional[str] = None,
                 y_label: Optional[str] = None,
                 legend_func: Callable = lambda model_name, y_name: model_name,
                 y_top_lim: Optional[float] = None) -> None:
@@ -80,6 +81,8 @@ def plot_column(logs: AggregatedLogs,
         color choices are used, however, color use is still consistent for curves belonging to the same model.
     selection: Optional[slice]
         Select a range of the data for plotting via a slice object.
+    x_label: Optional[str]
+        Explicitly define the x-axis label.
     y_label: Optional[str]
         Explicitly define the y-axis label.
     legend_func: Callable
@@ -141,7 +144,7 @@ def plot_column(logs: AggregatedLogs,
                         color = curve[0].get_color()
 
     # Add additional information to plot
-    plt.xlabel(x_name)
+    plt.xlabel(x_name if x_label is None else x_label)
     plt.ylabel(y_label if y_label is not None else y_names[0])
 
     # Zoom in to majority of points to avoid distortion by outliers
@@ -149,8 +152,9 @@ def plot_column(logs: AggregatedLogs,
         bottom, _ = plt.ylim()
         plt.ylim(top=y_top_lim, bottom=max(bottom, 0))
 
-    # Avoid having the same labels multiple times in the legend
+    # Avoid having the same labels multiple times in the legend and sort them alphabetically
     handles, labels = plt.gca().get_legend_handles_labels()
+    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
     by_label = OrderedDict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys())
 
