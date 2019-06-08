@@ -9,6 +9,7 @@ from collections import defaultdict
 # EXT
 import numpy as np
 from diagnnose.config.setup import ConfigSetup
+from scipy.stats import shapiro, ttest_ind
 import torch
 
 # PROJECT
@@ -27,6 +28,10 @@ def main() -> None:
     max_seq_len = config_dict["general"]["max_seq_len"]
     device = config_dict["general"]["device"]
     give_gold = config_dict["general"]["give_gold"]
+    do_ttest = config_dict["general"]["ttest"] is not None
+
+    if do_ttest:
+        baseline_model = _grouping_function(config_dict["general"]["ttest"])
 
     # Load data sets
     train_set, _ = load_data(corpus_dir, max_seq_len)
@@ -50,12 +55,20 @@ def main() -> None:
         speeds[_grouping_function(model_path)] = np.append(speeds[_grouping_function(model_path)], speed)
 
     print("\nEvaluation results:")
+    if do_ttest:
+        baseline_scores = scores[baseline_model]
+
     for model, perplexities in scores.items():
         mean_perpl, std_perpl = perplexities.mean(), perplexities.std()
         mean_speed = speeds[model].mean()
 
+        postfix = ""
+        if do_ttest and model != baseline_model:
+            _, p_value = ttest_ind(baseline_scores, perplexities)
+            postfix = f" | p-value: {p_value:.2f}"
+
         print(f"{model} test perplexity: {mean_perpl:.4f} | Std. dev {std_perpl:.4f} | Avg. Speed {mean_speed:.2f} "
-              f"samples / sec.")
+              f"samples / sec." + postfix)
 
 
 def _grouping_function(path: str):
@@ -102,6 +115,8 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--give_gold", action="store_true", default=None,
                           help="Whether recoding models are allowed access to the next gold token in order to "
                           "calculate the recoding signal.")
+    from_cmd.add_argument("--ttest", type=str,
+                          help="Give path to a model that is used as a baseline when performing a significance test.")
 
     return parser
 
