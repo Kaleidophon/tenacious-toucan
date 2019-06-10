@@ -78,7 +78,12 @@ class VariationalMechanism(MCDropoutMechanism):
         delta = self._calculate_predictive_uncertainty(prediction)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
-        new_out_dist, new_hidden = self.recode_activations(hidden, out, delta, device, **additional)
+        # Only recode hidden activations that weren't using dropout masks
+        unmasked_hiddens = {
+            l: [h[:self.model.current_batch_size, :] for h in hid]
+            for l, hid in hidden.items()
+        }
+        new_out_dist, new_hidden = self.recode_activations(unmasked_hiddens, out, delta, device, **additional)
 
         return new_out_dist, new_hidden
 
@@ -90,6 +95,8 @@ class VariationalMechanism(MCDropoutMechanism):
         ----------
         hidden: HiddenDict
             Dictionary of all hidden (and cell states) of all network layers.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
         target_idx: Optional[Tensor]
             Indices of actual next tokens (if given). Otherwise the most likely tokens are used.
 
@@ -102,7 +109,7 @@ class VariationalMechanism(MCDropoutMechanism):
         topmost_hidden = self.select(hidden[self.model.num_layers - 1])  # Select topmost hidden activations
 
         # Collect sample predictions
-        output = self.model.decoder(topmost_hidden)
+        output = self.model.decoder(topmost_hidden[self.model.current_batch_size:, :])
 
         predictions = output.view(self.model.current_batch_size, self.num_samples, self.model.vocab_size)
 

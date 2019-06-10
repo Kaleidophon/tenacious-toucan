@@ -76,7 +76,7 @@ class VariationalLSTM(RecodingLanguageModel):
 
         # Repeat output for every dropout masks and reshape into pseudo-batch
         input_ = embed.squeeze(1)
-        input_ = input_.repeat(self.num_samples, 1)
+        input_ = input_.repeat(self.num_samples + 1, 1)
         input_ = input_ * self.dropout_masks["input"]
 
         for l in range(self.num_layers):
@@ -87,9 +87,11 @@ class VariationalLSTM(RecodingLanguageModel):
             # Apply inter-layer dropout mask
             input_ = input_ * self.dropout_masks[f"{l}->{l+1}"]
 
-        out = self.predict_distribution(input_)
+        out = self.predict_distribution(input_[:self.current_batch_size, :])
 
-        new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=self.device, **additional)
+        new_out, new_hidden = self.mechanism.recoding_func(
+            input_var, hidden, out, device=self.device, **additional
+        )
 
         # Only allow recomputing out when gold token is not given and model has to guess, otherwise task is trivialized
         if "target_idx" not in additional:
@@ -106,20 +108,30 @@ class VariationalLSTM(RecodingLanguageModel):
             return dist.sample(shape).squeeze(-1).to(self.device)
 
         # Sample masks for input embeddings
-        self.dropout_masks["input"] = sample_mask([self.current_batch_size * self.num_samples, self.embedding_size])
+        self.dropout_masks["input"] = torch.cat(
+            (torch.ones(self.current_batch_size, self.embedding_size),
+            sample_mask([self.current_batch_size * self.num_samples, self.embedding_size]))
+        )
 
         # Sample masks for all recurrent connections
         for l in range(self.num_layers):
             self.dropout_masks[f"{l}->{l}"] = [
-                sample_mask([self.current_batch_size * self.num_samples, self.hidden_size]),  # hx
-                sample_mask([self.current_batch_size * self.num_samples, self.hidden_size]),  # cx
+                torch.cat(
+                    (torch.ones(self.current_batch_size, self.hidden_size),
+                    sample_mask([self.current_batch_size * self.num_samples, self.hidden_size]))  # hx
+                ),
+                torch.cat(
+                    (torch.ones(self.current_batch_size, self.hidden_size),
+                    sample_mask([self.current_batch_size * self.num_samples, self.hidden_size]))  # cx,
+                )
             ]
 
         # Sample masks between layers
         for l in range(self.num_layers):
-            self.dropout_masks[f"{l}->{l+1}"] = sample_mask(
-                [self.current_batch_size * self.num_samples, self.hidden_size]
-            )  # hx
+            self.dropout_masks[f"{l}->{l+1}"] = torch.cat(
+                (torch.ones(self.current_batch_size, self.hidden_size),
+                sample_mask([self.current_batch_size * self.num_samples, self.hidden_size]))  # hx
+            )
 
     def init_hidden(self, batch_size: int, device: torch.device) -> AmbiguousHidden:
         """
@@ -139,36 +151,9 @@ class VariationalLSTM(RecodingLanguageModel):
         """
         # In contrast to the superclasses, create a pseudo-batch of batch_size x num_samples here, where we will
         # apply a different dropout mask to every sample. These masks are sampled at once for efficiency
-        hidden_zero = torch.zeros(batch_size * self.num_samples, self.hidden_size).to(device)
+        hidden_zero = torch.zeros(batch_size * (self.num_samples + 1), self.hidden_size).to(device)
 
         if self.rnn_type == "LSTM":
             return hidden_zero, hidden_zero.clone()
         else:
             return hidden_zero
-
-    def predict_distribution(self, output: Tensor, out_layer: Optional[nn.Module] = None):
-        """
-        Generate the output distribution using an affine transformation.
-
-        Parameters
-        ----------
-        output: Tensor
-            Decoded output Tensor of current time step.
-        out_layer: nn.Module
-            Layer used to transform the current output to the distribution.
-
-        Returns
-        -------
-        output_dist: Tensor
-            Unnormalized output distribution for current time step.
-        """
-        # Default to models own output layer
-        out_layer = out_layer if out_layer is not None else self.decoder
-
-        output_dist = out_layer(output)
-        output_dist = output_dist.view(self.current_batch_size, self.num_samples, self.vocab_size)
-
-        # Average over all predictions with different dropout masks
-        output_dist = output_dist.mean(dim=1)
-
-        return output_dist

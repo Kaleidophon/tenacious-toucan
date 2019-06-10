@@ -179,7 +179,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         for hiddens in hidden.values():
             recoding_grads = compute_grads(
                 outputs=[delta], inputs=hiddens,
-                grad_outputs=[torch.ones(delta.shape).to(device)] * len(hiddens), retain_graph=True
+                grad_outputs=[torch.ones(delta.shape).to(device)] * len(hiddens), retain_graph=True, allow_unused=True
             )
 
             for hid, grad in zip(hiddens, recoding_grads):
