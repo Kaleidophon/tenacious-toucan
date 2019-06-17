@@ -14,17 +14,19 @@ STEPSIZE_LOGDIR = "logs/exp9/step_sizes/"
 SAMPLES_LOGDIR = "logs/exp9/num_samples/"
 STEPSIZE_IMGDIR = "img/exp9/step_sizes/"
 SAMPLES_IMGDIR = "img/exp9/num_samples/"
-STEPSIZES_TO_IDX = {0.1: 1, 0.5: 2, 1: 3, 2: 4, 5: 5}
+STEPSIZES_TO_IDX = {
+    0.1: 1, 0.5: 2, 1: 3, 2: 4, 5: 5, 10: 6, 25: 7, 50: 8, 100: 9, 1000: 10, 5000: 11, 10000: 12, 50000: 13, 100000: 14
+}
 SAMPLES_TO_IDX = {1: 1, 2: 2, 5: 3, 10: 4, 25: 5, 50: 6}
-MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Surprisal"}
-MODEL_TYPE_TO_CMAP = {"ensemble": "Greens", "mcd": "Purples", "perplexity": "Oranges"}
+MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Surprisal", "variational": "Variational"}
+MODEL_TYPE_TO_CMAP = {"ensemble": "Greens", "mcd": "Purples", "perplexity": "Oranges", "variational": "Blues"}
 
 # ##### STEP SIZE EXPERIMENTS #####
 
 
 # Get the recoding step size from a log path
 def step_size_name_func(path: str) -> str:
-    matches = re.search("step(\d\.)?\d", path)
+    matches = re.search("step(\d\.)?\d+", path)
     step_size = matches.group(0).replace("step", "")
     return step_size
 
@@ -52,7 +54,8 @@ for model_type_short, model_type in MODEL_TYPES.items():
     step_size_color_func = step_size_color_func_generator(model_type_short)
 
     # Plot training losses
-    step_size_train_selection_func = lambda path: "train" in path and model_type_short in path
+    step_size_train_selection_func = \
+        lambda path: "train" in path and model_type_short in path and "step1" in path
     step_size_train_log_paths = get_logs_in_dir(STEPSIZE_LOGDIR, step_size_train_selection_func)
     step_size_train_logs = aggregate_logs(step_size_train_log_paths, step_size_name_func)
     plot_column(
@@ -65,7 +68,8 @@ for model_type_short, model_type in MODEL_TYPES.items():
     )
 
     # Plot validation losses
-    step_size_val_selection_func = lambda path: "val" in path and model_type_short in path
+    step_size_val_selection_func = \
+        lambda path: "val" in path and model_type_short in path and "step1" in path
     step_size_val_log_paths = get_logs_in_dir(STEPSIZE_LOGDIR, step_size_val_selection_func)
     step_size_val_logs = aggregate_logs(step_size_val_log_paths, step_size_name_func)
     plot_column(
@@ -124,6 +128,16 @@ for model_type_short, model_type in MODEL_TYPES.items():
         y_label="Training Loss", x_label="# Batches"
     )
 
+    # Plot deltas
+    plot_column(
+        samples_train_logs, x_name="batch_num", y_names="deltas", intervals=True,
+        save_path=f"{SAMPLES_IMGDIR}{model_type_short}_deltas.png",
+        # title=f"Train loss | {model_type} recoding (n=4)",
+        color_func=samples_color_func,
+        legend_func=samples_legend_func, selection=slice(825, 850),
+        y_label="Deltas", x_label="# Batches"
+    )
+
     # Plot validation losses
     samples_val_selection_func = lambda path: "val" in path and model_type_short in path
     samples_val_log_paths = get_logs_in_dir(SAMPLES_LOGDIR, samples_val_selection_func)
@@ -136,3 +150,4 @@ for model_type_short, model_type in MODEL_TYPES.items():
         legend_func=samples_legend_func, selection=slice(0, 50),
         y_label="Validation Perplexity", x_label="# Batches"
     )
+

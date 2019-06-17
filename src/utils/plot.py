@@ -91,6 +91,16 @@ def plot_column(logs: AggregatedLogs,
     y_top_lim: Optional[float]
         Optional upper limit for y-axis.
     """
+    # Print soft error message if logs are empty
+    if len(logs) == 0:
+        description = ""
+        if (title, save_path) != (None, None):
+            description = " to create {title}".format(title=title if title is not None else save_path)
+
+        print(f"No logs found{description}, skip.")
+        return
+
+    # Select values for x-axis
     x = list(logs.values())[0][x_name]
     x = x.astype(np.int)
 
