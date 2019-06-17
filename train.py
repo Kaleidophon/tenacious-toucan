@@ -282,7 +282,7 @@ def manage_config() -> dict:
         "logging": {"log_dir"},
         "corpus": {"corpus_dir", "max_seq_len"},
         "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay",
-                     "data_noise", "share_anchor"},
+                     "data_noise", "share_anchor", "use_cross_entropy"},
         "step": {"step_size"}
     }
     argparser = init_argparser()
@@ -333,6 +333,9 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--batch_size", type=int, help="Batch size during training.")
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
     from_cmd.add_argument("--clip", type=float, help="Threshold for gradient clipping.")
+    from_cmd.add_argument("--use_cross_entropy", action="store_true", default=None,
+                          help="For models that use the confidence as a recoding signal, determine whether is should be "
+                               "based on predictive entropy or predictive cross-entropy (if label is available)")
 
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
