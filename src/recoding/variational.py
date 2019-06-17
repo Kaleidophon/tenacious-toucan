@@ -75,7 +75,7 @@ class VariationalMechanism(MCDropoutMechanism):
         prediction = self.predict_variational(hidden, device, target_idx)
 
         # Estimate uncertainty of those same predictions
-        delta = self._calculate_predictive_uncertainty(prediction)
+        delta = self._calculate_predictive_entropy(prediction)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         new_out_dist, new_hidden = self.recode_activations(hidden, out, delta, device, **additional)
