@@ -45,7 +45,7 @@ def main() -> None:
 
     for i, (model_path, model) in enumerate(zip(model_paths, models)):
         model.device = device
-        print(f"\rEvaluating model {i+1} / {len(models)}...", end="", flush=True)
+        print(f"\rEvaluating model {i+1} / {len(model_paths)}...", end="", flush=True)
         perplexity, speed = evaluate_model(
             model, test_set, batch_size, device=device, perplexity=True, give_gold=give_gold, return_speed=True
         )
@@ -84,7 +84,7 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold", "ttest"}
+    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold"}
     arg_groups = {"general": required_args}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
