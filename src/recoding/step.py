@@ -214,7 +214,7 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         buffer_batch_size = -1 if len(self.hidden_buffer) == 0 else self.hidden_buffer[0].shape[0]
         if len(self.hidden_buffer) == 0 or buffer_batch_size != batch_size:
             self.hidden_buffer = [
-                Variable(torch.zeros((batch_size, self.hidden_size)).to(device), requires_grad=True)
+                torch.zeros((batch_size, self.hidden_size)).to(device)
                 for _ in range(self.window_size)
             ]
 
