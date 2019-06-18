@@ -283,7 +283,7 @@ def manage_config() -> dict:
         "corpus": {"corpus_dir", "max_seq_len"},
         "recoding": {"step_type", "num_samples", "mc_dropout", "prior_scale", "hidden_size", "weight_decay",
                      "data_noise", "share_anchor", "use_cross_entropy"},
-        "step": {"step_size"}
+        "step": {"predictor_layers", "window_size", "step_size", "hidden_size"}
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -308,7 +308,7 @@ def init_argparser() -> ArgumentParser:
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
-    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl"],
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl", "mlp"],
                           help="Specifies the way the step size is determined when using a recoding model.")
     from_cmd.add_argument("--step_size", type=float,
                           help="Step size for recoding in case the fixed step predictor is used.")

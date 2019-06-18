@@ -17,13 +17,14 @@ from torch.autograd import grad as compute_grads
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import StatsCollector
-from src.recoding.step import FixedStepPredictor, PerplexityStepPredictor
+from src.recoding.step import FixedStepPredictor, PerplexityStepPredictor, AdaptiveStepPredictor
 from src.utils.types import Device, HiddenDict, StepSize
 
 # CONSTANTS
 STEP_TYPES = {
     "fixed": FixedStepPredictor,
-    "ppl": PerplexityStepPredictor
+    "ppl": PerplexityStepPredictor,
+    "mlp": AdaptiveStepPredictor
 }
 
 
@@ -147,7 +148,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # Perform recoding by doing a gradient decent step
         # Perform update directly on hidden.data which isn't really best practice here, on the other hand we guarantee
         # this way that the normal RNN computational graph is left untouched
-        hidden.data = hidden.data - step_size * recoding_grad
+        #hidden.data = hidden.data - step_size * recoding_grad
+        hidden = hidden - step_size * recoding_grad
 
         return hidden
 
