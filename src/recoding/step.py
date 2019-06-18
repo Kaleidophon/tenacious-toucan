@@ -223,3 +223,11 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
 
         if len(self.hidden_buffer) > self.window_size:
             self.hidden_buffer.pop(0)  # If buffer is full, remove oldest element
+
+    def train(self, mode=True):
+        super().train(mode)
+        self.model.train(mode)
+
+    def eval(self):
+        super().eval()
+        self.model.eval()
