@@ -28,7 +28,7 @@ def main() -> None:
     max_seq_len = config_dict["general"]["max_seq_len"]
     device = config_dict["general"]["device"]
     give_gold = config_dict["general"]["give_gold"]
-    do_ttest = config_dict["general"]["ttest"] is not None
+    do_ttest = config_dict["general"].get("ttest", None) is not None
 
     if do_ttest:
         baseline_model = _grouping_function(config_dict["general"]["ttest"])
