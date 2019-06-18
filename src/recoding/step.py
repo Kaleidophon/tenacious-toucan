@@ -157,11 +157,13 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         """ When model mode changes, erase buffer. """
         # Either use new, empty buffer or continue with buffer used before model was switched to testing mode
         self.hidden_buffer = self._buffer_copy
+        self.model.train(mode)
 
     def eval(self):
         """ When model mode changes, erase buffer. """
         self._buffer_copy = self.hidden_buffer
         self.hidden_buffer = []
+        self.model.eval()
 
     def forward(self,  hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
         """
@@ -223,11 +225,3 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
 
         if len(self.hidden_buffer) > self.window_size:
             self.hidden_buffer.pop(0)  # If buffer is full, remove oldest element
-
-    def train(self, mode=True):
-        super().train(mode)
-        self.model.train(mode)
-
-    def eval(self):
-        super().eval()
-        self.model.eval()
