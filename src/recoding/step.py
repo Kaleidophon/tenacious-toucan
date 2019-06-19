@@ -10,7 +10,6 @@ from typing import Any, Iterable
 import torch
 from torch import nn, Tensor
 from torch.nn import ReLU, Sigmoid
-from torch.autograd import Variable
 
 # PROJECT
 from src.utils.types import StepSize
@@ -147,7 +146,7 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
             last_layer_size = current_layer_size
 
         self.model.add_module("out", nn.Linear(last_layer_size, 1))  # Output scalar alpha_t
-        self.model.add_module("sigmoid", Sigmoid())
+        self.model.add_module("relu_out", ReLU())
 
         # Init buffers
         self.hidden_buffer = []  # Buffer where to store hidden states
@@ -209,6 +208,7 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         """
         # TODO: Re-write buffer as actually registered PyTorch buffer
         # Detach from graph so gradients don't flow through them when backpropagating for recoding or main gradients
+        hidden = hidden.detach()
         batch_size, _ = hidden.size()
 
         # If buffer is empty or batch size changes (e.g. when going from training to testing), initialize it with zero
@@ -221,7 +221,7 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
             ]
 
         # Add hidden state to buffer
-        self.hidden_buffer.append(hidden.detach())
+        self.hidden_buffer.append(hidden)
 
         if len(self.hidden_buffer) > self.window_size:
             self.hidden_buffer.pop(0)  # If buffer is full, remove oldest element
