@@ -17,14 +17,15 @@ from torch.autograd import grad as compute_grads
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import StatsCollector
-from src.recoding.step import FixedStepPredictor, PerplexityStepPredictor, AdaptiveStepPredictor
+from src.recoding.step import FixedStepPredictor, PerplexityStepPredictor, AdaptiveStepPredictor, LipschitzStep
 from src.utils.types import Device, HiddenDict, StepSize
 
 # CONSTANTS
 STEP_TYPES = {
     "fixed": FixedStepPredictor,
     "ppl": PerplexityStepPredictor,
-    "mlp": AdaptiveStepPredictor
+    "mlp": AdaptiveStepPredictor,
+    "lipschitz": LipschitzStep
 }
 
 
@@ -111,7 +112,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         new_hidden = {
             l: tuple([
                 # Use the step predictor for the corresponding state and layer
-                self.recode(h, step_size=predictor(h, out, device, **additional), name=f"{name}_l{l}")
+                self.recode(h, step_size=predictor(h, out, device, weight_matrix=self.model.decoder.weight,
+                                                   **additional), name=f"{name}_l{l}")
                 for h, predictor, name in zip(hid, self.predictors[l], ["hx", "cx"])])
             for l, hid in hidden.items()
         }

@@ -7,12 +7,14 @@ from abc import abstractmethod, ABC
 from typing import Any, Iterable
 
 # EXT
+from scipy.linalg import norm
 import torch
 from torch import nn, Tensor
-from torch.nn import ReLU, Sigmoid
+from torch.nn import ReLU
 
 # PROJECT
 from src.utils.types import StepSize
+from src.models.language_model import AbstractRNN
 
 
 class AbstractStepPredictor(nn.Module, ABC):
@@ -225,3 +227,49 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
 
         if len(self.hidden_buffer) > self.window_size:
             self.hidden_buffer.pop(0)  # If buffer is full, remove oldest element
+
+
+class LipschitzStep(AbstractStepPredictor):
+    """
+    Function that determines the ideal step size based on the Lipschitz constant of the decoder weight matrix.
+    """
+    def __init__(self, model: AbstractRNN, **unused):
+        super().__init__()
+        self._cached_matrix = model.decoder.weight.detach().clone()
+        self._cached_norm = None
+
+    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
+        """
+        Prediction step.
+
+        Parameters
+        ----------
+        hidden: Tensor
+            Current hidden state used to determine step size.
+        out: Tensor
+            Output Tensor of current time step.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
+
+        Returns
+        -------
+        step_size: StepSize
+            Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
+        """
+        weight_matrix = additional["weight_matrix"]
+        lipschitz_const = self.spectral_norm(weight_matrix)
+
+        return 1 / lipschitz_const
+
+    def spectral_norm(self, matrix: Tensor) -> float:
+        """
+        Return the spectral norm (largest eigenvalue) of a matrix.
+        """
+        # Computing spectral norm is expensive, so only do it if the matrix changed
+        if (self._cached_matrix == matrix).all() and self._cached_norm is not None:
+            return self._cached_norm
+
+        spectral_norm = self._cached_norm = norm(matrix.detach().numpy(), 2)
+        self._cached_matrix = matrix.clone()
+
+        return spectral_norm
