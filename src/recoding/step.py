@@ -270,7 +270,7 @@ class LipschitzStep(AbstractStepPredictor):
             if (self._cached_matrix == matrix).all() and self._cached_norm is not None:
                 return self._cached_norm
 
-        spectral_norm = self._cached_norm = norm(matrix.detach().numpy(), 2)
+        spectral_norm = self._cached_norm = norm(matrix.detach().cpu().numpy(), 2)
         self._cached_matrix = matrix.clone()
 
         return spectral_norm
