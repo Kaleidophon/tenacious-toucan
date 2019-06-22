@@ -259,7 +259,7 @@ class LipschitzStep(AbstractStepPredictor):
         weight_matrix = additional["weight_matrix"]
         lipschitz_const = self.spectral_norm(weight_matrix)
 
-        return 1 / lipschitz_const
+        return float(1 / lipschitz_const)
 
     def spectral_norm(self, matrix: Tensor) -> float:
         """
