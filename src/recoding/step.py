@@ -267,10 +267,10 @@ class LipschitzStep(AbstractStepPredictor):
         """
         # Computing spectral norm is expensive, so only do it if the matrix changed
         if self._cached_matrix is not None:
-            if (self._cached_matrix == matrix).all() and self._cached_norm is not None:
+            if self._cached_matrix == hash(matrix) and self._cached_norm is not None:
                 return self._cached_norm
 
         spectral_norm = self._cached_norm = norm(matrix.detach().cpu().numpy(), 2)
-        self._cached_matrix = matrix.clone()
+        self._cached_matrix = hash(matrix)
 
         return spectral_norm
