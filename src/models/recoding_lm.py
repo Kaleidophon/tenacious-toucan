@@ -22,7 +22,6 @@ class RecodingLanguageModel(LSTMLanguageModel):
     def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class,
                  mechanism_kwargs, device: torch.device = "cpu"):
         super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
-        mechanism_kwargs["predictor_kwargs"]["model"] = self
         self.mechanism = mechanism_class(model=self, **mechanism_kwargs, device=device)
 
     @overrides

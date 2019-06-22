@@ -233,9 +233,9 @@ class LipschitzStep(AbstractStepPredictor):
     """
     Function that determines the ideal step size based on the Lipschitz constant of the decoder weight matrix.
     """
-    def __init__(self, model: AbstractRNN, **unused):
+    def __init__(self, **unused):
         super().__init__()
-        self._cached_matrix = model.decoder.weight.detach().clone()
+        self._cached_matrix = None
         self._cached_norm = None
 
     def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
@@ -266,8 +266,9 @@ class LipschitzStep(AbstractStepPredictor):
         Return the spectral norm (largest eigenvalue) of a matrix.
         """
         # Computing spectral norm is expensive, so only do it if the matrix changed
-        if (self._cached_matrix == matrix).all() and self._cached_norm is not None:
-            return self._cached_norm
+        if self._cached_matrix is not None:
+            if (self._cached_matrix == matrix).all() and self._cached_norm is not None:
+                return self._cached_norm
 
         spectral_norm = self._cached_norm = norm(matrix.detach().numpy(), 2)
         self._cached_matrix = matrix.clone()
