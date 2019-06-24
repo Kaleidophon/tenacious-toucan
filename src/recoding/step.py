@@ -98,7 +98,7 @@ class LearnedFixedStepPredictor(AbstractStepPredictor):
         step_size: StepSize
             Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
         """
-        return self.step_size.to(device)
+        return torch.relu(self.step_size.to(device))
 
 
 class PerplexityStepPredictor(AbstractStepPredictor):
