@@ -110,6 +110,7 @@ def train_and_eval_model(train_set: Corpus, valid_set: Corpus, config_dict: dict
     """
     recoding_type = config_dict["recoding_type"]
     mechanism_kwargs = dict(config_dict)
+    mechanism_kwargs["data_length"] = len(train_set)
     del mechanism_kwargs["device"]
     mechanism_kwargs["predictor_kwargs"] = dict(mechanism_kwargs)
 
