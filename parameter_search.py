@@ -80,7 +80,10 @@ def distributed_run(train_set: Corpus, valid_set: Corpus, trials: List[Dict], nu
             # Get the next batch of trials
             next_trials = [trials.pop(0) for _ in range(min(num_gpus, len(trials)))]
             # Always await until a batch of processes is done so all GPUs are used optimally
-            results = asyncio.run(run_batch(train_set, valid_set, next_trials))
+            loop = asyncio.get_event_loop()
+            # Blocking call which returns when the hello_world() coroutine is done
+            results = loop.run_until_complete(run_batch(train_set, valid_set, next_trials))
+            loop.close()
 
             for trial, result in zip(next_trials, results):
                 print(f"{str(trial)}: {result}")
