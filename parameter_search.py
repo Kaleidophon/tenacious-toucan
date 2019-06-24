@@ -195,6 +195,10 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl", "mlp"],
                           help="Specifies the way the step size is determined when using a recoding model.")
 
+    # Training options
+    from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
+    from_cmd.add_argument("--num_trials", type=int, help="Number of hyperparameter configurations that should be tested.")
+
     # Model saving and logging options
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--search_log_path", type=str, help="File to write log to.")
