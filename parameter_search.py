@@ -203,6 +203,9 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
     from_cmd.add_argument("--num_trials", type=int, help="Number of hyperparameter configurations that should be tested.")
 
+    # Corpus options
+    from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
+
     # Model saving and logging options
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
     from_cmd.add_argument("--search_log_path", type=str, help="File to write log to.")
