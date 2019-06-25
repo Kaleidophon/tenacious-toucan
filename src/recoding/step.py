@@ -98,6 +98,8 @@ class LearnedFixedStepPredictor(AbstractStepPredictor):
         step_size: StepSize
             Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
         """
+        # Only allow positive step sizes - although the step size is initialized as a positive random number, it can
+        # become negative through SGD updates
         return torch.relu(self.step_size.to(device))
 
 

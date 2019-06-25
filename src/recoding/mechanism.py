@@ -41,6 +41,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         self.model = model
         self.device = model.device
         self.step_type = step_type
+        # Determine whether to recalculate the output distribution based on the new recoded hidden activation
+        self.redecode_output = True
 
         # Initialize one predictor per state per layer
         self.predictors = {

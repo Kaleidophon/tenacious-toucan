@@ -153,7 +153,7 @@ def train_model(model: AbstractRNN,
 
                 for t in range(seq_len):
                     input_vars = batch[:, t]  # Make input vars batch_size x 1
-                    output_dist, hidden = model(input_vars, hidden) #, target_idx=targets[t, :])
+                    output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :])
                     outputs.append(output_dist)
 
                 # Backward pass
@@ -168,7 +168,7 @@ def train_model(model: AbstractRNN,
                     # Compute loss for every member of the ensemble separately
                     for k in range(model.mechanism.num_samples):
                         member_outputs = outputs[k, :, :]
-                        batch_loss = loss(member_outputs) #, target=targets)
+                        batch_loss = loss(member_outputs, target=targets)
                         member_loss = batch_loss + ensemble_losses[k]
                         member_loss.backward(retain_graph=True)
 
@@ -333,9 +333,6 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--batch_size", type=int, help="Batch size during training.")
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
     from_cmd.add_argument("--clip", type=float, help="Threshold for gradient clipping.")
-    from_cmd.add_argument("--use_cross_entropy", action="store_true", default=None,
-                          help="For models that use the confidence as a recoding signal, determine whether is should be "
-                               "based on predictive entropy or predictive cross-entropy (if label is available)")
 
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")

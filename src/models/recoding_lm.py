@@ -49,8 +49,7 @@ class RecodingLanguageModel(LSTMLanguageModel):
 
         new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=self.device, **additional)
 
-        # Only allow recomputing out when gold token is not given and model has to guess, otherwise task is trivialized
-        if "target_idx" not in additional:
+        if self.mechanism.redecode_output:
             return new_out, new_hidden
         else:
             return out, new_hidden
