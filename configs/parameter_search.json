@@ -26,8 +26,8 @@
             "type": "float"
         },
         "step_size": {
-            "range": [1, 100],
-            "dist": "uniform",
+            "range": [0.5, 75],
+            "dist": "log",
             "type": "float"
         }
     },

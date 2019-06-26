@@ -1,11 +1,12 @@
 """
-Perform parameter search for a certain model type.
+Perform parameter search for a certain model type by generating a set of config file, where hyperparameters of interest
+have been replaced by potential candidates. These candidates and the ranges they are sampled from are specified in
+an extra config file. Due to some conflicts with the cluster queueing system, these configs have to be run separately
+and the best set of hyperparameters have to be selected manually from the results.
 """
 
 # STD
 from argparse import ArgumentParser
-import asyncio
-import torch
 import json
 from typing import List, Dict, Union
 
@@ -14,16 +15,10 @@ import numpy as np
 from diagnnose.config.setup import ConfigSetup
 
 # PROJECT
-from src.utils.corpora import load_data, Corpus
-from src.utils.trainer import train_model
-from src.utils.types import Device
-from src.models.recoding_lm import RecodingLanguageModel
-from src.models.variational_lm import VariationalLSTM
 from src.recoding.mc_dropout import MCDropoutMechanism
 from src.recoding.perplexity import PerplexityRecoding
 from src.recoding.variational import VariationalMechanism
 from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism
-from src.utils.test import evaluate_model
 
 # GLOBALS
 RECODING_TYPES = {
@@ -36,20 +31,22 @@ RECODING_TYPES = {
 
 def main():
     config_dict = manage_parameter_search_config()
-
-    # Load data
-    corpus_dir = config_dict["general"]["corpus_dir"]
-    max_seq_len = config_dict["general"]["max_seq_len"]
-    train_set, valid_set = load_data(corpus_dir, max_seq_len)
+    out_dir = config_dict["general"]["out_dir"]
 
     # Generate sets of hyperparameters
     trials = generate_trials(config_dict, num_trials=config_dict["general"]["num_trials"])
 
-    # Run parameter sweep
-    distributed_run(
-        train_set, valid_set, trials,
-        num_gpus=config_dict["general"]["num_gpus"], search_log_path=config_dict["general"]["search_log_path"]
-    )
+    # Dump in new config files
+    for n, trial in enumerate(trials):
+        dump_config(trial, f"{out_dir}/trial{n+1}.json")
+
+
+def dump_config(config_dict: dict, config_path: str) -> None:
+    """
+    Dump a config to a .json file.
+    """
+    with open(config_path, "w") as config_file:
+        json.dump(config_dict, config_file, sort_keys=True, indent=4)
 
 
 def generate_trials(config_dict: dict, num_trials: int) -> List[Dict]:
@@ -63,80 +60,18 @@ def generate_trials(config_dict: dict, num_trials: int) -> List[Dict]:
         "log": sample_log
     }
 
-    # Replace hyperparameters by sampled ones
+    # Generate config for run
     for trial in trials:
+        # Replace the number of epochs
+        trial["num_epochs"] = config_dict["general"]["num_epochs"]
+
+        # Replace other hyperparameters with candidates
         for hyperparameter, search_info in config_dict["general"]["parameter_search"].items():
             sample_range, type_ = search_info["range"], search_info["type"]
             sampled_value = sample_funcs[search_info["dist"]](*sample_range, type_=type_)
             trial[hyperparameter] = sampled_value
 
     return trials
-
-
-def distributed_run(train_set: Corpus, valid_set: Corpus, trials: List[Dict], num_gpus: int, search_log_path: str) -> None:
-    with open(search_log_path, "w") as log_file:
-        # Outer loop: Launch process on all available GPUs until the number of samples is reached
-        while len(trials) > 0:
-            # Get the next batch of trials
-            next_trials = [trials.pop(0) for _ in range(min(num_gpus, len(trials)))]
-            # Always await until a batch of processes is done so all GPUs are used optimally
-            loop = asyncio.get_event_loop()
-            # Blocking call which returns when the hello_world() coroutine is done
-            results = loop.run_until_complete(run_batch(train_set, valid_set, next_trials))
-            loop.close()
-
-            for trial, result in zip(next_trials, results):
-                print(f"{str(trial)}: {result}")
-                log_file.write(f"{str(trial)}: {result}\n")
-
-
-async def run_batch(train_set: Corpus, valid_set: Corpus, selected_trials: List[Dict]) -> List:
-    """
-    Run a batch of trials where every trial is run asychronously on a different gpu.
-    """
-    results = await asyncio.gather(
-        *[
-            train_and_eval_model(train_set, valid_set, trial, device=f"cuda:{i}")
-            for i, trial in enumerate(selected_trials)
-        ]
-    )
-
-    return results
-
-
-def train_and_eval_model(train_set: Corpus, valid_set: Corpus, config_dict: dict, device: Device) -> float:
-    """
-    Train and evaluate a model and return the validation score.
-    """
-    recoding_type = config_dict["recoding_type"]
-    mechanism_kwargs = dict(config_dict)
-    mechanism_kwargs["data_length"] = len(train_set)
-    del mechanism_kwargs["device"]
-    mechanism_kwargs["predictor_kwargs"] = dict(mechanism_kwargs)
-
-    # Initialize model
-    if recoding_type == "variational":
-        model = VariationalLSTM(
-            len(train_set.vocab), **config_dict,
-            mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs
-        )
-    else:
-        model = RecodingLanguageModel(
-            len(train_set.vocab), **config_dict,
-            mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs
-        )
-    model.to(device)
-
-    # Train
-    trained_model = train_model(model, train_set, **config_dict)
-
-    # Evaluate
-    batch_size = config_dict["batch_size"]
-    val_score = evaluate_model(
-        trained_model, valid_set, batch_size, device=device, perplexity=True, return_speed=False
-    )
-
-    return val_score
 
 
 def sample_uniform(lower_limit: Union[float, int], upper_limit: Union[float, int], type_="float") -> Union[float, int]:
@@ -164,10 +99,9 @@ def manage_parameter_search_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "num_epochs", "num_trials", "num_gpus", "model_config"}
+    required_args = {"num_epochs", "num_trials", "model_config", "out_dir"}
     arg_groups = {
-        "general": {"parameter_search", "corpus_dir", "num_epochs", "num_trials", "num_gpus", "model_config",
-                    "max_seq_len", "search_log_path"},
+        "general": {"parameter_search", "corpus_dir", "num_epochs", "num_trials", "model_config", "out_dir"},
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -200,15 +134,12 @@ def init_argparser() -> ArgumentParser:
                           help="Specifies the way the step size is determined when using a recoding model.")
 
     # Training options
+    from_cmd.add_argument("--out_dir", type=str, help="Directory to put the generated config files.")
     from_cmd.add_argument("--num_epochs", type=int, help="Number of training epochs.")
     from_cmd.add_argument("--num_trials", type=int, help="Number of hyperparameter configurations that should be tested.")
 
-    # Corpus options
-    from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
-
     # Model saving and logging options
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for training.")
-    from_cmd.add_argument("--search_log_path", type=str, help="File to write log to.")
 
     return parser
 
