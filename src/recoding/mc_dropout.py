@@ -27,7 +27,7 @@ class MCDropoutMechanism(RecodingMechanism):
     """
     def __init__(self, model: AbstractRNN, hidden_size: int, num_samples: int, mc_dropout: float, weight_decay: float,
                  prior_scale: float, predictor_kwargs: Dict, step_type: str, data_length: Optional[int] = None,
-                 use_cross_entropy: bool = True, **unused: Any):
+                 **unused: Any):
         """
         Initialize the mechanism.
 
@@ -47,8 +47,6 @@ class MCDropoutMechanism(RecodingMechanism):
             Parameter that express belief about frequencies in the input data.
         data_length: Optional[int]
             Number of data points used.
-        use_cross_entropy: bool
-            Whether predictive entropy (false) or predictive cross-entropy (true) should be used.
         """
         super().__init__(model, step_type, predictor_kwargs=predictor_kwargs)
 
@@ -59,7 +57,6 @@ class MCDropoutMechanism(RecodingMechanism):
         self.weight_decay = weight_decay
         self.prior_scale = prior_scale
         self.data_length = data_length
-        self.use_cross_entropy = use_cross_entropy
 
         # Add dropout layer to estimate predictive uncertainty
         self.mc_dropout_layer = nn.Dropout(p=self.mc_dropout)
@@ -94,11 +91,10 @@ class MCDropoutMechanism(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        target_idx = additional.get("target_idx", None)
         prediction = self._mc_dropout_predict(hidden)
 
         # Estimate uncertainty of those same predictions
-        delta = self._calculate_predictive_entropy(prediction, target_idx, self.use_cross_entropy)
+        delta = self._calculate_predictive_entropy(prediction)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         new_out_dist, new_hidden = self.recode_activations(hidden, out, delta, device, **additional)
@@ -132,8 +128,7 @@ class MCDropoutMechanism(RecodingMechanism):
 
         return predictions
 
-    def _calculate_predictive_entropy(self, predictions: Tensor, target_idx: Optional[Tensor] = None,
-                                      use_cross_entropy: bool = True):
+    def _calculate_predictive_entropy(self, predictions: Tensor):
         """
         Calculate the predictive entropy based on the predictions made with different dropout masks.
 
@@ -141,10 +136,6 @@ class MCDropoutMechanism(RecodingMechanism):
         ----------
         predictions: Tensor
             Tensor of num_sample predictions per batch instance.
-        target_idx: Optional[Tensor]
-            Indices of actual next tokens (if given). Otherwise the most likely tokens are used.
-        use_cross_entropy: bool
-            Whether predictive entropy (false) or predictive cross-entropy (true) should be used.
 
         Returns
         -------
@@ -153,15 +144,8 @@ class MCDropoutMechanism(RecodingMechanism):
         """
         prior_info = 2 * self.mc_dropout * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
 
-        # Use predictive cross-entropy and labels
-        if use_cross_entropy and target_idx is not None:
-            mean_predictions = predictions.mean(dim=1)
-            pred_entropy = F.cross_entropy(mean_predictions, target_idx)
-
-        # Just use predictive entropy
-        else:
-            predictions = F.softmax(predictions, dim=2)   # Log-softmax is already contained in cross_entropy loss above
-            mean_predictions = predictions.mean(dim=1)
-            pred_entropy = -(mean_predictions * mean_predictions.log()).sum()
+        predictions = F.softmax(predictions, dim=2)   # Log-softmax is already contained in cross_entropy loss above
+        mean_predictions = predictions.mean(dim=1)
+        pred_entropy = -(mean_predictions * mean_predictions.log()).sum()
 
         return pred_entropy + prior_info

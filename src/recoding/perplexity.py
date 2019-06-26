@@ -31,6 +31,9 @@ class PerplexityRecoding(RecodingMechanism):
             Model the mechanism is being applied to.
         """
         super().__init__(model, step_type, predictor_kwargs=predictor_kwargs)
+        # Output should not be redecoded after recoding the hidden activations as this approach relies on knowledge
+        # about the gold token
+        self.redecode_output = False
 
     @overrides
     def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,

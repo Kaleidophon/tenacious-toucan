@@ -16,7 +16,6 @@
 
   "step_type": "fixed",
   "recoding_type": "mc_dropout",
-  "use_cross_entropy": false,
   "predictor_layers": [300, 100],
   "window_size": 4,
 

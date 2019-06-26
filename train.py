@@ -23,6 +23,5 @@ def main():
     log_dir = config_dict["logging"]["log_dir"]
     train_model(model, train_set, **config_dict['train'], valid_set=valid_set, log_dir=log_dir)
 
-
 if __name__ == "__main__":
     main()

@@ -70,6 +70,39 @@ class FixedStepPredictor(AbstractStepPredictor):
         return torch.Tensor([self.step_size]).to(device)
 
 
+class LearnedFixedStepPredictor(AbstractStepPredictor):
+    """
+    Step predictor that just outputs a constant step size which is being learned during training.
+    """
+    def __init__(self, **unused):
+        super().__init__()
+        self.step_size = torch.nn.Parameter(torch.rand([1, 1]))
+
+        self.register_parameter("Step size", self.step_size)
+
+    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
+        """
+        Prediction step.
+
+        Parameters
+        ----------
+        hidden: Tensor
+            Current hidden state used to determine step size.
+        out: Tensor
+            Output Tensor of current time step.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
+
+        Returns
+        -------
+        step_size: StepSize
+            Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
+        """
+        # Only allow positive step sizes - although the step size is initialized as a positive random number, it can
+        # become negative through SGD updates
+        return torch.relu(self.step_size.to(device))
+
+
 class PerplexityStepPredictor(AbstractStepPredictor):
     """
     Determine the current step size based on the perplexity of the current target token.
