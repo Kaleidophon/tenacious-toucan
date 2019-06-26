@@ -1,0 +1,41 @@
+{
+    "parameter_search": {
+        "num_samples": {
+            "range": [2, 50],
+            "dist": "uniform",
+            "type": "int"
+        },
+        "dropout": {
+            "range": [0.1, 0.6],
+            "dist": "uniform",
+            "type": "float"
+        },
+        "mc_dropout": {
+            "range": [0.1, 0.6],
+            "dist": "uniform",
+            "type": "float"
+        },
+        "weight_decay": {
+            "range": [0.0001, 0.01],
+            "dist": "log",
+            "type": "float"
+        },
+        "prior_scale": {
+            "range": [0.1, 0.4],
+            "dist": "uniform",
+            "type": "float"
+        },
+        "step_size": {
+            "range": [1, 100],
+            "dist": "uniform",
+            "type": "float"
+        }
+    },
+    "corpus_dir": "data/corpora/ptb",
+    "max_seq_len": 35,
+    "num_epochs": 4,
+    "num_trials": 16,
+    "num_gpus": 4,
+    "device": "cpu",
+    "search_log_path": "logs/search.log"
+}
