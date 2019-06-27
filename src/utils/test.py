@@ -84,7 +84,7 @@ def evaluate_model(model: AbstractRNN, test_set: Corpus, batch_size: int, device
         try:
             test_metric = math.exp(test_metric)
         except OverflowError:
-            return sys.maxsize  # In case of integer overlow, return highest possible integer
+            return sys.maxsize  # In case of integer overflow, return highest possible integer
 
     if return_speed:
         return test_metric, speed

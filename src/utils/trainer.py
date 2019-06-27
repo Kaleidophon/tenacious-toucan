@@ -178,7 +178,11 @@ def train_model(model: AbstractRNN,
                 total_batch_i += 1
 
                 if total_batch_i % print_every == 0:
-                    ppl = math.exp(batch_loss)
+                    try:
+                        ppl = math.exp(batch_loss)
+                    except OverflowError:
+                        ppl = sys.maxsize  # In case of integer overflow, return highest possible integer
+
                     progress_bar.set_description(
                         f"Epoch {epoch+1:>3} | Batch {batch_i+1:>4}/{num_batches} | LR: {learning_rate:<2} | "
                         f"Train Loss: {batch_loss:>7.3f} | Train ppl: {ppl:>7.3f}",
