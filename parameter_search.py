@@ -65,6 +65,9 @@ def generate_trials(config_dict: dict, num_trials: int) -> List[Dict]:
         # Replace the number of epochs
         trial["num_epochs"] = config_dict["general"]["num_epochs"]
 
+        # Models will not be saved
+        trial["model_save_path"] = None
+
         # Replace other hyperparameters with candidates
         for hyperparameter, search_info in config_dict["general"]["parameter_search"].items():
             sample_range, type_ = search_info["range"], search_info["type"]
