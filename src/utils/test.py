@@ -5,12 +5,12 @@ This modules defines some function to test models.
 # STD
 import math
 import time
+import sys
 from typing import Tuple, Optional
 
 # EXT
 from diagnnose.models.w2i import W2I
 from torch.nn import CrossEntropyLoss
-from torch.autograd import Variable
 
 # PROJECT
 from src.utils.corpora import Corpus, read_wiki_corpus
@@ -80,7 +80,11 @@ def evaluate_model(model: AbstractRNN, test_set: Corpus, batch_size: int, device
 
     if perplexity:
         test_metric /= global_norm
-        test_metric = math.exp(test_metric)
+
+        try:
+            test_metric = math.exp(test_metric)
+        except OverflowError:
+            return sys.maxsize  # In case of integer overlow, return highest possible integer
 
     if return_speed:
         return test_metric, speed
