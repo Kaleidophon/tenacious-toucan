@@ -4,6 +4,7 @@ Define a model with an intervention mechanism that bases its interventions on th
 
 # STD
 from abc import abstractmethod, ABC
+import math
 from typing import Any, Iterable
 
 # EXT
@@ -257,7 +258,9 @@ class LipschitzStep(AbstractStepPredictor):
             Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
         """
         weight_matrix = additional["weight_matrix"]
-        lipschitz_const = self.spectral_norm(weight_matrix)
+        classes = weight_matrix.shape[1]
+        softmax_lipschitz = math.sqrt(classes - 1) / classes
+        lipschitz_const = self.spectral_norm(weight_matrix) * softmax_lipschitz
 
         return torch.Tensor([float(1 / lipschitz_const)]).to(device)
 
