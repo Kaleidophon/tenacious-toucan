@@ -3,7 +3,7 @@ Module that defines a Variational Dropout LSTM Language modelling which also use
 """
 
 # STD
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 # EXT
 import torch
@@ -31,7 +31,7 @@ class VariationalLSTM(RecodingLanguageModel):
     [1] https://papers.nips.cc/paper/6241-a-theoretically-grounded-application-of-dropout-in-recurrent-neural-networks.pdf
     """
     def __init__(self, vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class,
-                 mechanism_kwargs, device: torch.device = "cpu"):
+                 mechanism_kwargs, device: torch.device = "cpu", **unused: Any):
         super().__init__(
             vocab_size, embedding_size, hidden_size, num_layers, dropout, mechanism_class, mechanism_kwargs, device
         )
