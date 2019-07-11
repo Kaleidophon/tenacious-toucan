@@ -10,6 +10,7 @@ from typing import Optional, Any, Dict, Tuple
 import torch
 from overrides import overrides
 from torch import nn, Tensor
+import torch.nn.functional as F
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -90,18 +91,17 @@ class MCDropoutMechanism(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        target_idx = additional.get("target_idx", None)
-        prediction = self._mc_dropout_predict(hidden, device, target_idx)
+        prediction = self._mc_dropout_predict(hidden)
 
         # Estimate uncertainty of those same predictions
-        delta = self._calculate_predictive_uncertainty(prediction)
+        delta = self._calculate_predictive_entropy(prediction)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         new_out_dist, new_hidden = self.recode_activations(hidden, out, delta, device, **additional)
 
         return new_out_dist, new_hidden
 
-    def _mc_dropout_predict(self, hidden: HiddenDict, device: torch.device, target_idx: Optional[Tensor] = None):
+    def _mc_dropout_predict(self, hidden: HiddenDict):
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -126,29 +126,11 @@ class MCDropoutMechanism(RecodingMechanism):
         topmost_hidden = self.mc_dropout_layer(topmost_hidden)
         predictions = self.model.predict_distribution(topmost_hidden)
 
-        # If no target is given, compute uncertainty of most likely token
-        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=1), dim=1)
-        target_idx = target_idx.to(device)
+        return predictions
 
-        # Select predicted probabilities of target index
-        predictions.exp_()  # Exponentiate for later softmax
-        target_idx = target_idx.view(target_idx.shape[0], 1, 1)
-        target_idx = target_idx.repeat(1, self.num_samples, 1)
-        target_predictions = torch.gather(predictions, 2, target_idx)
-        target_predictions = target_predictions.squeeze(2)
-
-        # Apply softmax (only apply it to actually relevant probabilities, save some computation)
-        norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
-        target_predictions = target_predictions / norm_factor
-
-        return target_predictions
-
-    def _calculate_predictive_uncertainty(self, predictions: Tensor):
+    def _calculate_predictive_entropy(self, predictions: Tensor):
         """
-        Calculate the predictive uncertainty based on the predictions made with different dropout masks.
-        This corresponds to the equation of the predicted variance given in §4 of [1].
-
-        [1] http://proceedings.mlr.press/v48/gal16.pdf
+        Calculate the predictive entropy based on the predictions made with different dropout masks.
 
         Parameters
         ----------
@@ -161,4 +143,9 @@ class MCDropoutMechanism(RecodingMechanism):
             Estimated predictive uncertainty per batch instance.
         """
         prior_info = 2 * self.mc_dropout * self.prior_scale ** 2 / (2 * self.data_length * self.weight_decay)
-        return predictions.var(dim=1).unsqueeze(1) + prior_info
+
+        predictions = F.softmax(predictions, dim=2)   # Log-softmax is already contained in cross_entropy loss above
+        mean_predictions = predictions.mean(dim=1)
+        pred_entropy = -(mean_predictions * mean_predictions.log()).sum()
+
+        return pred_entropy + prior_info

@@ -28,7 +28,7 @@ def main() -> None:
     max_seq_len = config_dict["general"]["max_seq_len"]
     device = config_dict["general"]["device"]
     give_gold = config_dict["general"]["give_gold"]
-    do_ttest = config_dict["general"]["ttest"] is not None
+    do_ttest = config_dict["general"].get("ttest", None) is not None
 
     if do_ttest:
         baseline_model = _grouping_function(config_dict["general"]["ttest"])
@@ -38,36 +38,35 @@ def main() -> None:
     test_set = load_test_set(corpus_dir, max_seq_len, train_set.vocab)
 
     # Load models
-    models = {path: torch.load(path, map_location=device) for path in model_paths}
-    for model in models.values():
-        model.device = device
-
+    models = (torch.load(path, map_location=device) for path in model_paths)
     # Evaluate
     print("Evaluating...\n")
     scores, speeds = defaultdict(lambda: np.array([])), defaultdict(lambda: np.array([]))
 
-    for i, (model_path, model) in enumerate(models.items()):
-        print(f"\rEvaluating model {i+1} / {len(models)}...", end="", flush=True)
+    for i, (model_path, model) in enumerate(zip(model_paths, models)):
+        model.device = device
+        print(f"\rEvaluating model {i+1} / {len(model_paths)}...", end="", flush=True)
         perplexity, speed = evaluate_model(
             model, test_set, batch_size, device=device, perplexity=True, give_gold=give_gold, return_speed=True
         )
         scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
         speeds[_grouping_function(model_path)] = np.append(speeds[_grouping_function(model_path)], speed)
+        del model  # Free up memory
 
     print("\nEvaluation results:")
     if do_ttest:
         baseline_scores = scores[baseline_model]
 
-    for model, perplexities in scores.items():
+    for model_type, perplexities in scores.items():
         mean_perpl, std_perpl = perplexities.mean(), perplexities.std()
-        mean_speed = speeds[model].mean()
+        mean_speed = speeds[model_type].mean()
 
         postfix = ""
-        if do_ttest and model != baseline_model:
+        if do_ttest and model_type != baseline_model:
             _, p_value = ttest_ind(baseline_scores, perplexities, equal_var=False)
             postfix = f" | p-value: {p_value:.2f}"
 
-        print(f"{model} test perplexity: {mean_perpl:.4f} | Std. dev {std_perpl:.4f} | Avg. Speed {mean_speed:.2f} "
+        print(f"{model_type} test perplexity: {mean_perpl:.4f} | Std. dev {std_perpl:.4f} | Avg. Speed {mean_speed:.2f} "
               f"samples / sec." + postfix)
 
 
@@ -85,7 +84,7 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold", "ttest"}
+    required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold"}
     arg_groups = {"general": required_args}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
