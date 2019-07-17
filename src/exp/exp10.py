@@ -2,8 +2,8 @@
 from src.utils.plot import *
 from src.utils.log import *
 
-LOGDIR = "logs/exp10/predictive_entropy/"
-IMGDIR = "img/exp10/predictive_entropy/"
+LOGDIR = "logs/exp10/step_sizes/"
+IMGDIR = "img/exp10/step_sizes/"
 
 # ### Plot loss data ###
 

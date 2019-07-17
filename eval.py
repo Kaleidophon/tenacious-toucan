@@ -9,7 +9,7 @@ from collections import defaultdict
 # EXT
 import numpy as np
 from diagnnose.config.setup import ConfigSetup
-from scipy.stats import shapiro, ttest_ind
+from scipy.stats import ttest_ind
 import torch
 
 # PROJECT

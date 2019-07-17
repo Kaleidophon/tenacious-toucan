@@ -87,6 +87,8 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
     collectables: List[str]
         Define what data should be collected.
     """
+    # TODO: Add functionality to only recode at certain time steps?
+    # TODO: Make baseline-proof
     def perplexity(tensor: torch.Tensor) -> torch.Tensor:
         return tensor ** -tensor  # 2 ^ (-x log2 x) = 2 ^ (log2 x ^ -x) = x ^ -x
 
