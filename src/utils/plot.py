@@ -5,6 +5,7 @@ Define functions to plot loss curves and other noteworthy model characteristics.
 # STD
 from collections import OrderedDict
 from typing import Optional, Tuple, Union, List, Callable
+import re
 
 # EXT
 import numpy as np
@@ -164,7 +165,9 @@ def plot_column(logs: AggregatedLogs,
 
     # Avoid having the same labels multiple times in the legend and sort them alphabetically
     handles, labels = plt.gca().get_legend_handles_labels()
-    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
+    # Look for number in label and sort by that
+    short_labels = [float(re.search("(\d\.)?\d+", label).group(0)) for label in labels]
+    labels, short_labels, handles = zip(*sorted(zip(labels, short_labels, handles), key=lambda t: t[1]))
     by_label = OrderedDict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys())
 
