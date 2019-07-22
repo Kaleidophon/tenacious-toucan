@@ -6,7 +6,7 @@ Module defining some functions for model training.
 import math
 import sys
 from argparse import ArgumentParser
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 # EXT
 import numpy as np
@@ -105,7 +105,22 @@ def train_model(model: AbstractRNN,
     train_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
     num_batches = len(train_set)
 
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    def _filter_parameters(filter_func: Callable):
+        # Filter out parameters by their name using this ugly expression:
+        # Split parameters into tuple of name - param, apply filter, zip the remaining instances back together and
+        # discard the names
+        return list(zip(*filter(filter_func, model.named_parameters())))[1]
+
+    model_optim = {"params": _filter_parameters(lambda tpl: "predictor" not in tpl[0]),
+                    "lr": learning_rate, "weight_decay": weight_decay}
+    all_params = [model_optim]
+
+    # If a recoding LM is used, train mechanism parameters separately without weight decay
+    if isinstance(model, RecodingLanguageModel):
+        mechanism_optim = {"params": _filter_parameters(lambda tpl: "predictor" in tpl[0]), "lr": learning_rate}
+        all_params.append(mechanism_optim)
+
+    optimizer = optim.SGD(all_params)
 
     if valid_set is not None:
         # Anneal learning rate if no improvement is seen after a while
