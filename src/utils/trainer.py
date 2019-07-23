@@ -109,7 +109,10 @@ def train_model(model: AbstractRNN,
         # Filter out parameters by their name using this ugly expression:
         # Split parameters into tuple of name - param, apply filter, zip the remaining instances back together and
         # discard the names
-        return list(zip(*filter(filter_func, model.named_parameters())))[1]
+        try:
+            return list(zip(*filter(filter_func, model.named_parameters())))[1]
+        except IndexError:
+            return []
 
     model_optim = {"params": _filter_parameters(lambda tpl: "predictor" not in tpl[0]),
                     "lr": learning_rate, "weight_decay": weight_decay}
