@@ -7,6 +7,7 @@ or multiple time steps.
 from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
 from typing import List, Any
+from unittest.mock import patch
 
 # EXT
 from diagnnose.config.setup import ConfigSetup
@@ -18,6 +19,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # PROJECT
 from src.models.language_model import LSTMLanguageModel
 from src.recoding.step import AbstractStepPredictor
+from src.recoding.mechanism import RecodingMechanism
 from src.models.recoding_lm import RecodingLanguageModel
 from src.utils.corpora import load_data, Corpus
 from src.utils.log import StatsCollector
@@ -95,12 +97,6 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
     model.eval()
     model.diagnostics = True  # Return both the original and redecoded output distribution
 
-    # Create dummy predictors
-    dummy_predictors = {
-        l: [DummyPredictor().to(device), DummyPredictor().to(device)]
-        for l in range(model.num_layers)
-    }
-
     for sentence in test_set:
         sentence_data = defaultdict(list)
 
@@ -127,16 +123,17 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
             # performing the update step and 2.) collect actual values later as they are intercepted by the stats
             # collector
             if "delta_prime" in collectables and isinstance(model, RecodingLanguageModel):
-                # Swap out predictors so that the step size will be zero
-                model_predictors, model.mechanism.predictors = model.mechanism.predictors, dummy_predictors
 
-                model.mechanism.recoding_func(
-                    input_vars, hidden, re_output_dist, device=device,  # we are now using recoded hiddens here
-                    target_idx=sentence[t + 1].unsqueeze(0).to(device)
-                )
-
-                # Swap back
-                model.mechanism.predictors = model_predictors
+                try:
+                    # Patch the function computing the gradients so that they are not actually being computed
+                    with patch.object(RecodingMechanism, 'compute_recoding_gradient', return_value=None):
+                        model.mechanism.recoding_func(
+                            input_vars, hidden, re_output_dist, device=device,  # we are now using recoded hiddens here
+                            target_idx=sentence[t + 1].unsqueeze(0).to(device)
+                        )
+                except AttributeError:
+                    # Skip the error that occurs when StatsCollector doesn't find a recoding gradient from this pass
+                    pass
 
         # Collect error signals - those were captured by StatsCollector
         if "delta" in collectables and isinstance(model, RecodingLanguageModel):
