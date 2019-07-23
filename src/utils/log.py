@@ -36,7 +36,7 @@ class StatsCollector:
         """
         @wraps(func)
         def wrapper(delta: torch.Tensor, *args) -> None:
-            if "delta" not in cls._stats.keys():
+            if "deltas" not in cls._stats.keys():
                 cls._stats["deltas"] = []
 
             cls._stats["deltas"].append(delta)
