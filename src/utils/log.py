@@ -29,14 +29,14 @@ class StatsCollector:
     _stats = {}
 
     @classmethod
-    def collect_deltas(cls, func) -> Callable:
+    def collect_deltas(cls, func: Callable) -> Callable:
         """
         Decorate the compute_recoding_gradient() function of the recoding mechanism and collect information about the
         error signals.
         """
         @wraps(func)
         def wrapper(delta: torch.Tensor, *args) -> None:
-            if "delta" not in cls._stats.keys():
+            if "deltas" not in cls._stats.keys():
                 cls._stats["deltas"] = []
 
             cls._stats["deltas"].append(delta)
@@ -45,7 +45,7 @@ class StatsCollector:
         return wrapper
 
     @classmethod
-    def collect_recoding_gradients(cls, func) -> Callable:
+    def collect_recoding_gradients(cls, func: Callable) -> Callable:
         """
         Decorate the recode() function of the recoding mechanism in order to collect data about the recoding gradients.
         """

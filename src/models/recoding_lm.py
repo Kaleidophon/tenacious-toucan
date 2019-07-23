@@ -50,10 +50,10 @@ class RecodingLanguageModel(LSTMLanguageModel):
 
         new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=self.device, **additional)
 
-        if self.mechanism.redecode_output:
-            return new_out, new_hidden
-        elif self.diagnostics:
+        if self.diagnostics:
             return new_out, out, new_hidden
+        elif self.mechanism.redecode_output:
+            return new_out, new_hidden
         else:
             return out, new_hidden
 
