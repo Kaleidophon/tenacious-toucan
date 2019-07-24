@@ -8,6 +8,9 @@ from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
 from typing import List, Any
 from unittest.mock import patch
+from copy import deepcopy
+import types
+import functools
 
 # EXT
 from diagnnose.config.setup import ConfigSetup
@@ -97,6 +100,7 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
     model.eval()
     model.diagnostics = True  # Return both the original and redecoded output distribution
 
+    # Create dummy predictors
     for sentence in test_set:
         sentence_data = defaultdict(list)
 
@@ -123,16 +127,16 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
             # performing the update step and 2.) collect actual values later as they are intercepted by the stats
             # collector
             if "delta_prime" in collectables and isinstance(model, RecodingLanguageModel):
-
+                # Swap out predictors so that the step size will be zero
                 try:
-                    # Patch the function computing the gradients so that they are not actually being computed
-                    with patch.object(RecodingMechanism, 'compute_recoding_gradient', return_value=None):
-                        model.mechanism.recoding_func(
-                            input_vars, hidden, re_output_dist, device=device,  # we are now using recoded hiddens here
-                            target_idx=sentence[t + 1].unsqueeze(0).to(device)
-                        )
-                except AttributeError:
-                    # Skip the error that occurs when StatsCollector doesn't find a recoding gradient from this pass
+                    model.mechanism.recoding_func(
+                        input_vars, hidden, re_output_dist, device=device,
+                        target_idx=sentence[t + 1].unsqueeze(0).to(device)
+                    )
+                except RuntimeError:
+                    # Exploit an exception: Because the cell state hasn't been used for any computation, computing
+                    # the gradient creates an exception. This can be used to halt the recoding after the new delta
+                    # has already been collected
                     pass
 
         # Collect error signals - those were captured by StatsCollector

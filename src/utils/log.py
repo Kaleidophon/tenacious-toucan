@@ -39,7 +39,7 @@ class StatsCollector:
             if "deltas" not in cls._stats.keys():
                 cls._stats["deltas"] = []
 
-            cls._stats["deltas"].append(delta)
+            cls._stats["deltas"].append(delta.detach())  # Don't track gradients
             func(delta, *args)
 
         return wrapper
