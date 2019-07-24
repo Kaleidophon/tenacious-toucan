@@ -6,38 +6,37 @@ or multiple time steps.
 # STD
 from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
-from typing import List, Any
-from unittest.mock import patch
-from copy import deepcopy
-import types
-import functools
+import sys
+from typing import List, Tuple
 
 # EXT
 from diagnnose.config.setup import ConfigSetup
 import matplotlib.pyplot as plt
 import torch
-from torch import Tensor
 from matplotlib.backends.backend_pdf import PdfPages
+import numpy as np
 
 # PROJECT
 from src.models.language_model import LSTMLanguageModel
-from src.recoding.step import AbstractStepPredictor
-from src.recoding.mechanism import RecodingMechanism
 from src.models.recoding_lm import RecodingLanguageModel
 from src.utils.corpora import load_data, Corpus
 from src.utils.log import StatsCollector
 from src.utils.test import load_test_set
-from src.utils.types import Device, StepSize
+from src.utils.types import Device
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 # CONSTANTS
-BASELINE_COLOR = "tab:blue"
-RECODING_COLOR = "tab:orange"
+PLOT_COLORS = {
+    "out": ["darkblue", "coral"],
+    "delta": ["darkviolet", "forestgreen"]
+}
+LATEX_LABELS = {
+    "out": r"$\mathbf{o}_t$",
+    "delta": r"$\delta_t$"
+}
 
 # TYPES
-ScoredSentence = namedtuple(
-    "ScoredSentence", ["sentence", "first_scores", "first_std", "second_scores", "second_std", "diff"]
-)
+ScoredSentence = namedtuple("ScoredSentence", ["sentence", "first_scores", "second_scores"])
 
 
 def main() -> None:
@@ -48,8 +47,12 @@ def main() -> None:
     collectables = config_dict["general"]["collectables"]
     corpus_dir = config_dict["general"]["corpus_dir"]
     max_seq_len = config_dict["general"]["max_seq_len"]
+    model_names = config_dict["general"]["model_names"]
+    pdf_path = config_dict["optional"]["pdf_path"]
 
     train_set, _ = load_data(corpus_dir, max_seq_len)
+    vocab = defaultdict(lambda: "UNK", {idx: word for word, idx in train_set.vocab.items()})
+    vocab[train_set.vocab.unk_idx] = "UNK"
     test_set = load_test_set(corpus_dir, max_seq_len, train_set.vocab)
     del train_set
 
@@ -63,14 +66,43 @@ def main() -> None:
     second_models_data = [extract_data(model, test_set, device, collectables) for model in second_models]
 
     # Merge data
-    # TODO
-    ...
+    scored_sentences = create_scored_sentences(first_models_data, second_models_data, test_set, vocab)
 
-    # TODO: Plot
+    # Plot
+    # TODO: Use number of plots and cutoff args
+    pdf = PdfPages(pdf_path) if pdf_path is not None else None
+    for scored_sentence in scored_sentences:
+        plot_perplexities(scored_sentence, model_names, pdf)
+
+    pdf.close()
 
 
-def create_scored_sentences(first_models_data: List[dict], second_models_data: List[dict]) -> List[ScoredSentence]:
-    pass
+def create_scored_sentences(first_models_data: List[List[dict]], second_models_data: List[List[dict]],
+                            test_set: Corpus, vocab) -> List[ScoredSentence]:
+    """
+    Merge the measurements from several models and model runs into one single data structure.
+    """
+    first_sentence_data = zip(*first_models_data)
+    second_sentence_data = zip(*second_models_data)
+    scored_sentences = []
+
+    for first_data, second_data, indexed_sentence in zip(first_sentence_data, second_sentence_data,
+                                                         test_set.indexed_sentences):
+        first_scores = {}
+        for key in first_data[0].keys():
+            # Concat data from multiple runs
+            first_scores[key] = torch.stack([scores[key] for scores in first_data])
+
+        second_scores = {}
+        for key in second_data[0].keys():
+            # Concat data from multiple runs
+            second_scores[key] = torch.stack([scores[key] for scores in second_data])
+
+        sentence = list(map(vocab.__getitem__, indexed_sentence.numpy()))
+        scored_sentence = ScoredSentence(sentence, first_scores, second_scores)
+        scored_sentences.append(scored_sentence)
+
+    return scored_sentences
 
 
 def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
@@ -118,10 +150,10 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
 
             # Collect target word ppl
             if "out" in collectables:
-                sentence_data["out"].append(perplexity(output_dist[:, sentence[t + 1]]))
+                sentence_data["out"].append(perplexity(output_dist[:, sentence[t + 1]]).detach())
 
             if "out_prime" in collectables and isinstance(model, RecodingLanguageModel):
-                sentence_data["out_prime"].append(perplexity(re_output_dist[:, sentence[t + 1]]))
+                sentence_data["out_prime"].append(perplexity(re_output_dist[:, sentence[t + 1]]).detach())
 
             # Perform another recoding step but 1.) set step size to 0 so we calculate the signal without actually
             # performing the update step and 2.) collect actual values later as they are intercepted by the stats
@@ -144,13 +176,19 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device,
             # Because we applied two recoding steps in this case, deltas will be the first, third, fifth element
             # of the collected list and delta_primes the second, forth, sixth entry etc.
             if "delta_prime" in collectables:
-                all_deltas = StatsCollector._stats["deltas"]
+                all_deltas = [delta.unsqueeze(0) for delta in StatsCollector._stats["deltas"]]
                 sentence_data["delta"] = all_deltas[::2]
                 sentence_data["delta_prime"] = all_deltas[1::2]
 
             # In this case it's simply all the deltas the statscollector intercepted
             else:
                 sentence_data["delta"] = StatsCollector._stats["deltas"]
+
+        # Concat and clean
+        for key, data in sentence_data.items():
+            data = torch.cat(data)
+            data[data != data] = sys.maxsize
+            sentence_data[key] = data
 
         all_sentence_data.append(sentence_data)
         collector.wipe()
@@ -173,36 +211,86 @@ def plot_perplexities(scored_sentence,  model_names, pdf=None) -> None:
     pdf: Optional[PdfPages]
         PDF the plot is written to if given. Otherwise the plot is shown on screen.
     """
-    # TODO: Rewrite
+    def zip_lists(list1, list2) -> List:
+        new_list = []
+
+        for el1, el2 in zip(list1, list2):
+            new_list += [el1] + [el2]
+
+        return new_list
+
+    def zip_arrays(array1, array2) -> np.array:
+        new_array = np.empty((array1.shape[0], 0))
+
+        for i in range(array1.shape[1]):
+            new_array = np.concatenate((new_array, array1[:, i][..., np.newaxis]), axis=1)
+            new_array = np.concatenate((new_array, array2[:, i][..., np.newaxis]), axis=1)
+
+        return new_array
+
     tokens = scored_sentence.sentence[:-1]  # Exclude <eos>
+    tokens = zip_lists(tokens, [""] * len(tokens))
     x = range(len(tokens))
-    fig, ax = plt.subplots()
+    fig, ax1 = plt.subplots()
 
-    # Plot data
-    first_high = (scored_sentence.first_scores + scored_sentence.first_std)
-    first_low = (scored_sentence.first_scores - scored_sentence.first_std)
-    second_high = (scored_sentence.second_scores + scored_sentence.second_std)
-    second_low = (scored_sentence.second_scores - scored_sentence.second_std)
-    ax.plot(x, scored_sentence.first_scores, label=model_names[0], color=BASELINE_COLOR)
-    plt.fill_between(x, first_high,  scored_sentence.first_scores, alpha=0.4, color=BASELINE_COLOR)
-    plt.fill_between(x,  scored_sentence.first_scores, first_low, alpha=0.4, color=BASELINE_COLOR)
+    # Enable latex use
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif')
 
-    ax.plot(x, scored_sentence.second_scores, label=model_names[1], color=RECODING_COLOR)
-    plt.fill_between(x, second_high, scored_sentence.second_scores, alpha=0.4, color=RECODING_COLOR)
-    plt.fill_between(x, scored_sentence.second_scores, second_low, alpha=0.4, color=RECODING_COLOR)
+    # Determine axes
+    ax2 = ax1.twinx()
+    # Surprisal scores will be on axis 1 and error signals on axis 2 UNLESS surprisal scores are not plotted,
+    # then error signals are plotted on primary axis
+    data_keys = set(scored_sentence.first_scores.keys()) | set(scored_sentence.second_scores.keys())
+    delta_ax = ax1 if "out" not in data_keys else ax2
+    data2ax = {"out": ax1, "out_prime": ax1, "delta": delta_ax, "delta_prime": delta_ax}
+
+    def _produce_data(key, prime_key, model_scores) -> Tuple[np.array, np.array, np.array]:
+        scores = model_scores[key].numpy()
+        # If prime data is available, interlace with current data so that prime data is placed halfway between
+        # two time steps
+        if prime_key in model_scores:
+            scores = zip_arrays(scores, model_scores[prime_key].numpy())
+
+        mean, std = scores.mean(axis=0), scores.std(axis=0)
+        high, low = mean + std, mean - std
+
+        # In case prime data is not available, add fillers between scores
+        if prime_key not in model_scores:
+            mean = zip_lists(mean, mean)
+            high, low = zip_lists(high, high), zip_lists(low, low)
+
+        return mean, high, low
+
+    for key in ["out", "delta"]:
+        prime_key = key + "_prime"
+
+        if key in scored_sentence.first_scores:
+            first_mean, first_high, first_low = _produce_data(key, prime_key, scored_sentence.first_scores)
+            data2ax[key].plot(x, first_mean, label=f"{LATEX_LABELS[key]} {model_names[0]}", color=PLOT_COLORS[key][0])
+            plt.fill_between(x, first_high, first_mean, alpha=0.4, color=PLOT_COLORS[key][0])
+            plt.fill_between(x, first_mean, first_low, alpha=0.4, color=PLOT_COLORS[key][0])
+
+        if key in scored_sentence.second_scores:
+            second_mean, second_high, second_low = _produce_data(key, prime_key, scored_sentence.second_scores)
+            data2ax[key].plot(x, second_mean, label=f"{LATEX_LABELS[key]} {model_names[1]}", color=PLOT_COLORS[key][1])
+            plt.fill_between(x, second_high, second_mean, alpha=0.4, color=PLOT_COLORS[key][1])
+            plt.fill_between(x, second_mean, second_low, alpha=0.4, color=PLOT_COLORS[key][1])
 
     plt.xticks(x, tokens, fontsize=10)
 
     # Draw vertical lines
-    for x_ in range(len(tokens)):
+    for x_ in range(0, len(tokens), 2):
         plt.axvline(x=x_, alpha=0.8, color="gray", linewidth=0.25)
 
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+    plt.setp(ax1.get_xticklabels(), rotation=45, ha="right",
              rotation_mode="anchor")
 
     plt.tight_layout()
-    plt.legend(loc="upper left")
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    handels2, labels2 = ax2.get_legend_handles_labels()
+    plt.legend(handles1 + handels2, labels1 + labels2, loc="upper left")
 
     if pdf:
         pdf.savefig(fig)
@@ -212,39 +300,14 @@ def plot_perplexities(scored_sentence,  model_names, pdf=None) -> None:
     plt.close()
 
 
-class DummyPredictor(AbstractStepPredictor):
-    """
-    Dummy predictor which always predicts a step size of zero. Useful when you want to avoid recoding to take place.
-    """
-
-    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
-        """
-        Prediction step.
-
-        Parameters
-        ----------
-        hidden: Tensor
-            Current hidden state used to determine step size.
-        out: Tensor
-            Output Tensor of current time step.
-        device: torch.device
-            Torch device the model is being trained on (e.g. "cpu" or "cuda").
-
-        Returns
-        -------
-        step_size: StepSize
-            Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
-        """
-        return torch.Tensor([0]).to(device)
-
-
 def manage_config() -> dict:
     """
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_seq_len", "first", "second", "device", "pdf_path", "num_plots", "collectables"}
-    arg_groups = {"general": required_args, "optional": {"stop_after"}}
+    required_args = {"corpus_dir", "max_seq_len", "first", "second", "device", "num_plots", "collectables",
+                     "model_names"}
+    arg_groups = {"general": required_args, "optional": {"stop_after", "pdf_path"}}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
     config_dict = config_object.config_dict
@@ -279,6 +342,7 @@ def init_argparser() -> ArgumentParser:
     # Plotting options
     from_cmd.add_argument("--pdf_path", type=str, help="Path to pdf with plots.")
     from_cmd.add_argument("--num_plots", type=int, help="Number of plots included in the pdf.")
+    from_cmd.add_argument("--model_names", nargs=2, type=str, help="Name of models being compared")
 
     return parser
 
