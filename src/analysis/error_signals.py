@@ -238,12 +238,18 @@ def plot_perplexities(scored_sentence,  model_names, pdf=None) -> None:
     plt.rc('font', family='serif')
 
     # Determine axes
-    ax2 = ax1.twinx()
-    # Surprisal scores will be on axis 1 and error signals on axis 2 UNLESS surprisal scores are not plotted,
-    # then error signals are plotted on primary axis
     data_keys = set(scored_sentence.first_scores.keys()) | set(scored_sentence.second_scores.keys())
-    delta_ax = ax1 if "out" not in data_keys else ax2
-    data2ax = {"out": ax1, "out_prime": ax1, "delta": delta_ax, "delta_prime": delta_ax}
+    data2ax = {"out": ax1, "delta": ax1}
+
+    if "out" in data_keys:
+        ax2 = ax1.twinx()
+        # Surprisal scores will be on axis 1 and error signals on axis 2 UNLESS surprisal scores are not plotted,
+        # then error signals are plotted on primary axis
+        data2ax["delta"] = ax2
+        ax1.set_ylabel(r"Surprisal $-\log_2(\mathbf{o}_t)$")
+        ax2.set_ylabel(r"Error signal $\delta_t$")
+    else:
+        ax1.set_ylabel(r"Error signal $\delta_t$")
 
     def _produce_data(key, prime_key, model_scores) -> Tuple[np.array, np.array, np.array]:
         scores = model_scores[key].numpy()
@@ -288,9 +294,13 @@ def plot_perplexities(scored_sentence,  model_names, pdf=None) -> None:
              rotation_mode="anchor")
 
     plt.tight_layout()
-    handles1, labels1 = ax1.get_legend_handles_labels()
-    handels2, labels2 = ax2.get_legend_handles_labels()
-    plt.legend(handles1 + handels2, labels1 + labels2, loc="upper left")
+
+    if "out" in data_keys:
+        handles1, labels1 = ax1.get_legend_handles_labels()
+        handels2, labels2 = ax2.get_legend_handles_labels()
+        plt.legend(handles1 + handels2, labels1 + labels2, loc="upper left")
+    else:
+        plt.legend(loc="upper left")
 
     if pdf:
         pdf.savefig(fig)
