@@ -7,7 +7,7 @@ or multiple time steps.
 from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
 import sys
-from typing import List, Tuple, Union, Any
+from typing import List, Tuple, Union, Any, Optional
 import random
 
 # EXT
@@ -17,6 +17,7 @@ import torch
 from torch import Tensor
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
+from scipy.stats import ttest_ind
 
 # PROJECT
 from src.models.language_model import LSTMLanguageModel
@@ -57,6 +58,7 @@ def main() -> None:
     num_plots = config_dict["optional"]["num_plots"]
     first_recoding_steps = config_dict["optional"].get("first_recoding_steps", [])
     second_recoding_steps = config_dict["optional"].get("second_recoding_steps", [])
+    ttest = config_dict["optional"]["ttest"]
 
     assert type(first_recoding_steps) == list or first_recoding_steps == ["never"], \
         f"Invalid recoding time steps specified, must be either empty list of ints or 'never', " \
@@ -65,17 +67,19 @@ def main() -> None:
         f"Invalid recoding time steps specified, must be either empty list of ints or 'never', " \
         f"{str(second_recoding_steps)} found "
 
-    # Awkward conversion of input args
+    # Awkward spaghetti conversion of input args
     # Convert ["never"] to single string and otherwise the number in the list to str
-    if first_recoding_steps[0] != "never":
-        first_recoding_steps = list(map(int, first_recoding_steps))
-    else:
-        first_recoding_steps = first_recoding_steps[0]
+    if len(first_recoding_steps) > 0:
+        if first_recoding_steps[0] != "never":
+            first_recoding_steps = list(map(int, first_recoding_steps))
+        else:
+            first_recoding_steps = first_recoding_steps[0]
 
-    if second_recoding_steps[0] != "never":
-        second_recoding_steps = list(map(int, second_recoding_steps))
-    else:
-        second_recoding_steps = second_recoding_steps[0]
+    if len(second_recoding_steps) > 0:
+        if second_recoding_steps[0] != "never":
+            second_recoding_steps = list(map(int, second_recoding_steps))
+        else:
+            second_recoding_steps = second_recoding_steps[0]
 
     train_set, _ = load_data(corpus_dir, max_seq_len)
     vocab = defaultdict(lambda: "UNK", {idx: word for word, idx in train_set.vocab.items()})
@@ -102,7 +106,7 @@ def main() -> None:
     pdf = PdfPages(pdf_path) if pdf_path is not None else None
     scored_sentences = scored_sentences if num_plots is None else random.sample(scored_sentences, num_plots)
     for scored_sentence in scored_sentences:
-        plot_scores(scored_sentence, model_names, first_recoding_steps, second_recoding_steps, pdf)
+        plot_scores(scored_sentence, model_names, first_recoding_steps, second_recoding_steps, ttest, pdf)
 
     pdf.close()
 
@@ -181,6 +185,7 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
             input_vars = sentence[t].unsqueeze(0).to(device)
 
             if isinstance(model, RecodingLanguageModel):
+                # TODO: Is there a bug here? Scores differ for two models even when they are the same
                 # If no recoding is supposed to take place, switch step size predictors with ones always giving zeros
                 if dont_recode(t):
                     model_predictors, model.mechanism.predictors = model.mechanism.predictors, dummy_predictors
@@ -249,7 +254,7 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
 
 
 def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingSteps, second_recoding_steps: RecodingSteps,
-                pdf=None) -> None:
+                ttest: Optional[str] = None, pdf: Optional[PdfPages] = None) -> None:
     """
     Plot the word perplexity scores of two models for the same sentence and potentially add it to a pdf.
 
@@ -264,6 +269,9 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
         None, recoding takes place at all time steps and no time step is marked for readability.
     second_recoding_steps: RecodingSteps
         Same as above but for the second model.
+    ttest: Optional[str]
+        Perform a t-test to determine whether the surprisal / error signals value differences between the two models
+        are statistically significant.
     pdf: Optional[PdfPages]
         PDF the plot is written to if given. Otherwise the plot is shown on screen.
     """
@@ -307,37 +315,53 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
     else:
         ax1.set_ylabel(r"Error signal $\delta_t$")
 
-    def _produce_data(key, prime_key, model_scores) -> Tuple[np.array, np.array, np.array]:
+    def _produce_data(key, prime_key, model_scores) -> Tuple[np.array, np.array, np.array, np.array]:
         scores = model_scores[key].numpy()
         # If prime data is available, interlace with current data so that prime data is placed halfway between
         # two time steps
         if prime_key in model_scores:
             scores = zip_arrays(scores, model_scores[prime_key].numpy())
+        else:
+            scores = zip_arrays(scores, scores)
 
         mean, std = scores.mean(axis=0), scores.std(axis=0)
         high, low = mean + std, mean - std
 
-        # In case prime data is not available, add fillers between scores
-        if prime_key not in model_scores:
-            mean = zip_lists(mean, mean)
-            high, low = zip_lists(high, high), zip_lists(low, low)
+        return mean, high, low, scores
 
-        return mean, high, low
-
+    significant_steps = []
     for key in ["out", "delta"]:
         prime_key = key + "_prime"
 
         if key in scored_sentence.first_scores:
-            first_mean, first_high, first_low = _produce_data(key, prime_key, scored_sentence.first_scores)
+            first_mean, first_high, first_low, first_scores = _produce_data(
+                key, prime_key, scored_sentence.first_scores
+            )
             data2ax[key].plot(x, first_mean, label=f"{LATEX_LABELS[key]} {model_names[0]}", color=PLOT_COLORS[key][0])
             plt.fill_between(x, first_high, first_mean, alpha=0.4, color=PLOT_COLORS[key][0])
             plt.fill_between(x, first_mean, first_low, alpha=0.4, color=PLOT_COLORS[key][0])
 
         if key in scored_sentence.second_scores:
-            second_mean, second_high, second_low = _produce_data(key, prime_key, scored_sentence.second_scores)
+            second_mean, second_high, second_low, second_scores = _produce_data(
+                key, prime_key, scored_sentence.second_scores
+            )
             data2ax[key].plot(x, second_mean, label=f"{LATEX_LABELS[key]} {model_names[1]}", color=PLOT_COLORS[key][1])
             plt.fill_between(x, second_high, second_mean, alpha=0.4, color=PLOT_COLORS[key][1])
             plt.fill_between(x, second_mean, second_low, alpha=0.4, color=PLOT_COLORS[key][1])
+
+        # Perform t-test
+        if ttest == key and key in scored_sentence.first_scores and key in scored_sentence.second_scores:
+            # Should t-test also be performed for recoded outputs / deltas? That only makes sense if at least one model
+            # is a recoding model
+            do_prime_steps = prime_key in data_keys
+
+            # Perform t-test for every time step
+            for i in range(0, len(tokens), 1 if do_prime_steps else 2):
+                _, p_value = ttest_ind(first_scores[:, i], second_scores[:, i], equal_var=False)
+
+                # If significant, add marker to time step
+                if p_value <= 0.05:
+                    significant_steps.append(i)
 
     plt.xticks(x, tokens, fontsize=10)
 
@@ -349,19 +373,25 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
         if first_recoding_steps != "never" and t in first_recoding_steps:
             plt.axvline(
                 x=x_, color=PLOT_COLORS["delta"][0], linewidth=1, linestyle="dashed",
-                label=f"Recoding step {model_names[0]}"
+                label=f"Recoding {model_names[0]}"
             )
 
         # Mark recoding for second model
         elif second_recoding_steps != "never" and t in second_recoding_steps:
             plt.axvline(
                 x=x_, color=PLOT_COLORS["delta"][1], linewidth=1, linestyle="dashed",
-                label=f"Recoding step {model_names[1]}"
+                label=f"Recoding {model_names[1]}"
             )
 
         # Mark non-recoding time stop OR if all time steps use recoding
         else:
             plt.axvline(x=x_, alpha=0.8, color="gray", linewidth=0.25)
+
+    # Plot significant points
+    if len(significant_steps) > 0:
+        plt.scatter(
+            significant_steps, np.zeros(len(significant_steps)) - 0.2, marker="^", color="black", alpha=0.6
+        )
 
     # Rotate the tick labels and set their alignment.
     plt.setp(ax1.get_xticklabels(), rotation=45, ha="right",
@@ -372,10 +402,10 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
         handels2, labels2 = ax2.get_legend_handles_labels()
         plt.legend(
             handles1 + handels2, labels1 + labels2,
-            loc='upper center', bbox_to_anchor=(0.5, -0.175), fontsize=8, fancybox=True, ncol=4
+            loc='upper center', bbox_to_anchor=(0.5, -0.175), fontsize=8, fancybox=True, ncol=3
         )
     else:
-        plt.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.175), fancybox=True, ncol=4)
+        plt.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.175), fancybox=True, ncol=3)
 
     plt.tight_layout()
 
@@ -422,7 +452,7 @@ def manage_config() -> dict:
                      "model_names"}
     arg_groups = {
         "general": required_args,
-        "optional": {"stop_after", "pdf_path", "num_plots", "first_recoding_steps", "second_recoding_steps"}
+        "optional": {"stop_after", "pdf_path", "num_plots", "first_recoding_steps", "second_recoding_steps", "ttest"}
     }
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
@@ -461,6 +491,9 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--second_recoding_steps", nargs="+", default=[],
                           help="Explicitly define the time steps when recoding is supposed to take place for the second"
                                "model. If none are specified, recoding takes place at all time steps.")
+    from_cmd.add_argument("--ttest", type=str, default=None, choices=["out", "delta"],
+                          help="Perform a t-test to determine whether the surprisal / error signals value differences "
+                               "between the two models are statistically significant.")
 
     # Plotting options
     from_cmd.add_argument("--pdf_path", type=str, help="Path to pdf with plots.")
