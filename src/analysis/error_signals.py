@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
 import sys
 from typing import List, Tuple
+import random
 
 # EXT
 from diagnnose.config.setup import ConfigSetup
@@ -49,11 +50,13 @@ def main() -> None:
     max_seq_len = config_dict["general"]["max_seq_len"]
     model_names = config_dict["general"]["model_names"]
     pdf_path = config_dict["optional"]["pdf_path"]
+    stop_after = config_dict["optional"]["stop_after"]
+    num_plots = config_dict["optional"]["num_plots"]
 
     train_set, _ = load_data(corpus_dir, max_seq_len)
     vocab = defaultdict(lambda: "UNK", {idx: word for word, idx in train_set.vocab.items()})
     vocab[train_set.vocab.unk_idx] = "UNK"
-    test_set = load_test_set(corpus_dir, max_seq_len, train_set.vocab)
+    test_set = load_test_set(corpus_dir, max_seq_len, train_set.vocab, stop_after)
     del train_set
 
     # Load the model whose weights will be used - if these models have a recoder, it will be removed
@@ -69,8 +72,8 @@ def main() -> None:
     scored_sentences = create_scored_sentences(first_models_data, second_models_data, test_set, vocab)
 
     # Plot
-    # TODO: Use number of plots and cutoff args
     pdf = PdfPages(pdf_path) if pdf_path is not None else None
+    scored_sentences = scored_sentences if num_plots is None else random.sample(scored_sentences, num_plots)
     for scored_sentence in scored_sentences:
         plot_perplexities(scored_sentence, model_names, pdf)
 
@@ -315,9 +318,9 @@ def manage_config() -> dict:
     Parse a config file (if given), overwrite with command line arguments and return everything as dictionary
     of different config groups.
     """
-    required_args = {"corpus_dir", "max_seq_len", "first", "second", "device", "num_plots", "collectables",
+    required_args = {"corpus_dir", "max_seq_len", "first", "second", "device", "collectables",
                      "model_names"}
-    arg_groups = {"general": required_args, "optional": {"stop_after", "pdf_path"}}
+    arg_groups = {"general": required_args, "optional": {"stop_after", "pdf_path", "num_plots"}}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
     config_dict = config_object.config_dict
@@ -340,7 +343,7 @@ def init_argparser() -> ArgumentParser:
     # Corpus options
     from_cmd.add_argument("--corpus_dir", type=str, help="Directory to corpus files.")
     from_cmd.add_argument("--max_seq_len", type=int, help="Maximum sentence length when reading in the corpora.")
-    from_cmd.add_argument("--stop_after", type=int, help="Read corpus up to a certain number of lines.")
+    from_cmd.add_argument("--stop_after", type=int, help="Read corpus up to a certain number of lines.", default=None)
 
     # Evaluation options
     from_cmd.add_argument("--device", type=str, default="cpu", help="Device used for evaluation.")
@@ -351,7 +354,7 @@ def init_argparser() -> ArgumentParser:
 
     # Plotting options
     from_cmd.add_argument("--pdf_path", type=str, help="Path to pdf with plots.")
-    from_cmd.add_argument("--num_plots", type=int, help="Number of plots included in the pdf.")
+    from_cmd.add_argument("--num_plots", type=int, help="Number of plots included in the pdf.", default=None)
     from_cmd.add_argument("--model_names", nargs=2, type=str, help="Name of models being compared")
 
     return parser

@@ -3,5 +3,6 @@
   "max_seq_len": 35,
   "device": "cpu",
   "pdf_path": "img/exp11/plots.pdf",
-  "num_plots": 30
+  "num_plots": null,
+  "stop_after": null
 }
