@@ -9,7 +9,7 @@ from collections import defaultdict
 # EXT
 import numpy as np
 from diagnnose.config.setup import ConfigSetup
-from scipy.stats import shapiro, ttest_ind
+from scipy.stats import ttest_ind
 import torch
 
 # PROJECT
@@ -28,10 +28,10 @@ def main() -> None:
     max_seq_len = config_dict["general"]["max_seq_len"]
     device = config_dict["general"]["device"]
     give_gold = config_dict["general"]["give_gold"]
-    do_ttest = config_dict["general"].get("ttest", None) is not None
+    do_ttest = config_dict["optional"].get("ttest", None) is not None
 
     if do_ttest:
-        baseline_model = _grouping_function(config_dict["general"]["ttest"])
+        baseline_model = _grouping_function(config_dict["optional"]["ttest"])
 
     # Load data sets
     train_set, _ = load_data(corpus_dir, max_seq_len)
@@ -85,7 +85,7 @@ def manage_config() -> dict:
     of different config groups.
     """
     required_args = {"corpus_dir", "max_seq_len", "batch_size", "models", "device", "give_gold"}
-    arg_groups = {"general": required_args}
+    arg_groups = {"general": required_args, "optional": {"ttest"}}
     argparser = init_argparser()
     config_object = ConfigSetup(argparser, required_args, arg_groups)
     config_dict = config_object.config_dict

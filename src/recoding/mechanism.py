@@ -17,7 +17,8 @@ from torch.autograd import grad as compute_grads
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import StatsCollector
-from src.recoding.step import FixedStepPredictor, PerplexityStepPredictor, AdaptiveStepPredictor, LearnedFixedStepPredictor
+from src.recoding.step import FixedStepPredictor, PerplexityStepPredictor, AdaptiveStepPredictor, \
+    LearnedFixedStepPredictor
 from src.utils.types import Device, HiddenDict, StepSize
 
 # CONSTANTS

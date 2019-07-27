@@ -23,6 +23,7 @@ class RecodingLanguageModel(LSTMLanguageModel):
                  mechanism_kwargs, device: torch.device = "cpu", **unused: Any):
         super().__init__(vocab_size, embedding_size, hidden_size, num_layers, dropout, device)
         self.mechanism = mechanism_class(model=self, **mechanism_kwargs, device=device)
+        self.diagnostics = False
 
     @overrides
     def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
@@ -49,7 +50,9 @@ class RecodingLanguageModel(LSTMLanguageModel):
 
         new_out, new_hidden = self.mechanism.recoding_func(input_var, hidden, out, device=self.device, **additional)
 
-        if self.mechanism.redecode_output:
+        if self.diagnostics:
+            return new_out, out, new_hidden
+        elif self.mechanism.redecode_output:
             return new_out, new_hidden
         else:
             return out, new_hidden

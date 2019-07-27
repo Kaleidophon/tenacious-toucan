@@ -62,6 +62,42 @@ class LSTMLanguageModel(AbstractRNN):
             for gate_name, gate in self.gates[l].items():
                 super().add_module(f"{gate_name}_l{l}", gate)
 
+    @staticmethod
+    def create_from(model: AbstractRNN) -> AbstractRNN:
+        """
+        Initialize a LSTM Language Model using the parameters from another model.
+        """
+        new_model = LSTMLanguageModel(
+            model.vocab_size, model.hidden_size, model.embedding_size, model.vocab_size, 0.5, model.device
+        )  # Use dummy values
+
+        # Copy trained parameters
+        new_model.embeddings = model.embeddings
+        new_model.dropout_layer = model.dropout_layer
+        new_model.decoder = model.decoder
+
+        for layer, gates in model.gates.items():
+            new_model.gates[layer] = gates
+
+            for gate_name, gate in gates.items():
+                super().add_module(f"{gate_name}_l{layer}", gate)
+
+        return new_model
+
+    def load_parameters_from(self, model: AbstractRNN) -> AbstractRNN:
+        """
+        Use another model's parameters to replace this model's ones.
+        """
+        # Copy trained parameters
+        self.embeddings = model.embeddings
+        self.dropout_layer = model.dropout_layer
+        self.decoder = model.decoder
+
+        for layer, gates in model.gates.items():
+            self.gates[layer] = gates
+
+        return self
+
     @overrides
     def forward(self, input_var: Tensor, hidden: Optional[HiddenDict] = None,
                 **additional: Dict) -> Tuple[Tensor, HiddenDict]:
