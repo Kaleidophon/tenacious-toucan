@@ -169,7 +169,7 @@ def plot_column(logs: AggregatedLogs,
     short_labels = [float(re.search("(\d\.)?\d+", label).group(0)) for label in labels]
     labels, short_labels, handles = zip(*sorted(zip(labels, short_labels, handles), key=lambda t: t[1]))
     by_label = OrderedDict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys())
+    plt.legend(by_label.values(), by_label.keys(), loc="upper right")
 
     if title is not None:
         plt.title(title)

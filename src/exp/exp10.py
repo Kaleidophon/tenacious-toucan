@@ -12,8 +12,10 @@ from src.utils.log import *
 # CONSTANTS
 STEPSIZE_LOGDIR = "logs/exp10/step_sizes/"
 SAMPLES_LOGDIR = "logs/exp10/num_samples/"
+DROPOUT_LOGDIR = "logs/exp10/dropout/"
 STEPSIZE_IMGDIR = "img/exp10/step_sizes/"
 SAMPLES_IMGDIR = "img/exp10/num_samples/"
+DROPOUT_IMGDIR = "img/exp10/dropout/"
 STEPSIZES_TO_IDX1 = {
     0.1: 1, 0.5: 2, 1: 3, 2: 4, 5: 5, 10: 6, 25: 7, 50: 8, 100: 9, 1000: 10
 }
@@ -21,6 +23,7 @@ STEPSIZES_TO_IDX2 = {
     0.0001: 1, 0.001: 2, 0.01: 3, 0.1: 4, 0.5: 5, 1: 6, 2: 7, 5: 8
 }
 SAMPLES_TO_IDX = {1: 1, 2: 2, 5: 3, 10: 4, 25: 5, 50: 6}
+DROPOUT_TO_IDX = {0.1: 1, 0.2: 2, 0.3: 3, 0.4: 4, 0.5: 5, 0.6: 6}
 MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Surprisal"} #, "variational": "Variational"}
 MODEL_TYPE_TO_CMAP = {"ensemble": "Greens", "mcd": "Purples", "perplexity": "Oranges"} #, "variational": "Blues"}
 
@@ -155,4 +158,71 @@ for model_type_short, model_type in MODEL_TYPES.items():
         legend_func=samples_legend_func, selection=slice(0, 50),
         y_label="Validation Perplexity", x_label="# Batches"
     )
+
+
+# ##### DROPOUT EXPERIMENTS #####
+
+# Get the recoding step size from a log path
+def dropout_name_func(path: str) -> str:
+    matches = re.search("dropout\d\.\d+", path)
+    step_size = matches.group(0).replace("dropout", "")
+    return step_size
+
+
+def dropout_legend_func(model_name, y_name):
+    return f"dropout = {model_name}"
+
+
+# Use different shades of the same color for different dropout razes
+def dropout_color_func_generator():
+    # Pick color map based on model type
+    cmap = plt.get_cmap(MODEL_TYPE_TO_CMAP["mcd"])
+    dropout_color_dict = {
+        str(samples): cmap(float(idx) / len(SAMPLES_TO_IDX))
+        for samples, idx in DROPOUT_TO_IDX.items()
+    }
+
+    def dropout_color_func(curve_type, model_name, y_name):
+        return dropout_color_dict[model_name]
+
+    return dropout_color_func
+
+# Plot train losses
+dropout_train_selection_func = lambda path: "train" in path
+dropout_train_log_paths = get_logs_in_dir(DROPOUT_LOGDIR, dropout_train_selection_func)
+dropout_train_logs = aggregate_logs(dropout_train_log_paths, dropout_name_func)
+plot_column(
+    dropout_train_logs, x_name="batch_num", y_names="batch_loss", intervals=True,
+    save_path=f"{DROPOUT_IMGDIR}mcd_train_losses.png",
+    #title=f"Train loss | {model_type} recoding (n=4)",
+    color_func=dropout_color_func_generator(),
+    legend_func=dropout_legend_func, selection=slice(0, 400),
+    y_label="Training Loss", x_label="# Batches"
+)
+
+# Plot deltas
+plot_column(
+    dropout_train_logs, x_name="batch_num", y_names="deltas", intervals=True,
+    save_path=f"{DROPOUT_IMGDIR}mcd_deltas.png",
+    # title=f"Train loss | {model_type} recoding (n=4)",
+    color_func=dropout_color_func_generator(),
+    legend_func=dropout_legend_func, selection=slice(2525, 2550),
+    y_label="Deltas", x_label="# Batches"
+)
+
+
+
+# Plot validation losses
+dropout_val_selection_func = lambda path: "val" in path
+dropout_val_log_paths = get_logs_in_dir(DROPOUT_LOGDIR, dropout_val_selection_func)
+samples_val_logs = aggregate_logs(dropout_val_log_paths, dropout_name_func)
+plot_column(
+    samples_val_logs, x_name="batch_num", y_names="val_ppl", intervals=True,
+    save_path=f"{DROPOUT_IMGDIR}mcd_val_ppls.png",
+    #title=f"Validation perplexity | {model_type} recoding (n=4)",
+    color_func=dropout_color_func_generator(),
+    legend_func=dropout_legend_func, selection=slice(0, 50),
+    y_label="Validation Perplexity", x_label="# Batches"
+)
+
 
