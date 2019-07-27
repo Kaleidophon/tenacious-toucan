@@ -9,7 +9,7 @@ from typing import Any, Iterable
 # EXT
 import torch
 from torch import nn, Tensor
-from torch.nn import ReLU, Sigmoid
+from torch.nn import ReLU
 
 # PROJECT
 from src.utils.types import StepSize

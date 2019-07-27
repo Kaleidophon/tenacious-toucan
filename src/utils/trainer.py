@@ -6,7 +6,7 @@ Module defining some functions for model training.
 import math
 import sys
 from argparse import ArgumentParser
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 # EXT
 import numpy as np
@@ -105,7 +105,25 @@ def train_model(model: AbstractRNN,
     train_set.create_batches(batch_size, repeat=False, drop_last=True, device=device)
     num_batches = len(train_set)
 
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    def _filter_parameters(filter_func: Callable):
+        # Filter out parameters by their name using this ugly expression:
+        # Split parameters into tuple of name - param, apply filter, zip the remaining instances back together and
+        # discard the names
+        try:
+            return list(zip(*filter(filter_func, model.named_parameters())))[1]
+        except IndexError:
+            return []
+
+    model_optim = {"params": _filter_parameters(lambda tpl: "predictor" not in tpl[0]),
+                    "lr": learning_rate, "weight_decay": weight_decay}
+    all_params = [model_optim]
+
+    # If a recoding LM is used, train mechanism parameters separately without weight decay
+    if isinstance(model, RecodingLanguageModel):
+        mechanism_optim = {"params": _filter_parameters(lambda tpl: "predictor" in tpl[0]), "lr": learning_rate}
+        all_params.append(mechanism_optim)
+
+    optimizer = optim.SGD(all_params)
 
     if valid_set is not None:
         # Anneal learning rate if no improvement is seen after a while
@@ -297,7 +315,7 @@ def init_argparser() -> ArgumentParser:
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
-    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl", "mlp"],
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl", "mlp", "learned"],
                           help="Specifies the way the step size is determined when using a recoding model.")
     from_cmd.add_argument("--step_size", type=float,
                           help="Step size for recoding in case the fixed step predictor is used.")
