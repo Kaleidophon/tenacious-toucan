@@ -100,7 +100,8 @@ class LearnedFixedStepPredictor(AbstractStepPredictor):
         """
         # Only allow positive step sizes - although the step size is initialized as a positive random number, it can
         # become negative through SGD updates
-        return torch.relu(self.step_size.to(device))
+        eps = 1e-5
+        return torch.relu(self.step_size.to(device)) + eps  # Add epsilon so relu never saturates
 
 
 class PerplexityStepPredictor(AbstractStepPredictor):

@@ -13,9 +13,11 @@ from src.utils.log import *
 STEPSIZE_LOGDIR = "logs/exp10/step_sizes/"
 SAMPLES_LOGDIR = "logs/exp10/num_samples/"
 DROPOUT_LOGDIR = "logs/exp10/dropout/"
+LEARNED_LOGDIR = "logs/exp10/learned_steps/"
 STEPSIZE_IMGDIR = "img/exp10/step_sizes/"
 SAMPLES_IMGDIR = "img/exp10/num_samples/"
 DROPOUT_IMGDIR = "img/exp10/dropout/"
+LEARNED_IMGDIR = "img/exp10/learned/"
 STEPSIZES_TO_IDX1 = {
     0.1: 1, 0.5: 2, 1: 3, 2: 4, 5: 5, 10: 6, 25: 7, 50: 8, 100: 9, 1000: 10
 }
@@ -24,6 +26,7 @@ STEPSIZES_TO_IDX2 = {
 }
 SAMPLES_TO_IDX = {1: 1, 2: 2, 5: 3, 10: 4, 25: 5, 50: 6}
 DROPOUT_TO_IDX = {0.1: 1, 0.2: 2, 0.3: 3, 0.4: 4, 0.5: 5, 0.6: 6}
+HIDDEN_TO_IDX = {"hx_l0": 1, "cx_l0": 2, "hx_l1": 3, "cx_l1": 4}
 MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Surprisal"} #, "variational": "Variational"}
 MODEL_TYPE_TO_CMAP = {"ensemble": "Greens", "mcd": "Purples", "perplexity": "Oranges"} #, "variational": "Blues"}
 
@@ -211,7 +214,6 @@ plot_column(
 )
 
 
-
 # Plot validation losses
 dropout_val_selection_func = lambda path: "val" in path
 dropout_val_log_paths = get_logs_in_dir(DROPOUT_LOGDIR, dropout_val_selection_func)
@@ -224,5 +226,40 @@ plot_column(
     legend_func=dropout_legend_func, selection=slice(0, 50),
     y_label="Validation Perplexity", x_label="# Batches"
 )
+
+
+# #### LEARNED STEP SIZE EXPERIMENTS ####
+
+def step_legend_func(model_name, y_name):
+    return y_name.replace("step_sizes_", "")
+
+
+for model_type_short, model_type in MODEL_TYPES.items():
+    def step_color_func_generator():
+        # Pick color map based on model type
+        cmap = plt.get_cmap(MODEL_TYPE_TO_CMAP[model_type_short])
+        step_color_dict = {
+            str(samples): cmap(float(idx) / len(HIDDEN_TO_IDX))
+            for samples, idx in HIDDEN_TO_IDX.items()
+        }
+
+        def step_color_func(curve_type, model_name, y_name):
+            return step_color_dict[y_name.replace("step_sizes_", "")]
+
+        return step_color_func
+
+    learned_step_selection_func = lambda path: "train" in path and "_learned" in path and model_type_short in path
+    learned_step_log_paths = get_logs_in_dir(LEARNED_LOGDIR, learned_step_selection_func)
+    learned_step_logs = aggregate_logs(learned_step_log_paths)
+    plot_column(
+        learned_step_logs, x_name="batch_num",
+        y_names=["step_sizes_hx_l0", "step_sizes_cx_l0", "step_sizes_hx_l1", "step_sizes_cx_l1"], intervals=True,
+        save_path=f"{LEARNED_IMGDIR}{model_type_short}_learned_steps.png",
+        color_func=step_color_func_generator(),
+        legend_func=step_legend_func,
+        y_label="Step size", x_label="# Batches"
+    )
+
+# #### PREDICTED STEP SIZE EXPERIMENTS ####
 
 
