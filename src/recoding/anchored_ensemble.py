@@ -12,6 +12,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 from overrides import overrides
+import torch.nn.functional as F
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
@@ -125,17 +126,15 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         hidden: Tensor
             Hidden state of current time step after recoding.
         """
-        target_idx = additional.get("target_idx", None)
-
         # Estimate uncertainty of those same predictions
-        delta = self._calculate_predictive_uncertainty(hidden, target_idx)
+        delta = self._calculate_predictive_entropy(hidden)
 
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
         new_out_dist, new_hidden = self.recode_activations(hidden, out, delta, device, **additional)
 
         return new_out_dist, new_hidden
 
-    def _calculate_predictive_uncertainty(self, hidden: HiddenDict, target_idx: Tensor) -> Tensor:
+    def _calculate_predictive_entropy(self, hidden: HiddenDict) -> Tensor:
         """
         Calculate the predictive uncertainty of the decoder ensemble by measuring the variance of the predictions
         w.r.t. to the target token.
@@ -159,23 +158,11 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         predictions = [decoder(topmost_hidden) for decoder in self.model.decoder_ensemble]
         predictions = torch.stack(predictions)
 
-        # If no target is given, compute uncertainty of most likely token
-        target_idx = target_idx if target_idx is not None else torch.argmax(predictions.sum(dim=0), dim=1)
+        predictions = F.softmax(predictions, dim=2)  # Log-softmax is already contained in cross_entropy loss above
+        mean_predictions = predictions.mean(dim=1)
+        pred_entropy = -(mean_predictions * mean_predictions.log()).sum()
 
-        # Select predicted probabilities of target index
-        predictions.exp_()  # Exponentiate for later softmax
-        target_idx = target_idx.view(1, target_idx.shape[0], 1)
-        target_idx = target_idx.repeat(self.num_samples, 1, 1)
-        target_predictions = torch.gather(predictions, 2, target_idx)
-        target_predictions = target_predictions.squeeze(2)
-
-        # Apply softmax (only apply it to actually relevant probabilities, save some computation)
-        norm_factor = predictions.sum(dim=2)  # Gather normalizing constants for softmax
-        target_predictions = target_predictions / norm_factor
-
-        delta = target_predictions.var(dim=0)
-
-        return delta
+        return pred_entropy
 
     def _init_ensemble(self) -> None:
         """

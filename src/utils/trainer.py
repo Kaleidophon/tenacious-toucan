@@ -169,7 +169,7 @@ def train_model(model: AbstractRNN,
                     # Compute loss for every member of the ensemble separately
                     for k in range(model.mechanism.num_samples):
                         member_outputs = outputs[k, :, :]
-                        batch_loss = loss(member_outputs) #, target=targets)
+                        batch_loss = loss(member_outputs, target=targets)
                         member_loss = batch_loss + ensemble_losses[k]
                         member_loss.backward(retain_graph=True)
 
