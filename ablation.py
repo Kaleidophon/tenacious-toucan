@@ -39,14 +39,14 @@ def main():
         assert len(weight_model_paths) == len(mechanism_model_paths), \
             "Number of models with weights and mechanisms has to be equal"
 
-        models = [
+        models = (
             mechanism_model.load_parameters_from(weight_model)
             for mechanism_model, weight_model in zip(mechanism_models, weight_models)
-        ]
+        )
 
     # Otherwise just use the normal model parameters and remove the recoder if given
     else:
-        models = [LSTMLanguageModel.create_from(model) for model in weight_models]
+        models = (LSTMLanguageModel.create_from(model) for model in weight_models)
 
     # Evaluate
     perplexities = []
@@ -57,6 +57,7 @@ def main():
             model, test_set, batch_size, device=device, perplexity=True
         )
         perplexities.append(perplexity)
+        del model
 
     perplexities = np.array(perplexities)
     print(f"Test perplexity: {perplexities.mean():.4f} | Std. dev {perplexities.std():.4f}")
