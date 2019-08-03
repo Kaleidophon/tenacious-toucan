@@ -9,7 +9,7 @@ from typing import Any, Iterable
 # EXT
 import torch
 from torch import nn, Tensor
-from torch.nn import ReLU
+from torch.nn import ReLU, Softplus
 
 # PROJECT
 from src.utils.types import StepSize
@@ -100,8 +100,7 @@ class LearnedFixedStepPredictor(AbstractStepPredictor):
         """
         # Only allow positive step sizes - although the step size is initialized as a positive random number, it can
         # become negative through SGD updates
-        eps = 1e-5
-        return torch.relu(self.step_size.to(device)) + eps  # Add epsilon so relu never saturates
+        return torch.softplus(self.step_size.to(device))
 
 
 class PerplexityStepPredictor(AbstractStepPredictor):
@@ -180,7 +179,7 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
             last_layer_size = current_layer_size
 
         self.model.add_module("out", nn.Linear(last_layer_size, 1))  # Output scalar alpha_t
-        self.model.add_module("relu_out", ReLU())
+        self.model.add_module("relu_out", Softplus())
 
         # Init buffers
         self.hidden_buffer = []  # Buffer where to store hidden states
