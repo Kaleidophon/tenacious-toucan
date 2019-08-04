@@ -10,6 +10,7 @@ from typing import Any, Iterable
 import torch
 from torch import nn, Tensor
 from torch.nn import ReLU, Softplus
+import torch.nn.functional as F
 
 # PROJECT
 from src.utils.types import StepSize
@@ -100,7 +101,7 @@ class LearnedFixedStepPredictor(AbstractStepPredictor):
         """
         # Only allow positive step sizes - although the step size is initialized as a positive random number, it can
         # become negative through SGD updates
-        return torch.softplus(self.step_size.to(device))
+        return F.softplus(self.step_size.to(device))
 
 
 class PerplexityStepPredictor(AbstractStepPredictor):
