@@ -118,6 +118,16 @@ def plot_column(logs: AggregatedLogs,
     if type(y_names) == str:
         y_names = [y_names]
 
+    def _missing_mask(y: np.array, x: np.array) -> np.array:
+        """ Return a mask that is being applied to missing values. """
+        missing = x.shape[0] - y.shape[0]
+        mask = np.ones(y.shape).astype(bool)
+
+        if missing > 0:
+            mask = np.concatenate((mask, np.zeros((missing, )).astype(bool)), axis=0)
+
+        return mask
+
     all_y = []
     for model_name, log_dict in logs.items():
         for y_name in y_names:
@@ -127,7 +137,9 @@ def plot_column(logs: AggregatedLogs,
             # Single curve data
             if y.shape[0] == 1 or len(y.shape) == 1:
                 color = None if color_func is None else color_func("curve", model_name, y_name)
-                plt.plot(x, y[selection], label=legend_func(model_name, y_name), color=color)
+                y = y[selection]
+                mask = _missing_mask(y, x)
+                plt.plot(x[mask], y, label=legend_func(model_name, y_name), color=color)
 
             # Data from more than one curves
             else:
@@ -138,18 +150,21 @@ def plot_column(logs: AggregatedLogs,
                 if intervals:
                     low, mean, high = _get_intervals(y)
                     low, mean, high = low[selection], mean[selection], high[selection]
-                    curve = plt.plot(x, mean, label=legend_func(model_name, y_name), color=color)
+                    mask = _missing_mask(low, x)
+                    curve = plt.plot(x[mask], mean, label=legend_func(model_name, y_name), color=color)
 
                     # Make sure the color is the same for the intervals or choose pre-defined
                     color = curve[0].get_color() if color_func is None else color_func("interval", model_name, y_name)
-                    plt.fill_between(x, high, mean, alpha=0.6, color=color)
-                    plt.fill_between(x, mean, low, alpha=0.6, color=color)
+                    plt.fill_between(x[mask], high, mean, alpha=0.6, color=color)
+                    plt.fill_between(x[mask], mean, low, alpha=0.6, color=color)
 
                 # Just plot all the curves separately
                 else:
                     for i, y_i in enumerate(y):
+                        y_i = y_i[selection]
+                        mask = _missing_mask(y_i, x)
                         curve = plt.plot(
-                            x, y_i[selection], label=legend_func(model_name, y_name), alpha=0.4, color=color
+                            x[mask], y_i, label=legend_func(model_name, y_name), alpha=0.4, color=color
                         )
                         # Make sure color is consistent for all curve belonging to the same model type
                         color = curve[0].get_color()
