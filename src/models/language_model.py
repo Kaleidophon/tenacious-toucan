@@ -12,7 +12,7 @@ from overrides import overrides
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
-from src.utils.types import HiddenDict, AmbiguousHidden
+from src.utils.types import HiddenDict, AmbiguousHidden, Device
 
 
 class LSTMLanguageModel(AbstractRNN):
@@ -84,17 +84,17 @@ class LSTMLanguageModel(AbstractRNN):
 
         return new_model
 
-    def load_parameters_from(self, model: AbstractRNN) -> AbstractRNN:
+    def load_parameters_from(self, model: AbstractRNN, device: Device) -> AbstractRNN:
         """
         Use another model's parameters to replace this model's ones.
         """
         # Copy trained parameters
-        self.embeddings = model.embeddings
-        self.dropout_layer = model.dropout_layer
-        self.decoder = model.decoder
+        self.embeddings = model.embeddings.to(device)
+        self.dropout_layer = model.dropout_layer.to(device)
+        self.decoder = model.decoder.to(device)
 
         for layer, gates in model.gates.items():
-            self.gates[layer] = gates
+            self.gates[layer] = gates.to(device)
 
         return self
 

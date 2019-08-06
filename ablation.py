@@ -42,7 +42,7 @@ def main():
             "Number of models with weights and mechanisms has to be equal"
 
         models = (
-            mechanism_model.load_parameters_from(weight_model).to(device)
+            mechanism_model.load_parameters_from(weight_model, device)
             for mechanism_model, weight_model in zip(mechanism_models, weight_models)
         )
 
