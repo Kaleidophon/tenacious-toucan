@@ -37,6 +37,7 @@ def main() -> None:
     # Load data sets
     train_set, _ = load_data(corpus_dir, max_seq_len)
     test_set = load_test_set(corpus_dir, max_seq_len, train_set.vocab)
+    del train_set
 
     # Load models
     models = (torch.load(path, map_location=device) for path in model_paths)
@@ -49,10 +50,10 @@ def main() -> None:
 
         if isinstance(model, RecodingLanguageModel):
             model.diagnostics = False
-            
+
         print(f"\rEvaluating model {i+1} / {len(model_paths)}...", end="", flush=True)
         perplexity, speed = evaluate_model(
-            model, test_set, batch_size, device=device, perplexity=True, give_gold=give_gold, return_speed=True
+            model, test_set, batch_size, device=device, perplexity=True, return_speed=True
         )
         scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
         speeds[_grouping_function(model_path)] = np.append(speeds[_grouping_function(model_path)], speed)
