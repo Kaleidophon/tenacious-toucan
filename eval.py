@@ -13,6 +13,7 @@ from scipy.stats import ttest_ind
 import torch
 
 # PROJECT
+from src.models.recoding_lm import RecodingLanguageModel
 from src.utils.corpora import load_data
 from src.utils.test import evaluate_model
 from src.utils.test import load_test_set
@@ -45,6 +46,10 @@ def main() -> None:
 
     for i, (model_path, model) in enumerate(zip(model_paths, models)):
         model.device = device
+
+        if isinstance(model, RecodingLanguageModel):
+            model.diagnostics = False
+            
         print(f"\rEvaluating model {i+1} / {len(model_paths)}...", end="", flush=True)
         perplexity, speed = evaluate_model(
             model, test_set, batch_size, device=device, perplexity=True, give_gold=give_gold, return_speed=True
