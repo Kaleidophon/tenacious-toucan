@@ -41,6 +41,7 @@ def main() -> None:
 
     # Load models
     models = (torch.load(path, map_location=device) for path in model_paths)
+
     # Evaluate
     print("Evaluating...\n")
     scores, speeds = defaultdict(lambda: np.array([])), defaultdict(lambda: np.array([]))
