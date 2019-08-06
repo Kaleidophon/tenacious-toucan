@@ -94,7 +94,7 @@ class LSTMLanguageModel(AbstractRNN):
         self.decoder = model.decoder.to(device)
 
         for layer, gates in model.gates.items():
-            self.gates[layer] = gates.to(device)
+            self.gates[layer] = {name: gate.to(device) for name, gate in gates.items()}
 
         return self
 

@@ -41,8 +41,14 @@ def main():
         assert len(weight_model_paths) == len(mechanism_model_paths), \
             "Number of models with weights and mechanisms has to be equal"
 
+        def _load_and_set_diagnostics(mechanism_model, weight_model, device):
+            model = mechanism_model.load_parameters_from(weight_model, device)
+            model.diagnostics = False
+            model.device = device
+            return model
+
         models = (
-            mechanism_model.load_parameters_from(weight_model, device)
+            _load_and_set_diagnostics(mechanism_model, weight_model, device)
             for mechanism_model, weight_model in zip(mechanism_models, weight_models)
         )
 
@@ -73,6 +79,8 @@ def replace_predictors(model: RecodingLanguageModel, device: Device) -> Recoding
         l: [DummyPredictor().to(device), DummyPredictor().to(device)]
         for l in range(model.num_layers)
     }
+    model.diagnostics = False  # This attribute was missing in some older models and therefore causing problems
+    model.device = device
 
     return model
 
