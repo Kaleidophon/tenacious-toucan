@@ -14,7 +14,6 @@ import torch.nn.functional as F
 
 # PROJECT
 from src.utils.types import StepSize
-from utils.types import StepSize
 
 
 class AbstractStepPredictor(nn.Module, ABC):
