@@ -195,7 +195,7 @@ def plot_column(logs: AggregatedLogs,
     if save_path is None:
         plt.show()
     else:
-        plt.savefig(save_path)
+        plt.savefig(save_path, dpi=300)
 
     plt.close()
 

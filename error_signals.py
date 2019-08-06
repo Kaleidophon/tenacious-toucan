@@ -7,26 +7,25 @@ or multiple time steps.
 from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
 import sys
-from typing import List, Tuple, Union, Any, Optional
+from typing import List, Tuple, Union, Optional
 import random
 
 # EXT
 from diagnnose.config.setup import ConfigSetup
 import matplotlib.pyplot as plt
 import torch
-from torch import Tensor
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 from scipy.stats import ttest_ind
 
 # PROJECT
+from src.recoding.step import DummyPredictor
 from src.models.language_model import LSTMLanguageModel
-from src.recoding.step import AbstractStepPredictor
 from src.models.recoding_lm import RecodingLanguageModel
 from src.utils.corpora import load_data, Corpus
 from src.utils.log import StatsCollector
 from src.utils.test import load_test_set
-from src.utils.types import Device, StepSize
+from src.utils.types import Device
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 # CONSTANTS
@@ -42,6 +41,8 @@ LATEX_LABELS = {
 # TYPES
 ScoredSentence = namedtuple("ScoredSentence", ["sentence", "first_scores", "second_scores"])
 RecodingSteps = Union[List[int], str]
+
+# TODO: Collect step size
 
 
 def main() -> None:
@@ -186,6 +187,7 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
 
             if isinstance(model, RecodingLanguageModel):
                 # TODO: Is there a bug here? Scores differ for two models even when they are the same
+                # TODO: Reset hidden state after each sentence
                 # If no recoding is supposed to take place, switch step size predictors with ones always giving zeros
                 if dont_recode(t):
                     model_predictors, model.mechanism.predictors = model.mechanism.predictors, dummy_predictors
@@ -415,32 +417,6 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
         plt.show()
 
     plt.close()
-
-
-class DummyPredictor(AbstractStepPredictor):
-    """
-    Dummy predictor which always predicts a step size of zero. Useful when you want to avoid recoding to take place.
-    """
-
-    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
-        """
-        Prediction step.
-
-        Parameters
-        ----------
-        hidden: Tensor
-            Current hidden state used to determine step size.
-        out: Tensor
-            Output Tensor of current time step.
-        device: torch.device
-            Torch device the model is being trained on (e.g. "cpu" or "cuda").
-
-        Returns
-        -------
-        step_size: StepSize
-            Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
-        """
-        return torch.Tensor([0]).to(device)
 
 
 def manage_config() -> dict:

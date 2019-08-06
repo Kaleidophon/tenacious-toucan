@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 # PROJECT
 from src.utils.types import StepSize
+from utils.types import StepSize
 
 
 class AbstractStepPredictor(nn.Module, ABC):
@@ -259,3 +260,29 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
 
         if len(self.hidden_buffer) > self.window_size:
             self.hidden_buffer.pop(0)  # If buffer is full, remove oldest element
+
+
+class DummyPredictor(AbstractStepPredictor):
+    """
+    Dummy predictor which always predicts a step size of zero. Useful when you want to avoid recoding to take place.
+    """
+
+    def forward(self, hidden: Tensor, out: Tensor, device: torch.device, **additional: Any) -> StepSize:
+        """
+        Prediction step.
+
+        Parameters
+        ----------
+        hidden: Tensor
+            Current hidden state used to determine step size.
+        out: Tensor
+            Output Tensor of current time step.
+        device: torch.device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
+
+        Returns
+        -------
+        step_size: StepSize
+            Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
+        """
+        return torch.Tensor([0]).to(device)

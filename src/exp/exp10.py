@@ -230,8 +230,23 @@ plot_column(
 
 # #### LEARNED STEP SIZE EXPERIMENTS ####
 
+# Use latex
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+
+
 def step_legend_func(model_name, y_name):
-    return y_name.replace("step_sizes_", "")
+    y_name = y_name.replace("step_sizes_", "")
+    y_name = y_name.replace("hx_", "$\mathbf{h}_t$ ")
+    y_name = y_name.replace("cx_", "$\mathbf{c}_t$ ")
+    y_name = y_name.replace("l0", "$1^{st}$ layer")
+    y_name = y_name.replace("l1", "$2^{nd}$ layer")
+
+    return y_name
+
+
+def step_name_func(path: str) -> str:
+    return path[:path.find("_")+1]
 
 
 for model_type_short, model_type in MODEL_TYPES.items():
@@ -250,16 +265,28 @@ for model_type_short, model_type in MODEL_TYPES.items():
 
     learned_step_selection_func = lambda path: "train" in path and "_learned" in path and model_type_short in path
     learned_step_log_paths = get_logs_in_dir(LEARNED_LOGDIR, learned_step_selection_func)
-    learned_step_logs = aggregate_logs(learned_step_log_paths)
+    learned_step_logs = aggregate_logs(learned_step_log_paths, step_name_func)
     plot_column(
         learned_step_logs, x_name="batch_num",
-        y_names=["step_sizes_hx_l0", "step_sizes_cx_l0", "step_sizes_hx_l1", "step_sizes_cx_l1"], intervals=True,
+        y_names=["step_sizes_hx_l0", "step_sizes_cx_l0", "step_sizes_hx_l1", "step_sizes_cx_l1"], intervals=False,
         save_path=f"{LEARNED_IMGDIR}{model_type_short}_learned_steps.png",
         color_func=step_color_func_generator(),
         legend_func=step_legend_func,
-        y_label="Step size", x_label="# Batches"
+        y_label="Learned Step size", x_label="\# Batches"
     )
 
-# #### PREDICTED STEP SIZE EXPERIMENTS ####
+    # #### PREDICTED STEP SIZE EXPERIMENTS ####
+
+    predicted_step_selection_func = lambda path: "train" in path and "_mlp" in path and model_type_short in path
+    predicted_step_log_paths = get_logs_in_dir(LEARNED_LOGDIR, predicted_step_selection_func)
+    predicted_step_logs = aggregate_logs(predicted_step_log_paths, step_name_func)
+    plot_column(
+        predicted_step_logs, x_name="batch_num",
+        y_names=["step_sizes_hx_l0", "step_sizes_cx_l0", "step_sizes_hx_l1", "step_sizes_cx_l1"], intervals=False,
+        save_path=f"{LEARNED_IMGDIR}{model_type_short}_predicted_steps.png",
+        color_func=step_color_func_generator(),
+        legend_func=step_legend_func,
+        y_label="Predicted Step size", x_label="\# Batches"
+    )
 
 
