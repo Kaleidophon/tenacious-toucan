@@ -63,7 +63,7 @@ def evaluate_model(model: AbstractRNN, test_set: Corpus, batch_size: int, device
 
         for t in range(seq_len):
             input_vars = batch[:, t].to(device)
-            output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :].to(device) if give_gold else None)
+            output_dist, hidden = model(input_vars, hidden, target_idx=targets[t, :].to(device))
 
             current_targets = targets[t, :].to(device)
             current_loss = loss(output_dist, current_targets).item()

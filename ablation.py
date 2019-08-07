@@ -75,16 +75,10 @@ def replace_predictors(model: RecodingLanguageModel, device: Device) -> Recoding
     """
     Replace predictors in model with dummy predictors so that recoding is effectively disabled.
     """
-    for l in range(model.num_layers):
-        predictor0, predictor1 = DummyPredictor().to(device), DummyPredictor().to(device)
-        model.mechanism.predictors[l] = [predictor0, predictor1]
-        setattr(model, f"predictor0_l{l}", predictor0)
-        setattr(model, f"predictor1_l{l}", predictor1)
-
-    #model.mechanism.predictors = {
-    #    l: [DummyPredictor().to(device), DummyPredictor().to(device)]
-    #    for l in range(model.num_layers)
-    #}
+    model.mechanism.predictors = {
+        l: [DummyPredictor().to(device), DummyPredictor().to(device)]
+        for l in range(model.num_layers)
+    }
     model.diagnostics = False  # This attribute was missing in some older models and therefore causing problems
     model.device = device
 

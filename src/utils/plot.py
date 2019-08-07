@@ -164,7 +164,7 @@ def plot_column(logs: AggregatedLogs,
                         y_i = y_i[selection]
                         mask = _missing_mask(y_i, x)
                         curve = plt.plot(
-                            x[mask], y_i, label=legend_func(model_name, y_name), alpha=0.4, color=color
+                            x[mask], y_i, label=legend_func(model_name, y_name), alpha=0.7, color=color
                         )
                         # Make sure color is consistent for all curve belonging to the same model type
                         color = curve[0].get_color()

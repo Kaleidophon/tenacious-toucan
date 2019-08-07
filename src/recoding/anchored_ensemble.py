@@ -143,8 +143,6 @@ class AnchoredEnsembleMechanism(RecodingMechanism):
         ----------
         hidden: HiddenDict
             Dictionary of all current hidden and cell states.
-        target_idx: Tensor
-            Indices of actual next tokens.
 
         Returns
         -------

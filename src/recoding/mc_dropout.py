@@ -109,8 +109,6 @@ class MCDropoutMechanism(RecodingMechanism):
         ----------
         hidden: HiddenDict
             Dictionary of all hidden (and cell states) of all network layers.
-        target_idx: Optional[Tensor]
-            Indices of actual next tokens (if given). Otherwise the most likely tokens are used.
 
         Returns
         -------

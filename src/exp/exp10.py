@@ -209,7 +209,7 @@ plot_column(
     save_path=f"{DROPOUT_IMGDIR}mcd_deltas.png",
     # title=f"Train loss | {model_type} recoding (n=4)",
     color_func=dropout_color_func_generator(),
-    legend_func=dropout_legend_func, selection=slice(2525, 2550),
+    legend_func=dropout_legend_func, selection=slice(825, 850),
     y_label="Deltas", x_label="# Batches"
 )
 

@@ -17,6 +17,7 @@ import torch
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 from scipy.stats import ttest_ind
+from torch.nn import functional as F
 
 # PROJECT
 from src.recoding.step import DummyPredictor
@@ -26,7 +27,6 @@ from src.utils.corpora import load_data, Corpus
 from src.utils.log import StatsCollector
 from src.utils.test import load_test_set
 from src.utils.types import Device
-from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 # CONSTANTS
 PLOT_COLORS = {
@@ -59,7 +59,7 @@ def main() -> None:
     num_plots = config_dict["optional"]["num_plots"]
     first_recoding_steps = config_dict["optional"].get("first_recoding_steps", [])
     second_recoding_steps = config_dict["optional"].get("second_recoding_steps", [])
-    ttest = config_dict["optional"]["ttest"]
+    ttest = config_dict["optional"].get("ttest", None)
 
     assert type(first_recoding_steps) == list or first_recoding_steps == ["never"], \
         f"Invalid recoding time steps specified, must be either empty list of ints or 'never', " \
@@ -160,9 +160,9 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
         Define what data should be collected.
     """
     def perplexity(tensor: torch.Tensor) -> torch.Tensor:
-        return - torch.log2(tensor)  # 2 ^ (-x log2 x) = 2 ^ (log2 x ^ -x) = x ^ -x
+        return - torch.log2(tensor)
 
-    hidden = None
+    model.device = device
     all_sentence_data = []
     collector = StatsCollector()
 
@@ -180,14 +180,13 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
     dont_recode = lambda t: (recoding_steps == "never" or (t not in recoding_steps and len(recoding_steps) > 0))
 
     for sentence in test_set:
+        hidden = None  # Reset hidden after every sentence to ensure comparabiltiy
         sentence_data = defaultdict(list)
 
         for t in range(sentence.shape[0] - 1):
             input_vars = sentence[t].unsqueeze(0).to(device)
 
             if isinstance(model, RecodingLanguageModel):
-                # TODO: Is there a bug here? Scores differ for two models even when they are the same
-                # TODO: Reset hidden state after each sentence
                 # If no recoding is supposed to take place, switch step size predictors with ones always giving zeros
                 if dont_recode(t):
                     model_predictors, model.mechanism.predictors = model.mechanism.predictors, dummy_predictors
@@ -207,9 +206,11 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
 
             # Collect target word ppl
             if "out" in collectables:
+                output_dist = F.softmax(output_dist)
                 sentence_data["out"].append(perplexity(output_dist[:, sentence[t + 1]]).detach())
 
             if "out_prime" in collectables and isinstance(model, RecodingLanguageModel):
+                re_output_dist = F.softmax(re_output_dist)
                 sentence_data["out_prime"].append(perplexity(re_output_dist[:, sentence[t + 1]]).detach())
 
             # Perform another recoding step but 1.) set step size to 0 so we calculate the signal without actually
@@ -249,8 +250,6 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
 
         all_sentence_data.append(sentence_data)
         collector.wipe()
-
-        hidden = {l: CompatibleRNN.map(h, func=lambda h: h.detach()) for l, h in hidden.items()}
 
     return all_sentence_data
 
@@ -307,15 +306,18 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
     data_keys = set(scored_sentence.first_scores.keys()) | set(scored_sentence.second_scores.keys())
     data2ax = {"out": ax1, "delta": ax1}
 
-    if "out" in data_keys:
+    if "out" in data_keys and "delta" in data_keys:
         ax2 = ax1.twinx()
         # Surprisal scores will be on axis 1 and error signals on axis 2 UNLESS surprisal scores are not plotted,
         # then error signals are plotted on primary axis
         data2ax["delta"] = ax2
         ax1.set_ylabel(r"Surprisal $-\log_2(\mathbf{o}_t)$")
+
         ax2.set_ylabel(r"Error signal $\delta_t$")
-    else:
+    elif "delta" in data_keys:
         ax1.set_ylabel(r"Error signal $\delta_t$")
+    else:
+        ax1.set_ylabel(r"Surprisal $-\log_2(\mathbf{o}_t)$")
 
     def _produce_data(key, prime_key, model_scores) -> Tuple[np.array, np.array, np.array, np.array]:
         scores = model_scores[key].numpy()
@@ -399,7 +401,7 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
     plt.setp(ax1.get_xticklabels(), rotation=45, ha="right",
              rotation_mode="anchor")
 
-    if "out" in data_keys:
+    if "out" in data_keys and "delta" in data_keys:
         handles1, labels1 = ax1.get_legend_handles_labels()
         handels2, labels2 = ax2.get_legend_handles_labels()
         plt.legend(
