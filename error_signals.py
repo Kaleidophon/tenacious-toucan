@@ -350,16 +350,16 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
                 key, prime_key, scored_sentence.first_scores
             )
             data2ax[key].plot(x, first_mean, label=f"{LATEX_LABELS[key]} {model_names[0]}", color=PLOT_COLORS[key][0])
-            plt.fill_between(x, first_high, first_mean, alpha=0.4, color=PLOT_COLORS[key][0])
-            plt.fill_between(x, first_mean, first_low, alpha=0.4, color=PLOT_COLORS[key][0])
+            data2ax[key].fill_between(x, first_high, first_mean, alpha=0.4, color=PLOT_COLORS[key][0])
+            data2ax[key].fill_between(x, first_mean, first_low, alpha=0.4, color=PLOT_COLORS[key][0])
 
         if key in scored_sentence.second_scores:
             second_mean, second_high, second_low, second_scores = _produce_data(
                 key, prime_key, scored_sentence.second_scores
             )
             data2ax[key].plot(x, second_mean, label=f"{LATEX_LABELS[key]} {model_names[1]}", color=PLOT_COLORS[key][1])
-            plt.fill_between(x, second_high, second_mean, alpha=0.4, color=PLOT_COLORS[key][1])
-            plt.fill_between(x, second_mean, second_low, alpha=0.4, color=PLOT_COLORS[key][1])
+            data2ax[key].fill_between(x, second_high, second_mean, alpha=0.4, color=PLOT_COLORS[key][1])
+            data2ax[key].fill_between(x, second_mean, second_low, alpha=0.4, color=PLOT_COLORS[key][1])
 
         # Perform t-test
         if ttest == key and key in scored_sentence.first_scores and key in scored_sentence.second_scores:
