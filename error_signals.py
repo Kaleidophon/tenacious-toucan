@@ -180,7 +180,7 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
     dont_recode = lambda t: (recoding_steps == "never" or (t not in recoding_steps and len(recoding_steps) > 0))
 
     for sentence in test_set:
-        hidden = None  # Reset hidden after every sentence to ensure comparabiltiy
+        hidden = None  # Reset hidden after every sentence to ensure comparability
         sentence_data = defaultdict(list)
 
         for t in range(sentence.shape[0] - 1):
@@ -234,13 +234,19 @@ def extract_data(model: LSTMLanguageModel, test_set: Corpus, device: Device, rec
             # Because we applied two recoding steps in this case, deltas will be the first, third, fifth element
             # of the collected list and delta_primes the second, forth, sixth entry etc.
             if "delta_prime" in collectables:
-                all_deltas = [delta.unsqueeze(0) for delta in StatsCollector._stats["deltas"]]
+                all_deltas = [
+                    delta.unsqueeze(0) if len(delta.shape) == 0 else delta
+                    for delta in StatsCollector._stats["deltas"]
+                ]
                 sentence_data["delta"] = all_deltas[::2]
                 sentence_data["delta_prime"] = all_deltas[1::2]
 
             # In this case it's simply all the deltas the statscollector intercepted
             else:
-                sentence_data["delta"] = StatsCollector._stats["deltas"]
+                sentence_data["delta"] = [
+                    delta.unsqueeze(0) if len(delta.shape) == 0 else delta
+                    for delta in StatsCollector._stats["deltas"]
+                ]
 
         # Concat and clean
         for key, data in sentence_data.items():
@@ -286,6 +292,8 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
 
     def zip_arrays(array1, array2) -> np.array:
         new_array = np.empty((array1.shape[0], 0))
+        if len(array1.shape) == 3: array1 = array1.squeeze(2)
+        if len(array2.shape) == 3: array2 = array2.squeeze(2)
 
         for i in range(array1.shape[1]):
             new_array = np.concatenate((new_array, array1[:, i][..., np.newaxis]), axis=1)
