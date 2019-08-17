@@ -12,7 +12,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # PROJECT
-from src.utils.types import ColorDict, AggregatedLogs
+from src.utils.types import AggregatedLogs
 
 # CONSTANTS
 # Define some standard colors for models used in this project

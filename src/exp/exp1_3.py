@@ -4,7 +4,9 @@ Plot results of experiment 1 - 3.
 
 # PROJECT
 from src.utils.plot import *
+from src.utils.log import *
 
+# GLOBALS
 LOGDIR = "logs/"
 
 # ### Plot loss data ###

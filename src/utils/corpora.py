@@ -77,6 +77,10 @@ class Corpus(Dataset):
         self.batches = [raw_batches[n * self.seq_len: (n + 1) * self.seq_len + 1, :] for n in range(self.num_batches)]
 
     def __iter__(self):
+        """
+        Iterate over the corpus. If corpus was already batchified, return batches. Otherwise return a single indexed
+        sentence at a time.
+        """
         while True:
             if self.batches is None:
                 for indexed_sentence in self.indexed_sentences:

@@ -21,11 +21,9 @@ from tqdm import tqdm
 from src.models.abstract_rnn import AbstractRNN
 from src.models.language_model import LSTMLanguageModel
 from src.models.recoding_lm import RecodingLanguageModel
-from src.models.variational_lm import is_variational, VariationalLSTM
-from src.recoding.anchored_ensemble import has_anchored_ensemble, shares_anchors, AnchoredEnsembleMechanism
+from src.recoding.anchored_ensemble import has_anchored_ensemble, AnchoredEnsembleMechanism
 from src.recoding.mc_dropout import MCDropoutMechanism
-from src.recoding.perplexity import PerplexityRecoding
-from src.recoding.variational import VariationalMechanism
+from src.recoding.perplexity import SurprisalRecoding
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 from src.utils.corpora import Corpus
 from src.utils.log import remove_logs, StatsCollector, log_to_file
@@ -35,9 +33,8 @@ from src.utils.types import Device
 # GLOBALS
 RECODING_TYPES = {
     "ensemble": AnchoredEnsembleMechanism,
-    "perplexity": PerplexityRecoding,
+    "surprisal": SurprisalRecoding,
     "mc_dropout": MCDropoutMechanism,
-    "variational": VariationalMechanism
 }
 
 
@@ -60,9 +57,8 @@ def train_model(model: AbstractRNN,
     Training loop for several models, including:
 
     * Vanilla LSTM Language Model
-    * LSTM LM with perplexity recoding
+    * LSTM LM with surprisal recoding
     * LSTM LM with MC Dropout recoding
-    * LSTM LM with variational recoding
     * LSTM LM with Bayesian Anchored Ensemble recoding
       (with optional sharing of anchors and losses for all members of the ensemble)
 
@@ -160,33 +156,14 @@ def train_model(model: AbstractRNN,
                 # Backward pass
                 targets = torch.flatten(targets)
 
-                # When using bayesian anchored ensembles that do not share losses
-                if has_anchored_ensemble(model) and not shares_anchors(model):
-                    outputs = torch.cat(outputs, dim=1)  # K x (batch_size * seq_len) x vocab_size
-                    # Extra loss component for recoding with Anchored Bayesian Ensembles
-                    ensemble_losses = model.mechanism.ensemble_losses
+                outputs = torch.cat(outputs)
+                batch_loss = loss(outputs, target=targets)
 
-                    # Compute loss for every member of the ensemble separately
-                    for k in range(model.mechanism.num_samples):
-                        member_outputs = outputs[k, :, :]
-                        batch_loss = loss(member_outputs, target=targets)
-                        member_loss = batch_loss + ensemble_losses[k]
-                        member_loss.backward(retain_graph=True)
+                # When losses in an anchored ensemble are shared, just add a global ensemble weight decay loss
+                if has_anchored_ensemble(model):
+                    batch_loss += model.mechanism.ensemble_losses
 
-                # All other models
-                else:
-                    outputs = torch.cat(outputs)
-                    batch_loss = loss(outputs, target=targets)
-
-                    # When losses in an anchored ensemble are shared, just add a global ensemble weight decay loss
-                    if shares_anchors(model):
-                        batch_loss += model.mechanism.ensemble_losses
-
-                    batch_loss.backward()
-
-                # For the variational RNN, sample a new set of dropout masks after every batch
-                if is_variational(model):
-                    model.sample_masks()
+                batch_loss.backward()
 
                 clip_grad_norm_(model.parameters(), clip)
                 optimizer.step()
@@ -256,16 +233,10 @@ def init_model(config_dict: dict, vocab_size: int, corpus_size: int) -> LSTMLang
         model = LSTMLanguageModel(vocab_size, **config_dict["model"], device=device)
 
     elif recoding_type in RECODING_TYPES.keys():
-        if recoding_type == "variational":
-            model = VariationalLSTM(
-                vocab_size, **config_dict["model"],
-                mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
-            )
-        else:
-            model = RecodingLanguageModel(
-                vocab_size, **config_dict["model"],
-                mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
-            )
+        model = RecodingLanguageModel(
+            vocab_size, **config_dict["model"],
+            mechanism_class=RECODING_TYPES[recoding_type], mechanism_kwargs=mechanism_kwargs, device=device
+        )
 
     else:
         raise Exception("Invalid model type chosen!")
@@ -311,11 +282,11 @@ def init_argparser() -> ArgumentParser:
 
     # Model options
     from_cmd.add_argument("--recoding_type", type=str, default=None,
-                          choices=["mc_dropout", "perplexity", "ensemble", "variational"],
+                          choices=["mc_dropout", "surprisal", "ensemble"],
                           help="Recoding model type used for trainign. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
-    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "ppl", "mlp", "learned"],
+    from_cmd.add_argument("--step_type", type=str, default=None, choices=["fixed", "mlp", "learned"],
                           help="Specifies the way the step size is determined when using a recoding model.")
     from_cmd.add_argument("--step_size", type=float,
                           help="Step size for recoding in case the fixed step predictor is used.")
@@ -325,11 +296,6 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--mc_dropout", type=float, help="Dropout probability when estimating uncertainty.")
     from_cmd.add_argument("--dropout", type=float, help="Dropout probability for model in general.")
     from_cmd.add_argument("--num_samples", type=int, help="Number of samples used when estimating uncertainty.")
-    from_cmd.add_argument("--window_size", type=int, default=None, help="Window size for adaptive step predictor.")
-    from_cmd.add_argument("--share_anchor", action="store_true", default=None,
-                          help="Determine whether anchor and losses should be shared for all member of the anchored"
-                               "bayesian ensemble (increases speed but looses some theoretical guarantees. Only "
-                               "applicable if recoding_type=ensemble")
 
     # Training options
     from_cmd.add_argument("--weight_decay", type=float, help="Weight decay parameter when estimating uncertainty.")

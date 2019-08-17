@@ -15,7 +15,7 @@ import torch.nn.functional as F
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
 from src.recoding.mechanism import RecodingMechanism
-from src.utils.types import HiddenDict
+from src.utils.types import HiddenDict, RecurrentOutput
 
 
 class MCDropoutMechanism(RecodingMechanism):
@@ -45,6 +45,10 @@ class MCDropoutMechanism(RecodingMechanism):
             L2-regularization parameter.
         prior_scale: float
             Parameter that express belief about frequencies in the input data.
+        predictor_kwargs: dict
+            Dictionary of arguments to initialize the step size predictors.
+        step_type: str
+            Type of recoding step that is being used.
         data_length: Optional[int]
             Number of data points used.
         """
@@ -67,7 +71,7 @@ class MCDropoutMechanism(RecodingMechanism):
 
     @overrides
     def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,
-                      **additional: Dict) -> Tuple[Tensor, HiddenDict]:
+                      **additional: Dict) -> RecurrentOutput:
         """
         Recode activations of current step based on some logic defined in a subclass.
 
@@ -101,7 +105,7 @@ class MCDropoutMechanism(RecodingMechanism):
 
         return new_out_dist, new_hidden
 
-    def _mc_dropout_predict(self, hidden: HiddenDict):
+    def _mc_dropout_predict(self, hidden: HiddenDict) -> Tensor:
         """
         Make several predictions about the probability of a token using different dropout masks.
 
@@ -126,7 +130,7 @@ class MCDropoutMechanism(RecodingMechanism):
 
         return predictions
 
-    def _calculate_predictive_entropy(self, predictions: Tensor):
+    def _calculate_predictive_entropy(self, predictions: Tensor) -> Tensor:
         """
         Calculate the predictive entropy based on the predictions made with different dropout masks.
 

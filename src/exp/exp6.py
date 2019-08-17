@@ -1,11 +1,12 @@
 """
-Plot results of experiment 5.
+Plot results of experiment 6.
 """
 
 # PROJECT
 from src.utils.plot import *
 from src.utils.log import *
 
+# GLOBALS
 LOGDIR = "logs/exp6/"
 IMGDIR = "img/exp6/"
 

@@ -16,14 +16,14 @@ from diagnnose.config.setup import ConfigSetup
 
 # PROJECT
 from src.recoding.mc_dropout import MCDropoutMechanism
-from src.recoding.perplexity import PerplexityRecoding
+from src.recoding.perplexity import SurprisalRecoding
 from src.recoding.variational import VariationalMechanism
 from src.recoding.anchored_ensemble import AnchoredEnsembleMechanism
 
 # GLOBALS
 RECODING_TYPES = {
     "ensemble": AnchoredEnsembleMechanism,
-    "perplexity": PerplexityRecoding,
+    "perplexity": SurprisalRecoding,
     "mc_dropout": MCDropoutMechanism,
     "variational": VariationalMechanism
 }

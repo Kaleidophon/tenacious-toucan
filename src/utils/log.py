@@ -72,6 +72,9 @@ class StatsCollector:
 
     @classmethod
     def _reduce_deltas(cls, deltas: List[torch.Tensor]):
+        """
+        Reduce all delta values and return the mean.
+        """
         deltas = torch.stack(deltas)
         mean_delta = torch.flatten(deltas).mean()
 
@@ -79,6 +82,9 @@ class StatsCollector:
 
     @classmethod
     def _reduce_recoding_gradients(cls, recoding_gradients: List[torch.Tensor]):
+        """
+        Reduce all recoding gradients by computing the average norm.
+        """
         recoding_gradients = torch.stack(recoding_gradients)
         mean_grad_norm = recoding_gradients.mean()
 
@@ -86,6 +92,9 @@ class StatsCollector:
 
     @classmethod
     def _reduce_step_sizes(cls, step_sizes: List[StepSize]):
+        """
+        Reduce step sizes by returning the average.
+        """
         step_sizes = torch.stack(step_sizes)
         mean_step_size = torch.flatten(step_sizes).mean()
 

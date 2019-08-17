@@ -4,21 +4,21 @@ Abstract superclass for a RNN that processes sequence step-wise.
 
 # STD
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 # EXT
 import torch
 from torch import nn, Tensor
 
 # PROJECT
-from src.utils.types import AmbiguousHidden
+from src.utils.types import AmbiguousHidden, RecurrentOutput, Device, HiddenDict
 
 
 class AbstractRNN(ABC, nn.Module):
     """
     Abstract RNN class defining some common attributes and functions.
     """
-    def __init__(self, rnn_type, hidden_size, embedding_size, num_layers, device: torch.device = "cpu"):
+    def __init__(self, rnn_type: str, hidden_size: int, embedding_size: int, num_layers: int, device: Device = "cpu"):
         """
         Parameters
         ----------
@@ -30,7 +30,7 @@ class AbstractRNN(ABC, nn.Module):
             Dimensionality of word embeddings.
         num_layers: int
             Number of RNN layers.
-        device: torch.device
+        device: Device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
         super().__init__()
@@ -39,10 +39,9 @@ class AbstractRNN(ABC, nn.Module):
         self.embedding_size = embedding_size
         self.num_layers = num_layers
         self.device = device
-        self.inferred_device = device
 
     @abstractmethod
-    def forward(self, input_var: Tensor, hidden: Optional[Tensor] = None, **additional: Dict) -> Tuple[Tensor, Tensor]:
+    def forward(self, input_var: Tensor, hidden: Optional[HiddenDict] = None, **additional: Dict) -> RecurrentOutput:
         """
         Process a sequence of input variables. Has to be overridden in subclass.
 
@@ -50,7 +49,7 @@ class AbstractRNN(ABC, nn.Module):
         ----------
         input_var: Tensor
             Current input variable.
-        hidden: Tensor
+        hidden: Optional[HiddenDict]
             Current hidden state.
         additional: dict
             Dictionary of additional information delivered via keyword arguments.
@@ -59,12 +58,12 @@ class AbstractRNN(ABC, nn.Module):
         -------
         out: Tensor
             Decoded output Tensor of current time step.
-        hidden: Tensor
-            Hidden state of current time step after recoding.
+        hidden: AmbiguousHidden
+            Tuple of hidden state from the current time step.
         """
         ...
 
-    def init_hidden(self, batch_size: int, device: torch.device) -> AmbiguousHidden:
+    def init_hidden(self, batch_size: int, device: Device) -> AmbiguousHidden:
         """
         Initialize the hidden states for the current network.
 
@@ -72,7 +71,7 @@ class AbstractRNN(ABC, nn.Module):
         -----------
         batch_size: int
             Batch size used for training.
-        device: torch.device
+        device: Device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
         Returns

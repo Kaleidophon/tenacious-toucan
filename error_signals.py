@@ -42,8 +42,6 @@ LATEX_LABELS = {
 ScoredSentence = namedtuple("ScoredSentence", ["sentence", "first_scores", "second_scores"])
 RecodingSteps = Union[List[int], str]
 
-# TODO: Collect step size
-
 
 def main() -> None:
     config_dict = manage_config()
