@@ -308,7 +308,7 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
 
     # Enable latex use
     plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
+    plt.rc('font', family='serif', size=15)
 
     # Determine axes
     data_keys = set(scored_sentence.first_scores.keys()) | set(scored_sentence.second_scores.keys())
@@ -375,7 +375,7 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
                 if p_value <= 0.05:
                     significant_steps.append(i)
 
-    plt.xticks(x, tokens, fontsize=10)
+    plt.xticks(x, tokens, fontsize=15)
 
     # Draw vertical lines
     for x_ in range(0, len(tokens), 2):
@@ -406,18 +406,19 @@ def plot_scores(scored_sentence, model_names, first_recoding_steps: RecodingStep
         )
 
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax1.get_xticklabels(), rotation=45, ha="right",
-             rotation_mode="anchor")
+    plt.setp(ax1.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     if "out" in data_keys and "delta" in data_keys:
         handles1, labels1 = ax1.get_legend_handles_labels()
         handels2, labels2 = ax2.get_legend_handles_labels()
         plt.legend(
             handles1 + handels2, labels1 + labels2,
-            loc='upper center', bbox_to_anchor=(0.5, -0.175), fontsize=8, fancybox=True, ncol=3
+            loc='upper center', bbox_to_anchor=(0.5, -0.35), fancybox=True, ncol=2, prop={"size": 15}
         )
     else:
-        plt.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.175), fancybox=True, ncol=3)
+        plt.legend(
+            loc='upper center', bbox_to_anchor=(0.5, -0.35), fancybox=True, ncol=2, prop={"size": 15}
+        )
 
     plt.tight_layout()
 
