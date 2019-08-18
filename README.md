@@ -25,7 +25,7 @@ All models are evaluated on the Penn Treebank using a Language Modeling objectiv
 
 TODO
 
-<object data="img/readme/ppl_delta_fixed_all_t29.pdf" type="application/pdf" width="200px"></object><object data="img/readme/ppl_delta_fixed_single_t64.pdf" type="application/pdf" width="200px"></object><br>
+<img src="img/readme/qualitative1.png" width="350"><img src="img/readme/qualitative2.png" width="350"><br>
 
 ### Usage
 
