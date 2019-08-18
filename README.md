@@ -14,9 +14,9 @@ In humans, challenging cases like garden path sentences (an instance of this bei
 However, they are still able to correct their representation accordingly and recover when new information is encountered. 
 Inspired by this, I propose an augmentation to standard RNNs in form of a gradient-based correction mechanism (*recoder*). 
 
-The mechanism explored in this work is inspired by work of Giulianelli et al., 2018, who demonstrated that activations in a LSTM can be corrected in order to recover corrupted information (interventions). 
+The mechanism explored in this work is inspired by work of Giulianelli et al., 2018, who demonstrated that activations in a LSTM can be corrected in order to recover corrupted information (*interventions*). 
 
-In my thesis, I present a generalized framework and implementation based on this idea to dynamically adapt hidden activations based on local error signals (recoding).
+In my thesis, I present a generalized framework and implementation based on this idea to dynamically adapt hidden activations based on local error signals (*recoding*).
 I explore signals which are either based directly on the task’s objective (*surprisal*) or on the model’s confidence (in the form of its *predictive entropy*), leveraging recent techniques from Bayesian Deep Learning (Gal and Ghahramani, 2016b; Pearce et al., 2018).
 Crucially, these updates take place on an activation rather than a parameter level and are performed during training and testing alike. I conduct different experiments in the context of language modeling, where the impact of using such a mechanism is examined in detail.
 All models are evaluated on the Penn Treebank using a Language Modeling objective.
@@ -28,8 +28,8 @@ All models are evaluated on the Penn Treebank using a Language Modeling objectiv
 While the theoretical guarantees of recoding could be confirmed (see figures: On the left you can see how recoding lowers the
 error signal encoded in hidden activations consistently compared to the same model not using recoding. On the right you can see
 that in a recurrent setting, recoding even decreases the error signal at later time steps), empirical results show 
-that the problem is a bit more challenging: When using a completely unsupervised approach to recoding using the model's 
-predictive entropy, the model sometimes becomes too confident about mispredictions and performs worse than the baseline. 
+that the problem is a bit more challenging: When leveraging a completely unsupervised approach to recoding using the model's 
+predictive entropy, the model sometimes becomes too confident about mispredictions and therefore performs worse than the baseline. 
 In the case of supervised surprisal recoding, we can only observe miniscule improvements in the best case.
 
 In short, this hints at the fact that most errors for Language Modeling in RNNs might not stem from faulty hidden activations but 
@@ -64,7 +64,8 @@ Then, use the main training script and specify the path of the corresponding con
     python3 train.py --config configs/gpu_train_mcdropout.json --step_type learned
     
 Supplying more command line argument overrides parameters specified in the config file, in this case we are changing the
-recoding step size from being a fixed value to an additional parameter that is being learned during the training.
+recoding step size from being a fixed value to an additional parameter that is being learned during the training. In case
+you are training on CPU (not recommend), do not forget to supply `--device cpu`.
 
 `eval.py` is used for simple evaluation of trained models. With `ablation.py`, the ablation study in chapter 5.3.5 can be performed,
 where the effect of removing the recoder from a recoding model or adding the mechanism to a baseline model is assessed.
@@ -73,7 +74,7 @@ Finally, `qualitative.py` can be used to replicate the plots displayed in chapte
 
 ### Replication of Gulianelli et al. (2018)
 
-To replicate the finding of Gulianelli et al. (2018), simply run the following the following script:
+To replicate the findings of Gulianelli et al. (2018), simply run the following the following script:
 
     sh replicate_giulianelli.py
     
