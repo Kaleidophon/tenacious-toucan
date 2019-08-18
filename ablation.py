@@ -61,9 +61,7 @@ def main():
     for i, model in enumerate(models):
         print(f"\rEvaluating model {i+1} / {len(weight_model_paths)}...", end="", flush=True)
 
-        perplexity = evaluate_model(
-            model, test_set, batch_size, device=device, perplexity=True
-        )
+        perplexity = evaluate_model(model, test_set, batch_size, device=device)
         perplexities.append(perplexity)
         del model
 

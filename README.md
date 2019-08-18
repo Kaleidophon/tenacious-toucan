@@ -12,7 +12,7 @@ In Recurrent Neural Networks (RNNs), encoding information in a suboptimal or err
 representations based on later elements in the sequence and subsequently lead to wrong predictions and a worse model performance. 
 In humans, challenging cases like garden path sentences (an instance of this being the infamous *The horse raced past the barn fell*) can lead their language understanding astray. 
 However, they are still able to correct their representation accordingly and recover when new information is encountered. 
-Inspired by this, I propose an augmentation to standard RNNs in form of a gradient-based correction mechanism. 
+Inspired by this, I propose an augmentation to standard RNNs in form of a gradient-based correction mechanism (*recoder*). 
 
 The mechanism explored in this work is inspired by work of Giulianelli et al., 2018, who demonstrated that activations in a LSTM can be corrected in order to recover corrupted information (interventions). 
 
@@ -26,7 +26,7 @@ All models are evaluated on the Penn Treebank using a Language Modeling objectiv
 <img src="img/readme/qualitative1.png" width="400"><img src="img/readme/qualitative2.png" width="400"><br>
 
 While the theoretical guarantees of recoding could be confirmed (see figures: On the left you can see how recoding lowers the
-error signal encoded in hidden activations consistenly compared to the same model not using recoding. On the right you can see
+error signal encoded in hidden activations consistently compared to the same model not using recoding. On the right you can see
 that in a recurrent setting, recoding even decreases the error signal at later time steps), empirical results show 
 that the problem is a bit more challenging: When using a completely unsupervised approach to recoding using the model's 
 predictive entropy, the model sometimes becomes too confident about mispredictions and performs worse than the baseline. 
@@ -43,11 +43,35 @@ To run any code in this repository, first clone the repository and install the r
     git clone https://github.com/Kaleidophon/tenacious-toucan.git
     pip3 install -r requirements.txt
     
+All the code was developed in Python 3.7, compatability with other versions is not guaranteed.
+    
 ### Replication of main results
 
-TODO
+(Note: All the options for the different project scripts are not explore here, use `-h` or `--help` to find out 
+about available command line arguments.)
 
-#### Replication of Gulianelli et al. (2018)
+The config files for the best found hyperparameters of the different models can be found in the `configs` folder:
+
+* `configs/gpu_train_vanilla.json` - Training options for baseline
+* `configs/gpu_train_surprisal.json` - Training options for recoding using the model's surprisal
+* `configs/gpu_train_mcdropout.json` - Training options for recoding using the model's pred. entropy estimated with MC Dropout (Gal & Ghahramani, 2016b)
+* `configs/gpu_train_ensemble.json` - Training options for recoding using the model's pred. entropy estimated with Bayesian Anchored Ensembles (Pearce et al., 2018)
+
+In order to sample new configurations of hyperparameters, `parameter_search.py` can be used.
+
+Then, use the main training script and specify the path of the corresponding config file to train a model, e.g.
+
+    python3 train.py --config configs/gpu_train_mcdropout.json --step_type learned
+    
+Supplying more command line argument overrides parameters specified in the config file, in this case we are changing the
+recoding step size from being a fixed value to an additional parameter that is being learned during the training.
+
+`eval.py` is used for simple evaluation of trained models. With `ablation.py`, the ablation study in chapter 5.3.5 can be performed,
+where the effect of removing the recoder from a recoding model or adding the mechanism to a baseline model is assessed.
+
+Finally, `qualitative.py` can be used to replicate the plots displayed in chapter 6 and this README. 
+
+### Replication of Gulianelli et al. (2018)
 
 To replicate the finding of Gulianelli et al. (2018), simply run the following the following script:
 
@@ -70,7 +94,7 @@ This script might take while to execute, to better run it in the background and 
 meantime :coffee:
 
 Lastly, it should be noted that the training of the Diagnostic Classifiers introduces some randomness into the 
-replication, because the training splits are generated randomly everytime, and differently trained Diagnostic Classifiers
+replication, because the training splits are generated randomly every time, and differently trained Diagnostic Classifiers
 therefore also impact the effects of interventions in a different way. To repeat the experiments with different classifiers
 again, delete the results in `data/classifiers/giulianelli/models` and `data/classifiers/giulianelli/preds` and execute 
 `replication/classify.py` and `replication/replicate.py` again.

@@ -129,7 +129,7 @@ def init_argparser() -> ArgumentParser:
     from_cmd.add_argument("--model_config", type=str, default=None, help="Path to model config defining parameters "
                                                                          "that are not being searched")
     from_cmd.add_argument("--recoding_type", type=str, default=None,
-                          choices=["mc_dropout", "perplexity", "ensemble", "variational"],
+                          choices=["mc_dropout", "surprisal", "ensemble"],
                           help="Recoding model type used for training. Choices include recoding based on MC Dropout,"
                                "perplexity and anchored ensembles. If not specified, a vanilla model without recoding"
                                "is used.")
