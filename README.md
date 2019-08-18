@@ -17,15 +17,24 @@ Inspired by this, I propose an augmentation to standard RNNs in form of a gradie
 The mechanism explored in this work is inspired by work of Giulianelli et al., 2018, who demonstrated that activations in a LSTM can be corrected in order to recover corrupted information (interventions). 
 
 In my thesis, I present a generalized framework and implementation based on this idea to dynamically adapt hidden activations based on local error signals (recoding).
-I explore signals which are either based directly on the task’s objective (*surprisal*) or on the model’s confidence (in the form of its *predictive entropy*), leveraging recent techniques from Bayesian Deep Learning (Gal and Ghahramani, 2016b; Gal and Ghahramani, 2016a; Pearce et al., 2018).
+I explore signals which are either based directly on the task’s objective (*surprisal*) or on the model’s confidence (in the form of its *predictive entropy*), leveraging recent techniques from Bayesian Deep Learning (Gal and Ghahramani, 2016b; Pearce et al., 2018).
 Crucially, these updates take place on an activation rather than a parameter level and are performed during training and testing alike. I conduct different experiments in the context of language modeling, where the impact of using such a mechanism is examined in detail.
 All models are evaluated on the Penn Treebank using a Language Modeling objective.
 
 ### Findings
 
-TODO
+<img src="img/readme/qualitative1.png" width="400"><img src="img/readme/qualitative2.png" width="400"><br>
 
-<img src="img/readme/qualitative1.png" width="350"><img src="img/readme/qualitative2.png" width="350"><br>
+While the theoretical guarantees of recoding could be confirmed (see figures: On the left you can see how recoding lowers the
+error signal encoded in hidden activations consistenly compared to the same model not using recoding. On the right you can see
+that in a recurrent setting, recoding even decreases the error signal at later time steps), empirical results show 
+that the problem is a bit more challenging: When using a completely unsupervised approach to recoding using the model's 
+predictive entropy, the model sometimes becomes too confident about mispredictions and performs worse than the baseline. 
+In the case of supervised surprisal recoding, we can only observe miniscule improvements in the best case.
+
+In short, this hints at the fact that most errors for Language Modeling in RNNs might not stem from faulty hidden activations but 
+instead from other parts of the model that are not directly corrected by recoding, e.g. the embedding and decoding as well 
+as all intermediate hidden layers. Refer to thesis chapter 7 and 8 for a more detailed discussion.
 
 ### Usage
 
@@ -69,6 +78,11 @@ again, delete the results in `data/classifiers/giulianelli/models` and `data/cla
 
 ### References
 
-Giulianelli, Mario, et al. "Under the Hood: Using Diagnostic Classifiers to Investigate and Improve how Language Models Track Agreement Information." arXiv preprint arXiv:1808.08079 (2018).
+Gal, Yarin and Zoubin Ghahramani (2016b). „Dropout as a Bayesian approximation: Representing model uncertainty in deep learning“. In: International Conference on Machine Learning, pp. 1050–1059
 
-Gulordava, Kristina, et al. "Colorless green recurrent networks dream hierarchically." arXiv preprint arXiv:1803.11138 (2018).
+Giulianelli, Mario, Jack Harding, Florian Mohnert, Dieuwke Hupkes, and Willem Zuidema (2018). „Under the Hood: Using Diagnostic Classifiers to Investigate and Improve how Language Models Track Agreement Information“. In: Proceedings of the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP, pp. 240– 248
+
+Gulordava, Kristina, Piotr Bojanowski, Edouard Grave, Tal Linzen, and Marco Baroni (2018). „Colorless Green Recurrent Networks Dream Hierarchically“. In: Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics:
+Human Language Technologies, NAACL-HLT 2018, New Orleans, Louisiana, USA, June 1-6, 2018, Volume 1 (Long Papers), pp. 1195–1205
+
+Pearce, Tim, Mohamed Zaki, Alexandra Brintrup, and Andy Neely (2018). „Uncertainty in Neural Networks: Bayesian Ensembling“. In: stat 1050, p. 12
