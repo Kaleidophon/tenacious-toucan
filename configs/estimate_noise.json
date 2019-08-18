@@ -1,6 +1,0 @@
-{
-  "corpus_dir": "data/corpora/ptb",
-  "max_seq_len": 35,
-  "batch_size": 128,
-  "device": "cpu"
-}
