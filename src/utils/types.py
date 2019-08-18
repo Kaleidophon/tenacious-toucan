@@ -3,7 +3,7 @@ Define custom types used in this project.
 """
 
 # STD
-from typing import Union, Dict, Iterable
+from typing import Union, Dict, Iterable, Tuple
 
 # EXT
 import numpy as np
@@ -35,8 +35,12 @@ AmbiguousHidden = Union[Tensor, Iterable[Tensor]]
 # Dictionary of layer -> hidden state
 HiddenDict = Dict[int, AmbiguousHidden]
 
-# Dictionary of layer / connection type -> dropout mask
-DropoutDict = Dict[str, AmbiguousHidden]
+# Output of RNN at a time step - output distribution and hidden state
+RecurrentOutput = Tuple[Tensor, HiddenDict]
+
+# Output of a recoding RNN at a time step - either RecurrentOutput or additionally the unrecoded output activations
+# in the diagnostics case
+RecodingOutput = Union[RecurrentOutput, Tuple[Tensor, Tensor, HiddenDict]]
 
 # Step size used for recoding: Either a single float applied to all batch instances or tensor of one individual step
 # size per instance

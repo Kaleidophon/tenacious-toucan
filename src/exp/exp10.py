@@ -1,9 +1,6 @@
 """
-Plot results of experiment 9.
+Plot results of experiment 10.
 """
-
-# STD
-import re
 
 # PROJECT
 from src.utils.plot import *
@@ -27,10 +24,10 @@ STEPSIZES_TO_IDX2 = {
 SAMPLES_TO_IDX = {1: 1, 2: 2, 5: 3, 10: 4, 25: 5, 50: 6}
 DROPOUT_TO_IDX = {0.1: 1, 0.2: 2, 0.3: 3, 0.4: 4, 0.5: 5, 0.6: 6}
 HIDDEN_TO_IDX = {"hx_l0": 1, "cx_l0": 2, "hx_l1": 3, "cx_l1": 4}
-MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Surprisal"} #, "variational": "Variational"}
-MODEL_TYPE_TO_CMAP = {"ensemble": "Greens", "mcd": "Purples", "perplexity": "Oranges"} #, "variational": "Blues"}
+MODEL_TYPES = {"ensemble": "BAE", "mcd": "MC Dropout", "perplexity": "Surprisal"}
+MODEL_TYPE_TO_CMAP = {"ensemble": "Greens", "mcd": "Purples", "perplexity": "Oranges"}
 
-# Use latex
+# Use latex for all plots
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif', size=15)
 

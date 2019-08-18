@@ -1,6 +1,6 @@
 """
 Define a recoding mechanism. This mechanism is based on the idea of an intervention mechanism (see
-diagnnose.interventions.mechanism.InterventionMechanism), but works entirely supervised. Furthermore, it can already
+diagnnose.interventions.mechanism.InterventionMechanism). Furthermore, it can already
 be employed during training, not only testing time.
 """
 
@@ -14,18 +14,11 @@ from torch import Tensor
 from torch.autograd import grad as compute_grads
 
 # PROJECT
+from src.recoding.step import STEP_TYPES
 from src.models.abstract_rnn import AbstractRNN
 from src.utils.compatability import RNNCompatabilityMixin
 from src.utils.log import StatsCollector
-from src.recoding.step import FixedStepPredictor, AdaptiveStepPredictor, LearnedFixedStepPredictor
-from src.utils.types import Device, HiddenDict, StepSize
-
-# CONSTANTS
-STEP_TYPES = {
-    "fixed": FixedStepPredictor,
-    "mlp": AdaptiveStepPredictor,
-    "learned": LearnedFixedStepPredictor
-}
+from src.utils.types import Device, HiddenDict, StepSize, RecurrentOutput
 
 
 class RecodingMechanism(ABC, RNNCompatabilityMixin):
@@ -34,6 +27,18 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
     """
     @abstractmethod
     def __init__(self, model: AbstractRNN, step_type: str, predictor_kwargs: Dict):
+        """
+        Initialize the mechanism
+
+        Parameters
+        ----------
+        model: AbstractRNN
+            Model instance to apply the mechanism to.
+        step_type: str
+            Specify the type of recoding step used.
+        predictor_kwargs: dict
+            Init args for step predictor as dictionary.
+        """
         assert step_type in STEP_TYPES, \
             f"Invalid step type {step_type} found! Choose one of {', '.join(STEP_TYPES.keys())}"
 
@@ -58,8 +63,8 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
                 self.model.add_module(f"predictor{n}_l{l}", p)
 
     @abstractmethod
-    def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: torch.device,
-                      **additional: Dict) -> Tuple[Tensor, Tensor]:
+    def recoding_func(self, input_var: Tensor, hidden: HiddenDict, out: Tensor, device: Device,
+                      **additional: Dict) -> RecurrentOutput:
         """
         Recode activations of current step based on some logic defined in a subclass.
 
@@ -71,7 +76,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Dictionary of all hidden (and cell states) of all network layers.
         out: Tensor
             Output Tensor of current time step.
-        device: torch.device
+        device: Device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
         additional: dict
             Dictionary of additional information delivered via keyword arguments.
@@ -80,13 +85,13 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         -------
         out: Tensor
             Re-decoded output Tensor of current time step.
-        hidden: Tensor
+        hidden: HiddenDict
             Hidden state of current time step after recoding.
         """
         ...
 
     def recode_activations(self, hidden: HiddenDict, out: Tensor, delta: Tensor, device: Device,
-                           **additional: Any) -> Tuple[Tensor, HiddenDict]:
+                           **additional: Any) -> RecurrentOutput:
         """
         Recode all activations stored in a HiddenDict based on an error signal delta.
 
@@ -94,16 +99,16 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         ----------
         hidden: HiddenDict
             Dictionary of all hidden (and cell states) of all network layers.
-         out: Tensor
+        out: Tensor
             Output Tensor of current time step.
         delta: Tensor
             Current error signal that is used to calculate the gradients w.r.t. the hidden states.
-        device: torch.device
+        device: Device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
 
         Returns
         -------
-        new_out_dist, new_hidden: Tuple[Tensor, HiddenDict]
+        new_out_dist, new_hidden: RecurrentOutput
             New re-decoded output distribution alongside all recoded hidden activations.
         """
         # Calculate gradient of uncertainty w.r.t. hidden states and make step
@@ -148,9 +153,6 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         recoding_grad = self.replace_nans(recoding_grad)
 
         # Perform recoding by doing a gradient decent step
-        # Perform update directly on hidden.data which isn't really best practice here, on the other hand we guarantee
-        # this way that the normal RNN computational graph is left untouched
-        #hidden.data = hidden.data - step_size * recoding_grad
         hidden = hidden - step_size * recoding_grad
 
         return hidden
@@ -167,7 +169,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
             Current error signal that is used to calculate the gradient w.r.t. the current hidden state.
         hidden: HiddenDict
             Dictionary of all hidden (and cell states) of all network layers.
-        device: torch.device
+        device: Device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
         # Compute recoding gradients - in contrast to the usual backward() call, we calculate the derivatives
@@ -175,7 +177,7 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         #
         # As far as I understood, when using backward with some vector instead of a scalar, we also supply
         # the gradients of the loss term w.r.t. the parameters. We don't have a classic scalar loss here, so just use
-        # a tensor of ones instead. As this grad_tensor is multiplied with the remaining gradient following the chain
+        # a tensor of ones instead. As this grad_outputs is multiplied with the remaining gradient following the chain
         # rule, we actually only obtain the derivative of delta w.r.t. the activations.
         # https://medium.com/@saihimalallu/how-exactly-does-torch-autograd-backward-work-f0a671556dc4 was pretty
         # helpful in realizing this.
@@ -230,12 +232,25 @@ class RecodingMechanism(ABC, RNNCompatabilityMixin):
         # return the corresponding element from a tensor of zeros, otherwise the original tensor's element
         return torch.where(tensor != tensor, torch.ones(tensor.shape).to(tensor.device), tensor)
 
-    def train(self, mode=True):
+    def train(self, mode: bool = True) -> None:
+        """
+        Set the train mode for the mechanism. Overriding this function is necessary to pass any change in training mode
+        to the step predictors as well.
+
+        Parameters
+        ----------
+        mode: bool
+            Training mode to the set the mechanisms to.
+        """
         for predictors in self.predictors.values():
             for pred in predictors:
                 pred.train(mode)
 
-    def eval(self):
+    def eval(self) -> None:
+        """
+        Put the model into eval model. Overriding this function is necessary to pass any change in mode to the recoding
+        mechanism as well.
+        """
         for predictors in self.predictors.values():
             for pred in predictors:
                 pred.eval()

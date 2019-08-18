@@ -108,7 +108,7 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
     """
     Function that determines the recoding step size based on a window of previous hidden states.
     """
-    def __init__(self, predictor_layers: Iterable[int], hidden_size: int, window_size: int, **unused):
+    def __init__(self, predictor_layers: Iterable[int], hidden_size: int, **unused: Any):
         """
         Initialize model.
 
@@ -118,18 +118,16 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
             Layer sizes for MLP as some sort of iterable.
         hidden_size: int
             Dimensionality of hidden activations.
-        window_size: int
-            Number of previous hidden states to be considered for prediction.
         """
         super().__init__()
         self.predictor_layers = predictor_layers
         self.hidden_size = hidden_size
-        self.window_size = window_size
+        self.window_size = 1
 
         # Init layers
         self.model = nn.Sequential()
         last_layer_size = predictor_layers[0]
-        self.model.add_module("input", nn.Linear(hidden_size * window_size, last_layer_size))
+        self.model.add_module("input", nn.Linear(hidden_size, last_layer_size))
         self.model.add_module("relu0", ReLU())
 
         for layer_n, current_layer_size in enumerate(predictor_layers[1:]):
@@ -198,7 +196,6 @@ class AdaptiveStepPredictor(AbstractStepPredictor):
         step_size: float
             Predicted step size.
         """
-        # TODO: Re-write buffer as actually registered PyTorch buffer
         # Detach from graph so gradients don't flow through them when backpropagating for recoding or main gradients
         hidden = hidden.detach()
         batch_size, _ = hidden.size()
@@ -243,3 +240,10 @@ class DummyPredictor(AbstractStepPredictor):
             Batch size x 1 tensor of predicted step sizes per batch instance or one single float for the whole batch.
         """
         return torch.Tensor([0]).to(device)
+
+
+STEP_TYPES = {
+    "fixed": FixedStepPredictor,
+    "mlp": AdaptiveStepPredictor,
+    "learned": LearnedFixedStepPredictor
+}

@@ -71,25 +71,3 @@ class RNNCompatabilityMixin:
         # GRU / Vanilla RNN case
         else:
             return hidden
-
-    @staticmethod
-    def scatter(hidden: AmbiguousHidden) -> Iterable[Iterable]:
-        """
-        Ensure compatibility between GRU and LSTM RNNs by always selecting returning hidden as an iterable.
-
-        Parameters
-        ----------
-        hidden: AmbiguousHidden
-            Either one hidden state or tuple of hidden and cell state.
-
-        Returns
-        -------
-        hidden_list: Iterable[Iterable]
-            Nested list of hidden state(s).
-        """
-        # LSTM case
-        if type(hidden) == tuple:
-            return [hidden[0]], [hidden[1]]
-        # GRU / Vanilla RNN case
-        else:
-            return [hidden]

@@ -54,7 +54,7 @@ def main() -> None:
 
         print(f"\rEvaluating model {i+1} / {len(model_paths)}...", end="", flush=True)
         perplexity, speed = evaluate_model(
-            model, test_set, batch_size, device=device, perplexity=True, return_speed=True
+            model, test_set, batch_size, device=device, return_speed=True
         )
         scores[_grouping_function(model_path)] = np.append(scores[_grouping_function(model_path)], perplexity)
         speeds[_grouping_function(model_path)] = np.append(speeds[_grouping_function(model_path)], speed)

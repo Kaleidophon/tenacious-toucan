@@ -2,9 +2,6 @@
 Plot results for experiment 4.
 """
 
-# STD
-import re
-
 # PROJECT
 from src.utils.plot import *
 

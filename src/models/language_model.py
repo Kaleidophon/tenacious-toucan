@@ -3,7 +3,7 @@ Implementation of a simple LSTM language model.
 """
 
 # STD
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict
 
 # EXT
 import torch
@@ -12,14 +12,15 @@ from overrides import overrides
 
 # PROJECT
 from src.models.abstract_rnn import AbstractRNN
-from src.utils.types import HiddenDict, AmbiguousHidden, Device
+from src.utils.types import HiddenDict, AmbiguousHidden, Device, RecurrentOutput
 
 
 class LSTMLanguageModel(AbstractRNN):
     """
     Implementation of a LSTM language model that can process inputs token-wise or in sequences.
     """
-    def __init__(self, vocab_size, hidden_size, embedding_size, num_layers, dropout, device: torch.device = "cpu"):
+    def __init__(self, vocab_size: int, hidden_size: int, embedding_size: int, num_layers: int, dropout: float,
+                 device: Device = "cpu"):
         """
         Parameters
         ----------
@@ -31,7 +32,9 @@ class LSTMLanguageModel(AbstractRNN):
             Dimensionality of word embeddings.
         num_layers: int
             Number of RNN layers.
-        device: torch.device
+        dropout: float
+            Probability of dropout layer that is being applied before decoding.
+        device: Device
             Torch device the model is being trained on (e.g. "cpu" or "cuda").
         """
         super().__init__("LSTM", hidden_size, embedding_size, num_layers, device)
@@ -62,31 +65,21 @@ class LSTMLanguageModel(AbstractRNN):
             for gate_name, gate in self.gates[l].items():
                 super().add_module(f"{gate_name}_l{l}", gate)
 
-    @staticmethod
-    def create_from(model: AbstractRNN) -> AbstractRNN:
-        """
-        Initialize a LSTM Language Model using the parameters from another model.
-        """
-        new_model = LSTMLanguageModel(
-            model.vocab_size, model.hidden_size, model.embedding_size, model.vocab_size, 0.5, model.device
-        )  # Use dummy values
-
-        # Copy trained parameters
-        new_model.embeddings = model.embeddings
-        new_model.dropout_layer = model.dropout_layer
-        new_model.decoder = model.decoder
-
-        for layer, gates in model.gates.items():
-            new_model.gates[layer] = gates
-
-            for gate_name, gate in gates.items():
-                super().add_module(f"{gate_name}_l{layer}", gate)
-
-        return new_model
-
     def load_parameters_from(self, model: AbstractRNN, device: Device) -> AbstractRNN:
         """
         Use another model's parameters to replace this model's ones.
+
+        Parameters
+        ----------
+        model: AbstractRNN
+            Model to load the parameters from.
+        device: Device
+            Torch device the model is being trained on (e.g. "cpu" or "cuda").
+
+        Returns
+        -------
+        self: AbstractRNN
+            Model instance with new weights.
         """
         # Copy trained parameters
         self.embeddings = model.embeddings.to(device)
@@ -99,8 +92,7 @@ class LSTMLanguageModel(AbstractRNN):
         return self
 
     @overrides
-    def forward(self, input_var: Tensor, hidden: Optional[HiddenDict] = None,
-                **additional: Dict) -> Tuple[Tensor, HiddenDict]:
+    def forward(self, input_var: Tensor, hidden: Optional[HiddenDict] = None, **additional: Dict) -> RecurrentOutput:
         """
         Process a sequence of input variables.
 
@@ -118,7 +110,7 @@ class LSTMLanguageModel(AbstractRNN):
         out: Tensor
             Decoded output Tensor of current time step.
         hidden: Tensor
-            Hidden state of current time step after recoding.
+            Hidden state of current time step.
         """
 
         if hidden is None:
@@ -180,7 +172,7 @@ class LSTMLanguageModel(AbstractRNN):
 
         return hx, cx
 
-    def predict_distribution(self, output: Tensor, out_layer: Optional[nn.Module] = None):
+    def predict_distribution(self, output: Tensor, out_layer: Optional[nn.Module] = None) -> Tensor:
         """
         Generate the output distribution using an affine transformation.
 

@@ -19,8 +19,8 @@ from src.utils.types import Device
 from src.utils.compatability import RNNCompatabilityMixin as CompatibleRNN
 
 
-def evaluate_model(model: AbstractRNN, test_set: Corpus, batch_size: int, device: Device, perplexity: bool = False,
-                   give_gold: bool = True, return_speed: bool = False) -> Tuple[float, float]:
+def evaluate_model(model: AbstractRNN, test_set: Corpus, batch_size: int, device: Device,
+                   return_speed: bool = False) -> Tuple[float, float]:
     """
     Evaluate a model on a given test set.
 
@@ -34,11 +34,6 @@ def evaluate_model(model: AbstractRNN, test_set: Corpus, batch_size: int, device
         Batch size used for training.
     device: Device
         Torch device the model is being trained on (e.g. "cpu" or "cuda").
-    perplexity: bool
-        Indicate whether perplexity should be returned instead of the loss.
-    give_gold: bool
-        Determine whether recoding models are given the next gold target to compute the recoding signal or have to take
-        their best guess.
     return_speed: bool
         Flag that indicates whether the processing speed should be returned as well.
 
@@ -78,13 +73,12 @@ def evaluate_model(model: AbstractRNN, test_set: Corpus, batch_size: int, device
     duration = end - start
     speed = len(test_set) / duration
 
-    if perplexity:
-        test_metric /= global_norm
+    test_metric /= global_norm
 
-        try:
-            test_metric = math.exp(test_metric)
-        except OverflowError:
-            return sys.maxsize  # In case of integer overflow, return highest possible integer
+    try:
+        test_metric = math.exp(test_metric)
+    except OverflowError:
+        return sys.maxsize  # In case of integer overflow, return highest possible integer
 
     if return_speed:
         return test_metric, speed
